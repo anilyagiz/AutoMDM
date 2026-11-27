@@ -1,0 +1,3 @@
+yarn run v1.22.22
+$ peggy --format es --allowed-start-rules start,no_stmt -o frontend/utilities/osquery_sql_parser/osquery_sql_parser.generated.js frontend/utilities/osquery_sql_parser/osquery_sql.pegjs
+Done in 0.20s.
