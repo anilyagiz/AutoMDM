@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="automdmctl"
+    Language="1033"
+    Version="__VERSION__"
+    Manufacturer="Fleet Device Management (automdm.com)"
+    UpgradeCode="DA27C96F-3832-4E04-A6A9-1FDE1A8B37BE">
+
+    <Package
+      Keywords="automdmctl"
+      Description="AutoMDM device management CLI tool"
+      InstallerVersion="500"
+      Compressed="yes"
+      InstallScope="perMachine"
+      InstallPrivileges="elevated"
+      Languages="1033" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of automdmctl is already installed."
+      AllowSameVersionUpgrades="yes" />
+
+    <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
+    <Property Id="ARPNOMODIFY" Value="yes" Secure="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="AUTOMDMDMDIR" Name="AutoMDM">
+          <Directory Id="INSTALLDIR" Name="automdmctl">
+            <Component Id="C_AutoMDMctlExe" Guid="E8A1B2C3-D4E5-6F78-9A0B-1C2D3E4F5A6B">
+              <File Id="AutoMDMctlExe" Source="root\automdmctl.exe" KeyPath="yes" />
+              <Environment Id="PATH"
+                           Name="PATH"
+                           Value="[INSTALLDIR]"
+                           Permanent="no"
+                           Part="last"
+                           Action="set"
+                           System="yes" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="AutoMDMctlFeature" Title="automdmctl" Level="1">
+      <ComponentRef Id="C_AutoMDMctlExe" />
+    </Feature>
+  </Product>
+</Wix>

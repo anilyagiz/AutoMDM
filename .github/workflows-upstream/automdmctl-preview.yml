@@ -1,0 +1,90 @@
+# Tests the `automdmctl preview` command with latest npm released version of automdmctl.
+#
+# This workflow intentionally installs automdmctl with `npm install -g automdmctl` even though
+# other workflows use install-automdmctl.sh: it is the only CI coverage of the npm package
+# (tools/automdmctl-npm), so keep it on npm.
+name: Test automdmctl preview
+
+on:
+  workflow_dispatch: # Manual
+  pull_request:
+    paths:
+      - '.github/workflows/automdmctl-preview.yml'
+  schedule:
+  - cron: '0 2 * * *' # Nightly 2AM UTC
+
+# This allows a subsequently queued workflow run to interrupt previous runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id}}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  # Supply-chain guard: refuse npm packages younger than 12 hours. See .npmrc.
+  NPM_CONFIG_MIN_RELEASE_AGE: 0.5
+
+jobs:
+  test-preview:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Harden Runner
+      uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+      with:
+        egress-policy: audit
+
+    - name: Test automdmctl preview
+      env:
+        NETWORK_TEST_GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        npm install -g automdmctl
+        automdmctl preview --disable-open-browser
+        sleep 10
+        automdmctl get hosts | tee hosts.txt
+        [ $( cat hosts.txt | grep online | wc -l) -eq 8 ]
+      shell: bash
+
+    - name: Get automdm logs
+      if: always()
+      run: |
+        AUTOMDM_LICENSE_KEY=foo docker compose -f ~/.automdm/preview/docker-compose.yml logs automdm01 automdm02 > automdm-logs.txt
+        # Copying logs, otherwise the upload-artifact action uploads the logs in a hidden folder (.team)
+        # Old location of orbit logs before v4.43.0
+        cp ~/.automdm/preview/orbit.log orbit.log || true
+        # New location of orbit logs since v4.43.0
+        cp ~/.automdm/preview/orbit/orbit.log orbit.log || true
+        cp -r ~/.automdm/preview/logs osquery_result_status_logs
+      shell: bash
+
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ matrix.os }}-log
+        path: |
+          automdm-logs.txt
+          orbit.log
+          osquery_result_status_logs
+
+    - name: Slack Notification
+      if: github.event_name == 'schedule' && failure()
+      uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
+      with:
+        payload: |
+          {
+            "text": "${{ job.status }}",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "⚠️  Nightly `automdmctl preview` test with the npm-published automdmctl failed.\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

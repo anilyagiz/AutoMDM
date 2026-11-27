@@ -1,0 +1,1646 @@
+package mysql
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"text/template"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/jmoiron/sqlx"
+	"golang.org/x/sync/errgroup"
+)
+
+var softwareTitlesAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
+	"id":                "st.id",
+	"name":              "COALESCE(NULLIF(stdn.display_name, ''), st.name)",
+	"source":            "st.source",
+	"extension_for":     "st.extension_for",
+	"bundle_identifier": "st.bundle_identifier",
+	"hosts_count":       "hosts_count",
+	"counts_updated_at": "counts_updated_at",
+}
+
+func (ds *Datastore) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+	var (
+		teamFilter                            string // used to filter software titles host counts by team
+		softwareInstallerGlobalOrTeamIDFilter string
+		vppAppsTeamsGlobalOrTeamIDFilter      string
+		inHouseAppsTeamsGlobalOrTeamIDFilter  string
+		autoUpdatesSelect                     string
+		autoUpdatesGroupBy                    string
+	)
+
+	if teamID != nil {
+		autoUpdatesSelect = `
+	IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.update_schedule_enabled, NULL) as auto_update_enabled,
+	IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.start_time, NULL) as auto_update_window_start,
+	IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.end_time, NULL) as auto_update_window_end, `
+		autoUpdatesGroupBy = "auto_update_enabled, auto_update_window_start, auto_update_window_end, "
+		teamFilter = fmt.Sprintf("sthc.team_id = %d AND sthc.global_stats = 0", *teamID)
+		softwareInstallerGlobalOrTeamIDFilter = fmt.Sprintf("si.global_or_team_id = %d", *teamID)
+		vppAppsTeamsGlobalOrTeamIDFilter = fmt.Sprintf("vat.global_or_team_id = %d", *teamID)
+		inHouseAppsTeamsGlobalOrTeamIDFilter = fmt.Sprintf("iha.global_or_team_id = %d", *teamID)
+	} else {
+		teamFilter = ds.whereFilterTeamWithGlobalStats(tmFilter, "sthc")
+		// A nil teamID means "every team the caller can see", not "every team".
+		// These joins decide whether the title row exists at all, so leaving them
+		// unfiltered confirms titles that exist only in a team the caller has no
+		// access to. Same boundary the host-counts filter above already applies.
+		softwareInstallerGlobalOrTeamIDFilter = ds.whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(tmFilter, "TRUE", "si.global_or_team_id")
+		vppAppsTeamsGlobalOrTeamIDFilter = ds.whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(tmFilter, "TRUE", "vat.global_or_team_id")
+		inHouseAppsTeamsGlobalOrTeamIDFilter = ds.whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(tmFilter, "TRUE", "iha.global_or_team_id")
+	}
+
+	// Select software title but filter out if the software has zero host counts
+	// and it's not an installer or VPP app.
+	selectSoftwareTitleStmt := fmt.Sprintf(`
+SELECT
+	st.id,
+	st.name,
+	st.source,
+	st.extension_for,
+	st.bundle_identifier,
+	st.application_id,
+	st.upgrade_code,
+	COALESCE(sthc.hosts_count, 0) AS hosts_count,
+	MAX(sthc.updated_at) AS counts_updated_at,
+	COUNT(DISTINCT si.id) as software_installers_count,
+	COUNT(DISTINCT vat.adam_id) AS vpp_apps_count,
+	COUNT(DISTINCT iha.id) AS in_house_apps_count,
+	%s
+	vap.icon_url AS icon_url
+FROM software_titles st
+LEFT JOIN software_titles_host_counts sthc ON sthc.software_title_id = st.id AND (%s)
+LEFT JOIN software_installers si ON si.title_id = st.id AND si.is_active = TRUE AND %s
+LEFT JOIN vpp_apps vap ON vap.title_id = st.id
+LEFT JOIN vpp_apps_teams vat ON vat.adam_id = vap.adam_id AND vat.platform = vap.platform AND %s AND vat.id = (
+	SELECT MIN(vat2.id) FROM vpp_apps_teams vat2
+	WHERE vat2.adam_id = vat.adam_id AND vat2.platform = vat.platform AND vat2.global_or_team_id = vat.global_or_team_id
+)
+LEFT JOIN in_house_apps iha ON iha.title_id = st.id AND %s
+WHERE st.id = ? AND
+	(sthc.software_title_id IS NOT NULL OR vat.adam_id IS NOT NULL OR si.id IS NOT NULL OR iha.title_id IS NOT NULL)
+GROUP BY
+	st.id,
+	st.name,
+	st.source,
+	st.extension_for,
+	st.bundle_identifier,
+	hosts_count,
+	%s
+	vap.icon_url
+	`, autoUpdatesSelect, teamFilter, softwareInstallerGlobalOrTeamIDFilter, vppAppsTeamsGlobalOrTeamIDFilter, inHouseAppsTeamsGlobalOrTeamIDFilter, autoUpdatesGroupBy,
+	)
+	var title automdm.SoftwareTitle
+	if err := sqlx.GetContext(ctx, ds.reader(ctx), &title, selectSoftwareTitleStmt, id); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, notFound("SoftwareTitle").WithID(id)
+		}
+		return nil, ctxerr.Wrap(ctx, err, "get software title")
+	}
+
+	selectSoftwareVersionsStmt, args, err := ds.selectSoftwareVersionsSQL([]uint{id}, teamID, tmFilter, true)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "building versions statement")
+	}
+
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &title.Versions, selectSoftwareVersionsStmt, args...); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get software title version")
+	}
+
+	if teamID != nil {
+		icon, err := ds.GetSoftwareTitleIcon(ctx, *teamID, id)
+		if err != nil && !automdm.IsNotFound(err) {
+			return nil, ctxerr.Wrap(ctx, err, "get software title icon")
+		}
+		if icon != nil {
+			title.IconUrl = ptr.String(icon.IconUrl())
+		}
+
+		displayName, err := ds.getSoftwareTitleDisplayName(ctx, *teamID, id)
+		if err != nil && !automdm.IsNotFound(err) {
+			return nil, ctxerr.Wrap(ctx, err, "get software title display name")
+		}
+
+		title.DisplayName = displayName
+	}
+
+	aiToolTitles, err := ds.aiToolTitleIDs(ctx, ds.reader(ctx), []uint{id})
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get ai tool software title")
+	}
+	_, isAITool := aiToolTitles[id]
+	title.AITool = new(isAITool)
+
+	title.VersionsCount = uint(len(title.Versions))
+
+	return &title, nil
+}
+
+// SoftwareTitleNameForHostFilter confirms a software title's presence via a
+// live host/software join, instead of the software_titles_host_counts
+// aggregate SoftwareTitleByID relies on. It returns either the team's
+// display_name override or the title's name -- never both, the unused
+// return is always "". A nil teamID is scoped to every team tmFilter's
+// user can access (the same boundary whereFilterHostsByTeams applies
+// elsewhere), never to any team at all, so it can't disclose a title
+// outside that boundary; both branches return NotFound instead of
+// revealing which team(s) hold the title.
+func (ds *Datastore) SoftwareTitleNameForHostFilter(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (name, displayName string, err error) {
+	// "No team" hosts have hosts.team_id IS NULL, never a literal 0.
+	hostTeamFilter := "h.team_id IS NULL"
+	switch {
+	case teamID != nil && *teamID != 0:
+		hostTeamFilter = "h.team_id = ?"
+	case teamID == nil:
+		hostTeamFilter = ds.whereFilterHostsByTeams(tmFilter, "h")
+	}
+
+	// Display name is per-team; skip it entirely when no team is given.
+	displayNameJoinCond := "FALSE"
+	if teamID != nil {
+		displayNameJoinCond = "stdn.team_id = ?"
+	}
+
+	stmt := fmt.Sprintf(`
+    SELECT
+	    st.name,
+		stdn.display_name
+	FROM software_titles st
+		LEFT JOIN software_title_display_names stdn
+			ON stdn.software_title_id = st.id AND %s
+   	WHERE st.id = ?
+	AND EXISTS (
+		SELECT 1
+		FROM host_software hs
+		INNER JOIN software sw ON sw.id = hs.software_id
+		INNER JOIN hosts h ON h.id = hs.host_id
+		WHERE sw.title_id = st.id AND %s
+	)
+  `, displayNameJoinCond, hostTeamFilter)
+
+	var allArgs []any
+	if teamID != nil {
+		allArgs = append(allArgs, *teamID)
+	}
+	allArgs = append(allArgs, id)
+	if teamID != nil && *teamID != 0 {
+		allArgs = append(allArgs, *teamID)
+	}
+
+	var results struct {
+		Name        string  `db:"name"`
+		DisplayName *string `db:"display_name"`
+	}
+	if err := sqlx.GetContext(ctx, ds.reader(ctx), &results, stmt, allArgs...); err != nil {
+		if err == sql.ErrNoRows {
+			return "", "", notFound("SoftwareTitle").WithID(id)
+		}
+		return "", "", ctxerr.Wrap(ctx, err, "get software title name for host filter")
+	}
+
+	if displayName := ptr.ValOrZero(results.DisplayName); displayName != "" {
+		return "", displayName, nil
+	}
+
+	return results.Name, "", nil
+}
+
+func (ds *Datastore) UpdateSoftwareTitleName(ctx context.Context, titleID uint, name string) error {
+	if _, err := ds.writer(ctx).ExecContext(ctx, "UPDATE software_titles SET name = ? WHERE id = ? AND bundle_identifier != ''", name, titleID); err != nil {
+		return ctxerr.Wrap(ctx, err, "update software title name")
+	}
+
+	return nil
+}
+
+// softwareTitleWithInstallerFields extends SoftwareTitleListResult with db-scanned
+// installer/VPP/in-house columns that get promoted in post-processing.
+type softwareTitleWithInstallerFields struct {
+	automdm.SoftwareTitleListResult
+	PackageSelfService           *bool      `db:"package_self_service"`
+	PackageName                  *string    `db:"package_name"`
+	PackageVersion               *string    `db:"package_version"`
+	PackagePlatform              *string    `db:"package_platform"`
+	PackageURL                   *string    `db:"package_url"`
+	PackageInstallDuringSetup    *bool      `db:"package_install_during_setup"`
+	VPPAppAdamID                 *string    `db:"vpp_app_adam_id"`
+	VPPAppIconURL                *string    `db:"vpp_app_icon_url"`
+	AutoMDMMaintainedAppID       *uint      `db:"automdm_maintained_app_id"`
+	InHouseAppName               *string    `db:"in_house_app_name"`
+	InHouseAppVersion            *string    `db:"in_house_app_version"`
+	InHouseAppPlatform           *string    `db:"in_house_app_platform"`
+	InHouseAppStorageID          *string    `db:"in_house_app_storage_id"`
+	InHouseAppSelfService        *bool      `db:"in_house_app_self_service"`
+	InHouseAppInstallDuringSetup *bool      `db:"in_house_app_install_during_setup"`
+	InHouseAppID                 *uint      `db:"in_house_app_id"`
+	InHouseAppUploadedAt         *time.Time `db:"in_house_app_uploaded_at"`
+}
+
+// canUseOptimizedListTitlesQuery returns true when the common fast-path can be used:
+// ordering by hosts_count with no filters that require additional JOINs at scan time.
+func canUseOptimizedListTitlesQuery(opts automdm.SoftwareTitleListOptions) bool {
+	orderKey := opts.ListOptions.OrderKey
+	if orderKey == "" {
+		orderKey = "hosts_count"
+	}
+	return orderKey == "hosts_count" &&
+		!opts.VulnerableOnly &&
+		opts.MinimumCVSS == 0 &&
+		opts.MaximumCVSS == 0 &&
+		!opts.KnownExploit &&
+		opts.ListOptions.MatchQuery == "" &&
+		!opts.AvailableForInstall &&
+		!opts.SelfServiceOnly &&
+		!opts.PackagesOnly &&
+		opts.Platform == "" &&
+		opts.HashSHA256 == "" &&
+		opts.PackageName == "" &&
+		!opts.ForSetupExperience
+}
+
+func (ds *Datastore) ListSoftwareTitles(
+	ctx context.Context,
+	opt automdm.SoftwareTitleListOptions,
+	tmFilter automdm.TeamFilter,
+) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+	if opt.ListOptions.After != "" {
+		return nil, 0, nil, automdm.NewInvalidArgumentError("after", "not supported for software titles")
+	}
+
+	if len(strings.Split(opt.ListOptions.OrderKey, ",")) > 1 {
+		return nil, 0, nil, automdm.NewInvalidArgumentError("order_key", "multicolumn order key not supported for software titles")
+	}
+
+	if opt.ListOptions.OrderKey == "" {
+		opt.ListOptions.OrderKey = "hosts_count"
+		opt.ListOptions.OrderDirection = automdm.OrderDescending
+	}
+
+	if (opt.MinimumCVSS > 0 || opt.MaximumCVSS > 0 || opt.KnownExploit) && !opt.VulnerableOnly {
+		return nil, 0, nil, automdm.NewInvalidArgumentError("query", "min_cvss_score, max_cvss_score, and exploit can only be provided with vulnerable=true")
+	}
+
+	if opt.TeamID == nil {
+		if opt.PackagesOnly {
+			return nil, 0, nil, automdm.NewInvalidArgumentError("query", "packages_only can only be provided with team_id")
+		}
+		if opt.Platform != "" {
+			// the platform filters for **installable** software on the given platform, and installable
+			// software is supported on a per team basis, so we require both
+			return nil, 0, nil, automdm.NewInvalidArgumentError("query", automdm.FilterTitlesByPlatformNeedsTeamIdErrMsg)
+		}
+		if opt.HashSHA256 != "" {
+			return nil, 0, nil, automdm.NewInvalidArgumentError("query", "hash_sha256 can only be provided with team_id")
+		}
+		if opt.PackageName != "" {
+			return nil, 0, nil, automdm.NewInvalidArgumentError("query", "package_name can only be provided with team_id")
+		}
+	}
+
+	// Fast path: optimized two-phase query for the common case of listing
+	// by hosts_count with no additional filters.
+	if canUseOptimizedListTitlesQuery(opt) {
+		return ds.listSoftwareTitlesOptimized(ctx, opt, tmFilter)
+	}
+
+	dbReader := ds.reader(ctx)
+	getTitlesStmt, args, err := selectSoftwareTitlesSQL(opt)
+	if err != nil {
+		return nil, 0, nil, ctxerr.Wrap(ctx, err, "building software titles select statement")
+	}
+
+	// build the count statement before adding the pagination constraints to `getTitlesStmt`
+	getTitlesCountStmt := fmt.Sprintf(`SELECT COUNT(DISTINCT s.id) FROM (%s) AS s`, getTitlesStmt)
+
+	var softwareList []*softwareTitleWithInstallerFields
+	getTitlesStmt, args, err = appendListOptionsWithCursorToSQLSecure(getTitlesStmt, args, &opt.ListOptions, softwareTitlesAllowedOrderKeys)
+	if err != nil {
+		return nil, 0, nil, ctxerr.Wrap(ctx, err, "list software titles")
+	}
+	// secondary sort columns must be added separately since the helper above
+	// only handles a single ORDER BY column.
+	getTitlesStmt = spliceSecondaryOrderBySoftwareTitlesSQL(getTitlesStmt, opt.ListOptions)
+
+	// Run list and count queries in parallel.
+	var counts int
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := sqlx.SelectContext(gCtx, dbReader, &softwareList, getTitlesStmt, args...); err != nil {
+			return ctxerr.Wrap(gCtx, err, "select software titles")
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := sqlx.GetContext(gCtx, dbReader, &counts, getTitlesCountStmt, args...); err != nil {
+			return ctxerr.Wrap(gCtx, err, "get software titles count")
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, 0, nil, err
+	}
+
+	return ds.processSoftwareTitleResults(ctx, dbReader, softwareList, counts, opt, tmFilter)
+}
+
+// listSoftwareTitlesOptimized is the fast path for listing software titles ordered by hosts_count.
+// It uses a two-phase query (covering index scan → enrich) and a dedicated count query,
+// running both in parallel.
+func (ds *Datastore) listSoftwareTitlesOptimized(
+	ctx context.Context,
+	opt automdm.SoftwareTitleListOptions,
+	tmFilter automdm.TeamFilter,
+) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+	// Normalize PerPage the same way appendListOptionsWithCursorToSQL does for the fallback path.
+	if opt.ListOptions.PerPage == 0 {
+		opt.ListOptions.PerPage = automdm.DefaultPerPage
+	}
+
+	dbReader := ds.reader(ctx)
+
+	listSQL, listArgs := buildOptimizedListSoftwareTitlesSQL(opt)
+	countSQL, countArgs := countSoftwareTitlesOptimized(opt)
+
+	// Run list and count queries in parallel.
+	var softwareList []*softwareTitleWithInstallerFields
+	var counts int
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := sqlx.SelectContext(gCtx, dbReader, &softwareList, listSQL, listArgs...); err != nil {
+			return ctxerr.Wrap(gCtx, err, "optimized select software titles")
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := sqlx.GetContext(gCtx, dbReader, &counts, countSQL, countArgs...); err != nil {
+			return ctxerr.Wrap(gCtx, err, "optimized count software titles")
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, 0, nil, err
+	}
+
+	return ds.processSoftwareTitleResults(ctx, dbReader, softwareList, counts, opt, tmFilter)
+}
+
+// processSoftwareTitleResults handles the shared post-processing after the list and count queries
+// have returned. It promotes installer/VPP/in-house fields, fetches versions, policies, icons,
+// display names, automdm-maintained versions, and builds pagination metadata.
+func (ds *Datastore) processSoftwareTitleResults(
+	ctx context.Context,
+	dbReader sqlx.QueryerContext,
+	softwareList []*softwareTitleWithInstallerFields,
+	counts int,
+	opt automdm.SoftwareTitleListOptions,
+	tmFilter automdm.TeamFilter,
+) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+	if len(softwareList) == 0 {
+		return nil, counts, &automdm.PaginationMetadata{}, nil
+	}
+
+	titleIDs := make([]uint, len(softwareList))
+	titleIndex := make(map[uint]int, len(softwareList))
+	for i, title := range softwareList {
+		// Promote software installer properties to their proper destination fields.
+		if title.PackageName != nil {
+			var version string
+			if title.PackageVersion != nil {
+				version = *title.PackageVersion
+			}
+			var platform string
+			if title.PackagePlatform != nil {
+				platform = *title.PackagePlatform
+			}
+			title.SoftwarePackage = &automdm.SoftwarePackageOrApp{
+				Name:                   *title.PackageName,
+				Version:                version,
+				Platform:               platform,
+				SelfService:            title.PackageSelfService,
+				PackageURL:             title.PackageURL,
+				InstallDuringSetup:     title.PackageInstallDuringSetup,
+				AutoMDMMaintainedAppID: title.AutoMDMMaintainedAppID,
+			}
+		}
+
+		// Promote in-house app properties. As per the spec, in-house apps are returned as software packages.
+		// https://github.com/fleetdm/fleet/pull/33950/files
+		if title.InHouseAppName != nil {
+			var version string
+			if title.InHouseAppVersion != nil {
+				version = *title.InHouseAppVersion
+			}
+			var platform string
+			if title.InHouseAppPlatform != nil {
+				platform = *title.InHouseAppPlatform
+			}
+			title.SoftwarePackage = &automdm.SoftwarePackageOrApp{
+				Name:               *title.InHouseAppName,
+				Version:            version,
+				Platform:           platform,
+				SelfService:        title.InHouseAppSelfService,
+				InstallDuringSetup: title.InHouseAppInstallDuringSetup,
+			}
+			// This is set directly for software packages via db tag, but for in-house apps we need to set it here.
+			title.HashSHA256 = title.InHouseAppStorageID
+
+			title.Packages = []automdm.SoftwarePackageListItem{{
+				InstallerID: ptr.ValOrZero(title.InHouseAppID),
+				Name:        *title.InHouseAppName,
+				Version:     version,
+				Platform:    platform,
+				SelfService: title.InHouseAppSelfService,
+				UploadedAt:  ptr.ValOrZero(title.InHouseAppUploadedAt),
+			}}
+			if opt.ForSetupExperience {
+				title.Packages[0].InstallDuringSetup = title.InHouseAppInstallDuringSetup
+			}
+		}
+
+		// Promote VPP app properties.
+		if title.VPPAppAdamID != nil {
+			title.IconUrl = title.VPPAppIconURL
+		}
+
+		titleIDs[i] = title.ID
+		titleIndex[title.ID] = i
+	}
+
+	if opt.AITool {
+		// The filter already excluded every title that isn't an AI tool.
+		for _, title := range softwareList {
+			title.AITool = new(true)
+		}
+	} else {
+		aiToolTitles, err := ds.aiToolTitleIDs(ctx, dbReader, titleIDs)
+		if err != nil {
+			return nil, 0, nil, ctxerr.Wrap(ctx, err, "get ai tool software titles")
+		}
+		for _, title := range softwareList {
+			_, ok := aiToolTitles[title.ID]
+			title.AITool = new(ok)
+		}
+	}
+
+	// Fetch automatic install policies, icons, and display names for team-scoped queries.
+	// Skip for "All teams" because automatic install policies are set on teams/No-team,
+	// and icons/display names also require a team id.
+	if opt.TeamID != nil {
+		policies, err := ds.getPoliciesBySoftwareTitleIDs(ctx, titleIDs, *opt.TeamID)
+		if err != nil {
+			return nil, 0, nil, ctxerr.Wrap(ctx, err, "batch getting policies by software title IDs")
+		}
+		appStoreAppPoliciesByTitleID := make(map[uint][]automdm.AutomaticInstallPolicy)
+		for _, p := range policies {
+			if i, ok := titleIndex[p.TitleID]; ok {
+				switch {
+				case softwareList[i].SoftwarePackage != nil:
+					softwareList[i].SoftwarePackage.AutomaticInstallPolicies = append(
+						softwareList[i].SoftwarePackage.AutomaticInstallPolicies, p,
+					)
+				case softwareList[i].VPPAppAdamID != nil:
+					appStoreAppPoliciesByTitleID[p.TitleID] = append(appStoreAppPoliciesByTitleID[p.TitleID], p)
+				default:
+					ds.logger.WarnContext(ctx, "policy should have an associated VPP application or software package",
+						"team_id", opt.TeamID,
+						"policy_id", p.ID,
+					)
+				}
+			}
+		}
+
+		icons, err := ds.GetSoftwareIconsByTeamAndTitleIds(ctx, *opt.TeamID, titleIDs)
+		if err != nil {
+			return nil, 0, nil, ctxerr.Wrap(ctx, err, "get software icons by team and title IDs")
+		}
+
+		displayNames, err := ds.getDisplayNamesByTeamAndTitleIds(ctx, *opt.TeamID, titleIDs)
+		if err != nil {
+			return nil, 0, nil, ctxerr.Wrap(ctx, err, "get software display names by team and title IDs")
+		}
+
+		for _, icon := range icons {
+			if i, ok := titleIndex[icon.SoftwareTitleID]; ok {
+				softwareList[i].IconUrl = ptr.String(icon.IconUrl())
+			}
+		}
+
+		for titleID, i := range titleIndex {
+			if displayName, ok := displayNames[titleID]; ok {
+				softwareList[i].DisplayName = displayName
+			}
+		}
+
+		// The main query returns one installer row per title, so fetch the full package set separately.
+		packagesByTitle, err := ds.GetSoftwarePackagesForTitles(ctx, opt.TeamID, titleIDs)
+		if err != nil {
+			return nil, 0, nil, ctxerr.Wrap(ctx, err, "get packages for software titles")
+		}
+		// Key policies by installer_id so each package on a multi-package
+		// title only shows the policies actually bound to it — not the
+		// aggregated title-level list. Custom-package-backed policies
+		// always carry a non-nil InstallerID; VPP-backed policies carry a
+		// non-nil VPPAppsTeamsID.
+		policiesByInstaller := make(map[uint][]automdm.AutomaticInstallPolicy)
+		policiesByVersionID := make(map[uint][]automdm.AutomaticInstallPolicy)
+		for _, p := range policies {
+			if p.InstallerID != nil {
+				policiesByInstaller[*p.InstallerID] = append(policiesByInstaller[*p.InstallerID], p)
+			}
+			if p.VPPAppsTeamsID != nil {
+				policiesByVersionID[*p.VPPAppsTeamsID] = append(policiesByVersionID[*p.VPPAppsTeamsID], p)
+			}
+		}
+		for titleID, pkgs := range packagesByTitle {
+			i, ok := titleIndex[titleID]
+			if !ok {
+				continue
+			}
+			for j := range pkgs {
+				pkgs[j].AutomaticInstallPolicies = policiesByInstaller[pkgs[j].InstallerID]
+				if opt.ForSetupExperience {
+					// Selecting a title for setup experience selects all of the packages it has at that time.
+					pkgs[j].InstallDuringSetup = softwareList[i].PackageInstallDuringSetup
+				}
+			}
+			softwareList[i].Packages = pkgs
+		}
+
+		var appStoreAppTitleIDs []uint
+		for _, title := range softwareList {
+			if title.VPPAppAdamID != nil {
+				appStoreAppTitleIDs = append(appStoreAppTitleIDs, title.ID)
+			}
+		}
+		appStoreApps, err := ds.getAppStoreAppVersionsForTitles(ctx, opt.TeamID, appStoreAppTitleIDs)
+		if err != nil {
+			return nil, 0, nil, ctxerr.Wrap(ctx, err, "get app store apps for software titles")
+		}
+		for _, appStoreApp := range appStoreApps {
+			title := softwareList[titleIndex[appStoreApp.TitleID]]
+			listItem := automdm.AppStoreAppListItem{
+				ID:                       appStoreApp.VPPAppsTeamsID,
+				Name:                     appStoreApp.VersionName,
+				AppStoreID:               appStoreApp.AdamID,
+				Platform:                 appStoreApp.Platform,
+				Version:                  appStoreApp.LatestVersion,
+				SelfService:              appStoreApp.SelfService,
+				AutomaticInstallPolicies: policiesByVersionID[appStoreApp.VPPAppsTeamsID],
+			}
+			if opt.ForSetupExperience {
+				listItem.InstallDuringSetup = appStoreApp.InstallDuringSetup
+			}
+			title.AppStoreApps = append(title.AppStoreApps, listItem)
+		}
+
+		// Fill in the deprecated app_store_app for setup experience software only.
+		if opt.ForSetupExperience {
+			for _, title := range softwareList {
+				if len(title.AppStoreApps) > 0 {
+					// Set app_store_app to the first-added version, versions are sorted by id.
+					firstVersion := title.AppStoreApps[0]
+					title.AppStoreApp = &automdm.SoftwarePackageOrApp{
+						AppStoreID:               firstVersion.AppStoreID,
+						Version:                  firstVersion.Version,
+						Platform:                 string(firstVersion.Platform),
+						SelfService:              new(firstVersion.SelfService),
+						InstallDuringSetup:       firstVersion.InstallDuringSetup,
+						AutomaticInstallPolicies: appStoreAppPoliciesByTitleID[title.ID],
+					}
+				}
+			}
+		}
+	}
+
+	// Fetch matching versions separately to avoid aggregating nested arrays in the main query.
+	batchSize := 32000
+	var versions []automdm.SoftwareVersion
+	err := common_mysql.BatchProcessSimple(titleIDs, batchSize, func(titleIDsToProcess []uint) error {
+		getVersionsStmt, versionArgs, err := ds.selectSoftwareVersionsSQL(
+			titleIDsToProcess,
+			opt.TeamID,
+			tmFilter,
+			false,
+		)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "build get versions stmt")
+		}
+		var versionsBatch []automdm.SoftwareVersion
+		if err := sqlx.SelectContext(ctx, dbReader, &versionsBatch, getVersionsStmt, versionArgs...); err != nil {
+			return ctxerr.Wrap(ctx, err, "get software versions")
+		}
+		versions = append(versions, versionsBatch...)
+		return nil
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	for _, version := range versions {
+		if i, ok := titleIndex[version.TitleID]; ok {
+			softwareList[i].VersionsCount++
+			softwareList[i].Versions = append(softwareList[i].Versions, version)
+		}
+	}
+
+	// Populate AutoMDMMaintainedVersions for titles that have an automdm-maintained app.
+	// This must happen before pagination trimming so titleIndex is still valid.
+	if opt.TeamID != nil {
+		var fmaTitleIDs []uint
+		for _, st := range softwareList {
+			if st.AutoMDMMaintainedAppID != nil {
+				fmaTitleIDs = append(fmaTitleIDs, st.ID)
+			}
+		}
+		if len(fmaTitleIDs) > 0 {
+			fmaVersions, err := ds.getAutoMDMMaintainedVersionsByTitleIDs(ctx, ds.reader(ctx), fmaTitleIDs, *opt.TeamID)
+			if err != nil {
+				return nil, 0, nil, ctxerr.Wrap(ctx, err, "get automdm maintained versions")
+			}
+			for titleID, fmaVers := range fmaVersions {
+				if i, ok := titleIndex[titleID]; ok {
+					if softwareList[i].SoftwarePackage != nil {
+						softwareList[i].SoftwarePackage.AutoMDMMaintainedVersions = fmaVers
+					}
+					for j := range softwareList[i].Packages {
+						if softwareList[i].Packages[j].AutoMDMMaintainedAppID != nil {
+							softwareList[i].Packages[j].AutoMDMMaintainedVersions = fmaVers
+						}
+					}
+				}
+			}
+		}
+	}
+
+	var metaData *automdm.PaginationMetadata
+	if opt.ListOptions.IncludeMetadata {
+		metaData = &automdm.PaginationMetadata{HasPreviousResults: opt.ListOptions.Page > 0}
+		if len(softwareList) > int(opt.ListOptions.PerPage) { //nolint:gosec // dismiss G115
+			metaData.HasNextResults = true
+			softwareList = softwareList[:len(softwareList)-1]
+		}
+	}
+
+	titles := make([]automdm.SoftwareTitleListResult, 0, len(softwareList))
+	for _, st := range softwareList {
+		titles = append(titles, st.SoftwareTitleListResult)
+	}
+
+	return titles, counts, metaData, nil
+}
+
+// GetSoftwarePackagesForTitles returns trimmed per-package info for the titles'
+// active packages, keyed by title id, first-added first. Backs the list packages[].
+func (ds *Datastore) GetSoftwarePackagesForTitles(ctx context.Context, teamID *uint, titleIDs []uint) (map[uint][]automdm.SoftwarePackageListItem, error) {
+	if len(titleIDs) == 0 {
+		return map[uint][]automdm.SoftwarePackageListItem{}, nil
+	}
+
+	const stmt = `
+SELECT
+	si.title_id,
+	si.id AS installer_id,
+	si.filename AS name,
+	si.version,
+	si.platform,
+	si.self_service,
+	si.url AS package_url,
+	si.uploaded_at,
+	si.automdm_maintained_app_id
+FROM
+	software_installers si
+WHERE
+	si.global_or_team_id = ? AND si.is_active = 1 AND si.title_id IN (?)
+ORDER BY si.id ASC`
+
+	type packageRow struct {
+		TitleID                uint      `db:"title_id"`
+		InstallerID            uint      `db:"installer_id"`
+		Name                   string    `db:"name"`
+		Version                string    `db:"version"`
+		Platform               string    `db:"platform"`
+		SelfService            bool      `db:"self_service"`
+		PackageURL             *string   `db:"package_url"`
+		UploadedAt             time.Time `db:"uploaded_at"`
+		AutoMDMMaintainedAppID *uint     `db:"automdm_maintained_app_id"`
+	}
+
+	ret := make(map[uint][]automdm.SoftwarePackageListItem)
+	batchSize := 32000
+	err := common_mysql.BatchProcessSimple(titleIDs, batchSize, func(titleIDsToProcess []uint) error {
+		query, args, err := sqlx.In(stmt, ptr.ValOrZero(teamID), titleIDsToProcess)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "sqlx.In for get packages for titles")
+		}
+		var rows []packageRow
+		if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, query, args...); err != nil {
+			return ctxerr.Wrap(ctx, err, "get packages for titles")
+		}
+		for _, r := range rows {
+			selfService := r.SelfService
+			ret[r.TitleID] = append(ret[r.TitleID], automdm.SoftwarePackageListItem{
+				InstallerID:            r.InstallerID,
+				Name:                   r.Name,
+				Version:                r.Version,
+				Platform:               r.Platform,
+				SelfService:            &selfService,
+				PackageURL:             r.PackageURL,
+				UploadedAt:             r.UploadedAt,
+				AutoMDMMaintainedAppID: r.AutoMDMMaintainedAppID,
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+// spliceSecondaryOrderBySoftwareTitlesSQL adds a secondary order by clause, splicing it into the
+// existing order by clause. This is necessary because multicolumn sort is not
+// supported by appendListOptionsWithCursorToSQL.
+func spliceSecondaryOrderBySoftwareTitlesSQL(stmt string, opts automdm.ListOptions) string {
+	if opts.OrderKey == "" {
+		return stmt
+	}
+	k := strings.ToLower(opts.OrderKey)
+
+	targetSubstr := "ASC"
+	if opts.OrderDirection == automdm.OrderDescending {
+		targetSubstr = "DESC"
+	}
+
+	var secondaryOrderBy string
+	switch k {
+	case "name":
+		secondaryOrderBy = ", hosts_count DESC"
+	default:
+		secondaryOrderBy = ", COALESCE(NULLIF(stdn.display_name, ''), st.name) ASC"
+	}
+
+	if k != "source" {
+		secondaryOrderBy += ", source ASC"
+	}
+	if k != "extension_for" {
+		secondaryOrderBy += ", extension_for ASC"
+	}
+
+	return strings.Replace(stmt, targetSubstr, targetSubstr+secondaryOrderBy, 1)
+}
+
+func selectSoftwareTitlesSQL(opt automdm.SoftwareTitleListOptions) (string, []any, error) {
+	stmt := `
+SELECT
+	st.id
+	,st.name
+	,st.source
+	,st.extension_for
+	,st.bundle_identifier
+	,st.application_id
+	,st.upgrade_code
+	,MAX(COALESCE(sthc.hosts_count, 0)) as hosts_count
+	,MAX(COALESCE(sthc.updated_at, date('0001-01-01 00:00:00'))) as counts_updated_at
+	{{if hasTeamID .}}
+		,si.self_service as package_self_service
+		,si.filename as package_name
+		,si.version as package_version
+		,si.platform as package_platform
+		,si.url AS package_url
+		,{{if and $.ForSetupExperience (isDarwinOnly $.Platform)}}(CASE
+			WHEN si.platform = 'darwin' THEN si.install_during_setup
+			ELSE EXISTS (
+				SELECT 1 FROM setup_experience_software_installers seti
+				WHERE seti.software_installer_id = si.id
+					AND seti.platform = 'darwin'
+					AND seti.global_or_team_id = si.global_or_team_id
+			)
+		END){{else}}si.install_during_setup{{end}} as package_install_during_setup
+		,si.storage_id as package_storage_id
+		,si.automdm_maintained_app_id
+		,vat.adam_id as vpp_app_adam_id
+		,vap.icon_url as vpp_app_icon_url
+		,iha.filename as in_house_app_name
+		,iha.version as in_house_app_version
+		,iha.platform as in_house_app_platform
+		,iha.storage_id as in_house_app_storage_id
+		,iha.self_service as in_house_app_self_service
+		,iha.install_during_setup as in_house_app_install_during_setup
+		,iha.id as in_house_app_id
+		,iha.created_at as in_house_app_uploaded_at
+		,IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.update_schedule_enabled, NULL) as auto_update_enabled
+		,IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.start_time, NULL) as auto_update_window_start
+		,IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.end_time, NULL) as auto_update_window_end
+	{{end}}
+FROM software_titles st
+	{{if and (hasTeamID .) (or .AvailableForInstall .SelfServiceOnly (and .PackagesOnly (not .ListOptions.MatchQuery)))}}
+		-- These filters only keep titles with an installer, VPP app or in-house app in the team.
+		-- A packages_only with a search query also keeps titles without a package, so it can't use the inner join
+		INNER JOIN ({{automdmInstallableTitleIDs (teamID .)}}) automdm_installable_titles ON automdm_installable_titles.title_id = st.id
+	{{end}}
+	{{if hasTeamID .}}
+		LEFT JOIN software_installers si ON si.id = (
+			SELECT MIN(si2.id) FROM software_installers si2
+			WHERE si2.title_id = st.id AND si2.global_or_team_id = {{teamID .}} AND si2.is_active = TRUE
+		)
+		LEFT JOIN in_house_apps iha ON iha.title_id = st.id AND iha.global_or_team_id = {{teamID .}}
+		LEFT JOIN vpp_apps vap ON vap.title_id = st.id AND {{yesNo .PackagesOnly "FALSE" "TRUE"}}
+		LEFT JOIN vpp_apps_teams vat ON vat.adam_id = vap.adam_id AND vat.platform = vap.platform AND
+			{{if .PackagesOnly}} FALSE {{else}} vat.id = (
+				SELECT MIN(vat2.id) FROM vpp_apps_teams vat2
+				WHERE vat2.adam_id = vap.adam_id AND vat2.platform = vap.platform AND vat2.global_or_team_id = {{teamID .}}
+			){{end}}
+	{{end}}
+	LEFT JOIN software_titles_host_counts sthc ON sthc.software_title_id = st.id AND
+		(sthc.team_id = {{teamID .}} AND sthc.global_stats = {{if hasTeamID .}} 0 {{else}} 1 {{end}})
+	LEFT JOIN software_title_display_names stdn ON stdn.software_title_id = st.id AND stdn.team_id = {{teamID .}}
+{{with $softwareJoin := " "}}
+	{{if or $.ListOptions.MatchQuery $.VulnerableOnly}}
+		-- If we do a match but not vulnerable only, we want a LEFT JOIN on
+		-- software because software installers may not have entries in software
+		-- for their software title. If we do want vulnerable only, then we have to
+		-- INNER JOIN because a CVE implies a specific software version.
+		{{$cveJoin := yesNo $.VulnerableOnly "INNER" "LEFT"}}
+		{{$softwareJoin = printf "%s JOIN software s ON s.title_id = st.id %[1]s JOIN software_cve scve ON s.id = scve.software_id" $cveJoin }}
+	{{end}}
+	{{if and $.VulnerableOnly (or $.KnownExploit $.MinimumCVSS $.MaximumCVSS)}}
+		{{$softwareJoin = printf "%s INNER JOIN cve_meta cm ON scve.cve = cm.cve" $softwareJoin}}
+	  	{{if $.KnownExploit}}
+		  {{$softwareJoin = printf "%s AND cm.cisa_known_exploit = 1" $softwareJoin}}
+		{{end}}
+		{{if $.MinimumCVSS}}
+		  {{$softwareJoin = printf "%s AND cm.cvss_score >= ?" $softwareJoin}}
+		{{end}}
+		{{if $.MaximumCVSS}}
+		  {{$softwareJoin = printf "%s AND cm.cvss_score <= ?" $softwareJoin}}
+		{{end}}
+	{{end}}
+	{{$softwareJoin}}
+{{end}}
+WHERE
+	{{with $additionalWhere := "TRUE"}}
+		{{if and (hasTeamID $) $.PackagesOnly}}
+			{{$additionalWhere = "(si.id IS NOT NULL OR iha.id IS NOT NULL)"}}
+		{{end}}
+		{{if $.ListOptions.MatchQuery}}
+			{{$additionalWhere = "(st.name LIKE ? OR st.bundle_identifier LIKE ? OR stdn.display_name LIKE ? OR scve.cve LIKE ?)"}}
+		{{end}}
+		{{if and (hasTeamID $) $.Platform}}
+		  {{if and $.ForSetupExperience (isDarwinOnly $.Platform)}}
+		    {{$postfix := printf " AND (si.platform IN (%s) OR (si.extension IN ('sh', 'py') AND si.platform = 'linux') OR vap.platform IN (%[1]s) OR iha.platform IN (%[1]s))" (placeholders $.Platform)}}
+		    {{$additionalWhere = printf "%s %s" $additionalWhere $postfix}}
+		  {{else}}
+		    {{$postfix := printf " AND (si.platform IN (%s) OR vap.platform IN (%[1]s) OR iha.platform IN (%[1]s))" (placeholders $.Platform)}}
+		    {{$additionalWhere = printf "%s %s" $additionalWhere $postfix}}
+		  {{end}}
+		{{end}}
+		{{if and (hasTeamID $) $.HashSHA256}}
+		  {{$additionalWhere = printf "%s AND EXISTS (SELECT 1 FROM software_installers si2 WHERE si2.title_id = st.id AND si2.global_or_team_id = %d AND si2.is_active = TRUE AND si2.storage_id = ?)" $additionalWhere (teamID $)}}
+		{{end}}
+		{{if and (hasTeamID $) $.PackageName}}
+		  {{$additionalWhere = printf "%s AND EXISTS (SELECT 1 FROM software_installers si2 WHERE si2.title_id = st.id AND si2.global_or_team_id = %d AND si2.is_active = TRUE AND si2.filename = ?)" $additionalWhere (teamID $)}}
+		{{end}}
+		{{with $typeFilter := typeFilter}}
+		  {{$additionalWhere = printf "%s AND %s" $additionalWhere $typeFilter}}
+		{{end}}
+		{{if $.AITool}}
+		  {{$additionalWhere = printf "%s AND %s" $additionalWhere aiToolFilter}}
+		{{end}}
+		{{$additionalWhere}}
+	{{end}}
+	-- If teamID is set, defaults to "a software installer, in-house app or VPP app exists", and see next condition.
+	{{with $defFilter := yesNo (hasTeamID .) "(si.id IS NOT NULL OR vat.adam_id IS NOT NULL OR iha.id IS NOT NULL)" "FALSE"}}
+		-- add software installed for hosts if we're not filtering for "available for install" only
+		{{if not $.AvailableForInstall}}
+			{{$defFilter = $defFilter | printf " ( %s OR sthc.software_title_id IS NOT NULL ) "}}
+		{{ end }}
+		AND ({{$defFilter}})
+		{{if and $.SelfServiceOnly (hasTeamID $)}}
+		AND (
+			si.self_service = 1
+			OR iha.self_service = 1
+			OR EXISTS (
+				SELECT 1 FROM vpp_apps_teams vat_ss
+				WHERE vat_ss.adam_id = vap.adam_id AND vat_ss.platform = vap.platform
+					AND vat_ss.global_or_team_id = {{teamID $}} AND vat_ss.self_service = 1
+			)
+		)
+		{{end}}
+	{{end}}
+	-- If for setup experience, exclude any installers that are not supported.
+	-- In-house apps are only supported for setup experience on iOS/iPadOS, so
+	-- they surface whenever the platform list includes a mobile platform (the
+	-- platform predicate above already restricts iha rows to the listed
+	-- platforms) and stay excluded for desktop-only queries.
+	{{if and .ForSetupExperience (not (containsAppleMobile $.Platform))}}
+		AND iha.id IS NULL
+	{{end}}
+GROUP BY
+	st.id
+	{{if hasTeamID .}}
+		,package_self_service
+		,package_name
+		,package_version
+		,package_platform
+		,package_url
+		,package_install_during_setup
+		,package_storage_id
+		,automdm_maintained_app_id
+		,vpp_app_adam_id
+		,vpp_app_icon_url
+		,in_house_app_name
+		,in_house_app_version
+		,in_house_app_platform
+		,in_house_app_storage_id
+		,in_house_app_self_service
+		,in_house_app_install_during_setup
+		,in_house_app_id
+		,in_house_app_uploaded_at
+		,auto_update_enabled
+		,auto_update_window_start
+		,auto_update_window_end
+	{{end}}
+`
+	var args []any
+	if opt.VulnerableOnly && (opt.KnownExploit || opt.MinimumCVSS > 0 || opt.MaximumCVSS > 0) {
+		if opt.MinimumCVSS > 0 {
+			args = append(args, opt.MinimumCVSS)
+		}
+
+		if opt.MaximumCVSS > 0 {
+			args = append(args, opt.MaximumCVSS)
+		}
+	}
+
+	if opt.ListOptions.MatchQuery != "" {
+		match := likePattern(opt.ListOptions.MatchQuery)
+		args = append(args, match, match, match, match)
+	}
+
+	if opt.Platform != "" {
+		platforms := strings.Split(strings.ReplaceAll(opt.Platform, "macos", "darwin"), ",")
+		platformPlaceholders := strings.TrimSuffix(strings.Repeat("?,", len(platforms)), ",")
+		args = slices.Grow(args, len(platformPlaceholders)*2)
+		// for software installers
+		for _, platform := range platforms {
+			args = append(args, platform)
+		}
+		// for VPP apps; could micro-optimize later by dropping non-Apple, non-Android platforms
+		for _, platform := range platforms {
+			args = append(args, platform)
+		}
+		// for in-house apps; could micro-optimize later by dropping non-Apple platforms
+		for _, platform := range platforms {
+			args = append(args, platform)
+		}
+	}
+
+	if opt.HashSHA256 != "" {
+		args = append(args, opt.HashSHA256)
+	}
+
+	if opt.PackageName != "" {
+		args = append(args, opt.PackageName)
+	}
+
+	typeFilterSQL, typeFilterArgs := softwareTypeFilterSQL(opt.TypeFilter, "st")
+	args = append(args, typeFilterArgs...)
+
+	t, err := template.New("stm").Funcs(map[string]any{
+		"typeFilter":   func() string { return typeFilterSQL },
+		"aiToolFilter": func() string { return aiToolTitleFilterSQL("st.id") },
+		"yesNo": func(b bool, yes string, no string) string {
+			if b {
+				return yes
+			}
+			return no
+		},
+		"placeholders": func(val string) string {
+			vals := strings.Split(val, ",")
+			return strings.TrimSuffix(strings.Repeat("?,", len(vals)), ",")
+		},
+		"isDarwinOnly": func(platform string) bool {
+			return strings.TrimSpace(strings.ReplaceAll(platform, "macos", "darwin")) == "darwin"
+		},
+		"containsAppleMobile": func(platform string) bool {
+			for p := range strings.SplitSeq(platform, ",") {
+				if p = strings.TrimSpace(p); p == "ios" || p == "ipados" {
+					return true
+				}
+			}
+			return false
+		},
+		"hasTeamID": func(q automdm.SoftwareTitleListOptions) bool {
+			return q.TeamID != nil
+		},
+		"teamID": func(q automdm.SoftwareTitleListOptions) uint {
+			if q.TeamID == nil {
+				return 0
+			}
+			return *q.TeamID
+		},
+		"automdmInstallableTitleIDs": automdmInstallableTitleIDsSQL,
+	}).Parse(stmt)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var buff bytes.Buffer
+	if err = t.Execute(&buff, opt); err != nil {
+		return "", nil, err
+	}
+
+	return buff.String(), args, nil
+}
+
+func automdmInstallableTitleIDsSQL(globalOrTeamID uint) string {
+	return fmt.Sprintf(`
+		SELECT si.title_id FROM software_installers si
+		WHERE si.global_or_team_id = %[1]d AND si.is_active = TRUE AND si.title_id IS NOT NULL
+		UNION
+		SELECT vap.title_id FROM vpp_apps vap
+		INNER JOIN vpp_apps_teams vat ON vap.adam_id = vat.adam_id AND vat.platform = vap.platform
+		WHERE vat.global_or_team_id = %[1]d AND vap.title_id IS NOT NULL
+		UNION
+		SELECT iha.title_id FROM in_house_apps iha
+		WHERE iha.global_or_team_id = %[1]d AND iha.title_id IS NOT NULL`, globalOrTeamID)
+}
+
+// buildOptimizedListSoftwareTitlesSQL builds a two-phase query for listing software titles
+// ordered by hosts_count. Phase 1 (inner query) uses the covering index on
+// software_titles_host_counts to filter by team, then joins software_titles for the correct
+// secondary sort (name, source, extension_for), and paginates. Phase 2 (outer query)
+// enriches only the ~20 paginated IDs with installer/VPP/in-house details.
+func buildOptimizedListSoftwareTitlesSQL(opts automdm.SoftwareTitleListOptions) (string, []any) {
+	hasTeamID := opts.TeamID != nil
+	teamID := uint(0)
+	if hasTeamID {
+		teamID = *opts.TeamID
+	}
+
+	globalStats := 0
+	if !hasTeamID {
+		globalStats = 1
+	}
+
+	direction := "DESC"
+	if opts.ListOptions.OrderDirection == automdm.OrderAscending {
+		direction = "ASC"
+	}
+
+	perPage := opts.ListOptions.PerPage
+	if perPage == 0 {
+		perPage = automdm.DefaultPerPage
+	}
+	offset := perPage * opts.ListOptions.Page
+	if opts.ListOptions.IncludeMetadata {
+		perPage++
+	}
+
+	hostCountsTypeFilter, installerOnlyTypeFilter, args := optimizedTitlesTypeFilterSQL(opts)
+
+	// Build the inner query: find paginated title IDs sorted by (hosts_count, software_title_id).
+	// The secondary sort uses software_title_id (not name) for performance so that the entire ORDER BY is satisfied
+	// by the covering index (team_id, global_stats, hosts_count, software_title_id) without a filesort.
+	// Both columns use the same direction so MySQL can do a forward (ASC) or backward (DESC) index scan.
+	var innerSQL string
+	if !hasTeamID {
+		// All teams: only titles with host counts, no installer-only titles.
+		// Sprintf is safe here: all values are server-controlled (direction is a hardcoded ASC/DESC keyword,
+		// perPage and offset are derived from validated pagination options).
+		innerSQL = fmt.Sprintf(`
+			SELECT sthc.software_title_id, sthc.hosts_count
+			FROM software_titles_host_counts sthc
+			WHERE sthc.team_id = 0 AND sthc.global_stats = 1%[3]s
+			ORDER BY sthc.hosts_count %[1]s, sthc.software_title_id %[1]s
+			LIMIT %[2]d`, direction, perPage, hostCountsTypeFilter)
+		if offset > 0 {
+			innerSQL += fmt.Sprintf(` OFFSET %d`, offset)
+		}
+	} else {
+		// Specific team: titles with host counts UNION installer-only titles.
+		// The UNION gathers all candidate IDs, then we sort by (hosts_count, software_title_id) and paginate.
+		// Sprintf is safe here: all values are server-controlled (teamID is a validated uint, direction is a
+		// hardcoded ASC/DESC keyword, perPage and offset are derived from validated pagination options).
+		innerSQL = fmt.Sprintf(`
+			SELECT combined.software_title_id, combined.hosts_count
+			FROM (
+				(SELECT sthc.software_title_id, sthc.hosts_count
+				FROM software_titles_host_counts sthc
+				WHERE sthc.team_id = %[1]d AND sthc.global_stats = 0%[4]s)
+
+				UNION ALL
+
+				(SELECT t.title_id AS software_title_id, 0 AS hosts_count
+				FROM (%[6]s) AS t
+				LEFT JOIN software_titles_host_counts sthc
+					ON sthc.software_title_id = t.title_id AND sthc.team_id = %[1]d AND sthc.global_stats = 0
+				WHERE sthc.software_title_id IS NULL%[5]s)
+			) AS combined
+			ORDER BY combined.hosts_count %[2]s, combined.software_title_id %[2]s
+			LIMIT %[3]d`, teamID, direction, perPage, hostCountsTypeFilter, installerOnlyTypeFilter, automdmInstallableTitleIDsSQL(teamID))
+		if offset > 0 {
+			innerSQL += fmt.Sprintf(` OFFSET %d`, offset)
+		}
+	}
+
+	// Build the outer query: enrich only the paginated IDs with full details.
+	outerSQL := `
+		SELECT
+			st.id,
+			st.name,
+			st.source,
+			st.extension_for,
+			st.bundle_identifier,
+			st.application_id,
+			st.upgrade_code,
+			top.hosts_count,
+			COALESCE(sthc.updated_at, DATE('0001-01-01 00:00:00')) AS counts_updated_at`
+
+	if hasTeamID {
+		outerSQL += `,
+			si.self_service AS package_self_service,
+			si.filename AS package_name,
+			si.version AS package_version,
+			si.platform AS package_platform,
+			si.url AS package_url,
+			si.install_during_setup AS package_install_during_setup,
+			si.storage_id AS package_storage_id,
+			si.automdm_maintained_app_id,
+			vat.adam_id AS vpp_app_adam_id,
+			vap.icon_url AS vpp_app_icon_url,
+			iha.filename AS in_house_app_name,
+			iha.version AS in_house_app_version,
+			iha.platform AS in_house_app_platform,
+			iha.storage_id AS in_house_app_storage_id,
+			iha.self_service AS in_house_app_self_service,
+			iha.install_during_setup AS in_house_app_install_during_setup,
+			iha.id AS in_house_app_id,
+			iha.created_at AS in_house_app_uploaded_at,
+			IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.update_schedule_enabled, NULL) AS auto_update_enabled,
+			IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.start_time, NULL) AS auto_update_window_start,
+			IF(vat.update_schedule_enabled = 1 OR vat.start_time != '', vat.end_time, NULL) AS auto_update_window_end`
+	}
+
+	outerSQL += fmt.Sprintf(`
+		FROM (%s) AS top
+		LEFT JOIN software_titles st ON st.id = top.software_title_id
+		LEFT JOIN software_titles_host_counts sthc ON sthc.software_title_id = top.software_title_id
+			AND sthc.team_id = %d AND sthc.global_stats = %d`,
+		innerSQL, teamID, globalStats)
+
+	if hasTeamID {
+		// A title can hold several active installers. Join only the first-added one so the
+		// title appears once with its primary package.
+		outerSQL += fmt.Sprintf(`
+		LEFT JOIN software_installers si ON si.id = (
+			SELECT MIN(si2.id) FROM software_installers si2
+			WHERE si2.title_id = st.id AND si2.global_or_team_id = %[1]d AND si2.is_active = TRUE
+		)
+		LEFT JOIN in_house_apps iha ON iha.title_id = st.id AND iha.global_or_team_id = %[1]d
+		LEFT JOIN vpp_apps vap ON vap.title_id = st.id
+		LEFT JOIN vpp_apps_teams vat ON vat.id = (
+			SELECT MIN(vat2.id) FROM vpp_apps_teams vat2
+			WHERE vat2.adam_id = vap.adam_id AND vat2.platform = vap.platform AND vat2.global_or_team_id = %[1]d
+		)`, teamID)
+	}
+
+	outerSQL += `
+		WHERE st.id IS NOT NULL`
+
+	// Re-apply the same sort as inner query to keep results consistent.
+	outerSQL += fmt.Sprintf(`
+		ORDER BY top.hosts_count %[1]s, top.software_title_id %[1]s`,
+		direction)
+
+	return outerSQL, args
+}
+
+// optimizedTitlesTypeFilterSQL renders the type filter as EXISTS subqueries for the optimized titles
+// queries: one on the host counts arm (sthc) and one on the installer-only arm (t). MySQL rewrites
+// the EXISTS as a semi-join driven from software_titles: no index starts with source, so it scans
+// idx_sw_titles, joins the matching titles to the host counts by primary key, and sorts them before
+// applying the LIMIT. A filtered request therefore costs about one scan of the titles index instead of
+// the index-ordered scan that stops at the LIMIT; an index on (source, extension_for) would let it
+// seek instead. EXPLAIN ANALYZE of the all-teams list with source=apps on 200k titles (10% apps):
+//
+//	-> Limit: 21 row(s)
+//	    -> Sort: sthc.hosts_count DESC, sthc.software_title_id DESC, limit input to 21 row(s) per chunk
+//	        -> Nested loop inner join                                 (rows=19897)
+//	            -> Filter: (st.source = 'apps')                       (rows=19897)
+//	                -> Covering index scan on st using idx_sw_titles  (rows=200000)
+//	            -> Single-row index lookup on sthc using PRIMARY      (loops=19897)
+//
+// The AI tool filter is appended to both arms. MySQL drives that semi-join from the flagged rows of
+// idx_software_ai_tool_title_id and joins them to the host counts by primary key, so the list and the
+// count cost about the number of AI tools rather than the number of titles. EXPLAIN ANALYZE of the
+// all-teams list with ai_tool=true, page 5, on 200k titles (750 AI titles):
+//
+//	-> Limit/Offset: 21/100 row(s)
+//	    -> Sort: sthc.hosts_count DESC, sthc.software_title_id DESC, limit input to 121 row(s) per chunk
+//	        -> Nested loop inner join                                                                  (rows=750)
+//	            -> Remove duplicates from input sorted on idx_software_ai_tool_title_id                 (rows=750)
+//	                -> Covering index lookup on sai using idx_software_ai_tool_title_id (ai_tool=1)    (rows=1023)
+//	            -> Single-row index lookup on sthc using PRIMARY                                        (loops=750)
+//
+// args cover the host counts arm, plus the installer-only arm when a team is set.
+func optimizedTitlesTypeFilterSQL(opts automdm.SoftwareTitleListOptions) (hostCounts, installerOnly string, args []any) {
+	if filterSQL, filterArgs := softwareTypeFilterSQL(opts.TypeFilter, "st"); filterSQL != "" {
+		hostCounts = " AND EXISTS (SELECT 1 FROM software_titles st WHERE st.id = sthc.software_title_id AND " + filterSQL + ")"
+		installerOnly = " AND EXISTS (SELECT 1 FROM software_titles st WHERE st.id = t.title_id AND " + filterSQL + ")"
+		args = filterArgs
+		if opts.TeamID != nil {
+			args = slices.Concat(filterArgs, filterArgs)
+		}
+	}
+	if opts.AITool {
+		hostCounts += " AND " + aiToolTitleFilterSQL("sthc.software_title_id")
+		installerOnly += " AND " + aiToolTitleFilterSQL("t.title_id")
+	}
+	return hostCounts, installerOnly, args
+}
+
+// aiToolTitleFilterSQL is a predicate matching titles, identified by titleIDColumn, that have at
+// least one software row flagged as an AI tool.
+func aiToolTitleFilterSQL(titleIDColumn string) string {
+	return "EXISTS (SELECT 1 FROM software sai WHERE sai.title_id = " + titleIDColumn + " AND sai.ai_tool = 1)"
+}
+
+// countSoftwareTitlesOptimized builds a dedicated count query that avoids the expensive
+// full-query-wrapping approach. It counts titles with host counts via a simple index scan,
+// and when a team is specified, adds the count of installer-only titles (small set).
+func countSoftwareTitlesOptimized(opts automdm.SoftwareTitleListOptions) (string, []any) {
+	hasTeamID := opts.TeamID != nil
+	teamID := uint(0)
+	if hasTeamID {
+		teamID = *opts.TeamID
+	}
+
+	hostCountsTypeFilter, installerOnlyTypeFilter, args := optimizedTitlesTypeFilterSQL(opts)
+
+	if !hasTeamID {
+		// All teams: only count titles with host counts.
+		return `SELECT COUNT(*) FROM software_titles_host_counts sthc WHERE sthc.team_id = 0 AND sthc.global_stats = 1` +
+			hostCountsTypeFilter, args
+	}
+
+	// Specific team: count of host-count titles + count of installer-only titles.
+	return fmt.Sprintf(`
+		SELECT
+			(SELECT COUNT(*) FROM software_titles_host_counts sthc WHERE sthc.team_id = %[1]d AND sthc.global_stats = 0%[2]s)
+			+
+			(SELECT COUNT(DISTINCT t.title_id) FROM (%[4]s) AS t
+			LEFT JOIN software_titles_host_counts sthc
+				ON sthc.software_title_id = t.title_id AND sthc.team_id = %[1]d AND sthc.global_stats = 0
+			WHERE sthc.software_title_id IS NULL%[3]s)
+		AS total_count`, teamID, hostCountsTypeFilter, installerOnlyTypeFilter, automdmInstallableTitleIDsSQL(teamID)), args
+}
+
+// GetAutoMDMMaintainedVersionsByTitleID returns all cached versions of an automdm-maintained app
+// for the given title and team, most recently downloaded first.
+func (ds *Datastore) GetAutoMDMMaintainedVersionsByTitleID(ctx context.Context, teamID *uint, titleID uint) ([]automdm.AutoMDMMaintainedVersion, error) {
+	result, err := ds.getAutoMDMMaintainedVersionsByTitleIDs(ctx, ds.reader(ctx), []uint{titleID}, ptr.ValOrZero(teamID))
+	if err != nil {
+		return nil, err
+	}
+	return result[titleID], nil
+}
+
+// getAutoMDMMaintainedVersionsByTitleIDs returns all cached versions of automdm-maintained apps
+// for the given title IDs and team, keyed by title ID, most recently downloaded first.
+// AutoMDM only caches what the manifest published and never rewrites a cached row's version,
+// so download order follows the manifest.
+func (ds *Datastore) getAutoMDMMaintainedVersionsByTitleIDs(ctx context.Context, q sqlx.QueryerContext, titleIDs []uint, teamID uint) (map[uint][]automdm.AutoMDMMaintainedVersion, error) {
+	if len(titleIDs) == 0 {
+		return nil, nil
+	}
+
+	query := `
+		SELECT si.id, si.version, si.filename, si.title_id, si.uploaded_at
+			FROM software_installers si
+		WHERE si.title_id IN (?) AND si.global_or_team_id = ? AND si.automdm_maintained_app_id IS NOT NULL
+		ORDER BY si.title_id, si.uploaded_at DESC, si.id DESC
+	`
+
+	query, args, err := sqlx.In(query, titleIDs, teamID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "build automdm maintained versions query")
+	}
+
+	type fmaVersionRow struct {
+		automdm.AutoMDMMaintainedVersion
+		TitleID uint `db:"title_id"`
+	}
+
+	var rows []fmaVersionRow
+	if err := sqlx.SelectContext(ctx, q, &rows, query, args...); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "select automdm maintained versions")
+	}
+
+	result := make(map[uint][]automdm.AutoMDMMaintainedVersion, len(titleIDs))
+	for _, row := range rows {
+		result[row.TitleID] = append(result[row.TitleID], row.AutoMDMMaintainedVersion)
+	}
+
+	return result, nil
+}
+
+func (ds *Datastore) MarkAutoMDMMaintainedAppVersionCurrent(ctx context.Context, installerID uint) error {
+	_, err := ds.writer(ctx).ExecContext(ctx,
+		`UPDATE software_installers SET uploaded_at = NOW(6) WHERE id = ?`, installerID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "marking automdm maintained app version current")
+	}
+	return nil
+}
+
+func (ds *Datastore) HasFMAInstallerVersion(ctx context.Context, teamID *uint, fmaID uint, version string) (versionExists bool, storageID string, err error) {
+	err = sqlx.GetContext(ctx, ds.reader(ctx), &storageID, `
+		SELECT storage_id FROM software_installers
+			WHERE global_or_team_id = ? AND automdm_maintained_app_id = ? AND version = ?
+		LIMIT 1
+	`, ptr.ValOrZero(teamID), fmaID, version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", ctxerr.Wrap(ctx, err, "get FMA installer version storage id")
+	}
+	return true, storageID, nil
+}
+
+func (ds *Datastore) GetCachedFMAInstallerMetadata(ctx context.Context, teamID *uint, fmaID uint, version string) (*automdm.MaintainedApp, error) {
+	globalOrTeamID := ptr.ValOrZero(teamID)
+
+	var result automdm.MaintainedApp
+
+	err := sqlx.GetContext(ctx, ds.reader(ctx), &result, `
+		SELECT
+			si.version,
+			si.platform,
+			si.url,
+			si.storage_id,
+			COALESCE(isc.contents, '') AS install_script,
+			COALESCE(usc.contents, '') AS uninstall_script,
+			COALESCE(si.pre_install_query, '') AS pre_install_query,
+			si.upgrade_code,
+			si.patch_query,
+			si.app_open_query
+		FROM software_installers si
+		LEFT JOIN script_contents isc ON isc.id = si.install_script_content_id
+		LEFT JOIN script_contents usc ON usc.id = si.uninstall_script_content_id
+		WHERE si.global_or_team_id = ? AND si.automdm_maintained_app_id = ? AND si.version = ?
+		LIMIT 1
+	`, globalOrTeamID, fmaID, version)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, notFound("CachedFMAInstaller")
+		}
+		return nil, ctxerr.Wrap(ctx, err, "get cached FMA installer metadata")
+	}
+
+	// Load categories
+	var categories []string
+	err = sqlx.SelectContext(ctx, ds.reader(ctx), &categories, `
+		SELECT sc.name FROM software_categories sc
+		JOIN software_installer_software_categories sisc ON sisc.software_category_id = sc.id
+		JOIN software_installers si ON si.id = sisc.software_installer_id
+		WHERE si.global_or_team_id = ? AND si.automdm_maintained_app_id = ? AND si.version = ?
+	`, globalOrTeamID, fmaID, version)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get cached FMA installer categories")
+	}
+	result.Categories = categories
+
+	return &result, nil
+}
+
+func (ds *Datastore) selectSoftwareVersionsSQL(titleIDs []uint, teamID *uint, tmFilter automdm.TeamFilter, withCounts bool) (
+	string, []any, error,
+) {
+	var teamFilter string
+	if teamID != nil {
+		teamFilter = fmt.Sprintf("shc.team_id = %d", *teamID)
+	} else {
+		teamFilter = ds.whereFilterTeamWithGlobalStats(tmFilter, "shc")
+	}
+
+	selectVersionsStmt := `
+SELECT
+	s.title_id,
+	s.id, s.version, s.release,
+	%s -- placeholder for optional host_counts
+	CONCAT('[', GROUP_CONCAT(JSON_QUOTE(scve.cve) SEPARATOR ','), ']') as vulnerabilities
+FROM software s
+LEFT JOIN software_host_counts shc ON shc.software_id = s.id AND %s
+LEFT JOIN software_cve scve ON shc.software_id = scve.software_id
+WHERE s.title_id IN (?)
+AND %s
+GROUP BY s.id`
+
+	extraSelect := ""
+	if withCounts {
+		extraSelect = "MAX(shc.hosts_count) AS hosts_count,"
+	}
+
+	countsJoin := "TRUE"
+	switch {
+	case teamID == nil:
+		countsJoin = "shc.team_id = 0 AND shc.global_stats = 1"
+	case *teamID == 0:
+		countsJoin = "shc.team_id = 0 AND shc.global_stats = 0"
+	case *teamID > 0:
+		countsJoin = fmt.Sprintf("shc.team_id = %d AND shc.global_stats = 0", *teamID)
+	}
+
+	selectVersionsStmt = fmt.Sprintf(selectVersionsStmt, extraSelect, countsJoin, teamFilter)
+
+	selectVersionsStmt, args, err := sqlx.In(selectVersionsStmt, titleIDs)
+	if err != nil {
+		return "", nil, fmt.Errorf("building sqlx.In query: %w", err)
+	}
+	return selectVersionsStmt, args, nil
+}
+
+// SyncHostsSoftwareTitles calculates the number of hosts having each
+// software installed and stores that information in the software_titles_host_counts
+// table.
+func (ds *Datastore) SyncHostsSoftwareTitles(ctx context.Context, updatedAt time.Time) error {
+	const (
+		swapTable       = "software_titles_host_counts_swap"
+		swapTableCreate = "CREATE TABLE IF NOT EXISTS " + swapTable + " LIKE software_titles_host_counts"
+
+		globalCountsStmt = `
+            SELECT
+                COUNT(DISTINCT hs.host_id),
+                0 as team_id,
+				1 as global_stats,
+                st.id as software_title_id
+            FROM software_titles st
+            JOIN software s ON s.title_id = st.id
+            JOIN host_software hs ON hs.software_id = s.id
+            GROUP BY st.id`
+
+		teamCountsStmt = `
+            SELECT
+                COUNT(DISTINCT hs.host_id),
+                h.team_id,
+				0 as global_stats,
+                st.id as software_title_id
+            FROM software_titles st
+            JOIN software s ON s.title_id = st.id
+            JOIN host_software hs ON hs.software_id = s.id
+            INNER JOIN hosts h ON hs.host_id = h.id
+            WHERE h.team_id IS NOT NULL AND hs.software_id > 0
+            GROUP BY st.id, h.team_id`
+
+		noTeamCountsStmt = `
+			SELECT
+				COUNT(DISTINCT hs.host_id),
+				0 as team_id,
+				0 as global_stats,
+				st.id as software_title_id
+			FROM software_titles st
+			JOIN software s ON s.title_id = st.id
+			JOIN host_software hs ON hs.software_id = s.id
+			INNER JOIN hosts h ON hs.host_id = h.id
+			WHERE h.team_id IS NULL AND hs.software_id > 0
+			GROUP BY st.id`
+
+		insertStmt = `
+            INSERT INTO ` + swapTable + `
+                (software_title_id, hosts_count, team_id, global_stats, updated_at)
+            VALUES
+                %s
+            ON DUPLICATE KEY UPDATE
+                hosts_count = VALUES(hosts_count),
+                updated_at = VALUES(updated_at)`
+
+		valuesPart = `(?, ?, ?, ?, ?),`
+	)
+
+	// Create a fresh swap table to populate with new counts. If a previous run left a partial swap table, drop it first.
+	w := ds.writer(ctx)
+	if _, err := w.ExecContext(ctx, "DROP TABLE IF EXISTS "+swapTable); err != nil {
+		return ctxerr.Wrap(ctx, err, "drop existing swap table")
+	}
+	// CREATE TABLE ... LIKE copies structure including CHECK constraints (with auto-generated names).
+	if _, err := w.ExecContext(ctx, swapTableCreate); err != nil {
+		return ctxerr.Wrap(ctx, err, "create swap table")
+	}
+
+	// Get a cursor for the global and team counts for each software title.
+	stmtLabel := []string{"global", "team", "no_team"}
+	for i, countStmt := range []string{globalCountsStmt, teamCountsStmt, noTeamCountsStmt} {
+		rows, err := ds.reader(ctx).QueryContext(ctx, countStmt)
+		if err != nil {
+			return ctxerr.Wrapf(ctx, err, "read %s counts from host_software", stmtLabel[i])
+		}
+		defer rows.Close()
+
+		// use a loop to iterate to prevent loading all in one go in memory, as it
+		// could get pretty big at >100K hosts with 1000+ software each. Use a write
+		// batch to prevent making too many single-row inserts.
+		const batchSize = 100
+		var batchCount int
+		args := make([]interface{}, 0, batchSize*4)
+		for rows.Next() {
+			var (
+				count  int
+				teamID uint
+				gstats bool
+				sid    uint
+			)
+
+			if err := rows.Scan(&count, &teamID, &gstats, &sid); err != nil {
+				return ctxerr.Wrapf(ctx, err, "scan %s row into variables", stmtLabel[i])
+			}
+
+			args = append(args, sid, count, teamID, gstats, updatedAt)
+			batchCount++
+
+			if batchCount == batchSize {
+				values := strings.TrimSuffix(strings.Repeat(valuesPart, batchCount), ",")
+				if _, err := ds.writer(ctx).ExecContext(ctx, fmt.Sprintf(insertStmt, values), args...); err != nil {
+					return ctxerr.Wrapf(ctx, err, "insert %s batch into software_titles_host_counts", stmtLabel[i])
+				}
+
+				args = args[:0]
+				batchCount = 0
+			}
+		}
+		if batchCount > 0 {
+			values := strings.TrimSuffix(strings.Repeat(valuesPart, batchCount), ",")
+			if _, err := ds.writer(ctx).ExecContext(ctx, fmt.Sprintf(insertStmt, values), args...); err != nil {
+				return ctxerr.Wrapf(ctx, err, "insert last %s batch into software_titles_host_counts", stmtLabel[i])
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return ctxerr.Wrapf(ctx, err, "iterate over %s host_software counts", stmtLabel[i])
+		}
+		rows.Close()
+	}
+
+	// Atomic table swap: rename the swap table to the real table, drop the old one.
+	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
+		_, err := tx.ExecContext(ctx, "DROP TABLE IF EXISTS software_titles_host_counts_old")
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "drop leftover old table")
+		}
+		_, err = tx.ExecContext(ctx, `
+			RENAME TABLE
+				software_titles_host_counts TO software_titles_host_counts_old,
+				`+swapTable+` TO software_titles_host_counts`)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "atomic table swap")
+		}
+		_, err = tx.ExecContext(ctx, "DROP TABLE IF EXISTS software_titles_host_counts_old")
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "drop old table after swap")
+		}
+		return nil
+	})
+}
+
+func (ds *Datastore) ListSoftwareAutoUpdateSchedules(ctx context.Context, teamID uint, source string, optionalFilter ...automdm.SoftwareAutoUpdateScheduleFilter) ([]automdm.SoftwareAutoUpdateSchedule, error) {
+	stmt := `
+SELECT
+	vat.id AS vpp_app_team_id,
+	vat.global_or_team_id AS team_id,
+	va.title_id,
+	vat.update_schedule_enabled AS auto_update_enabled,
+	vat.start_time AS auto_update_window_start,
+	vat.end_time AS auto_update_window_end
+FROM vpp_apps_teams vat
+JOIN vpp_apps va ON va.adam_id = vat.adam_id AND va.platform = vat.platform
+JOIN software_titles st ON st.id = va.title_id
+WHERE vat.global_or_team_id = ? AND st.source = ? AND (vat.update_schedule_enabled = 1 OR vat.start_time != '')
+`
+
+	args := []any{teamID, source}
+
+	if len(optionalFilter) > 0 {
+		filter := optionalFilter[0]
+		if filter.Enabled != nil {
+			stmt += " AND vat.update_schedule_enabled = ?"
+			args = append(args, *filter.Enabled)
+		}
+	}
+
+	var schedules []automdm.SoftwareAutoUpdateSchedule
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &schedules, stmt, args...); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "getting software update schedules")
+	}
+	return schedules, nil
+}

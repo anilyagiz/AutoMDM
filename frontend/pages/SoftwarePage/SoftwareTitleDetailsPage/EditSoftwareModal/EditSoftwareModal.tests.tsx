@@ -1,0 +1,213 @@
+import { screen, waitFor } from "@testing-library/react";
+import React from "react";
+
+import {
+  createMockAppStoreApp,
+  createMockSoftwarePackage,
+} from "__mocks__/softwareMock";
+import softwareAPI from "services/entities/software";
+import { emptySelfServiceCategoriesHandler } from "test/handlers/self-service-categories-handlers";
+import mockServer from "test/mock-server";
+import { createCustomRenderer } from "test/test-utils";
+
+import EditSoftwareModal from "./EditSoftwareModal";
+
+jest.mock("services/entities/software", () => ({
+  __esModule: true,
+  default: {
+    editSoftwarePackage: jest.fn().mockResolvedValue({}),
+    editAppStoreApp: jest.fn().mockResolvedValue({}),
+  },
+}));
+
+const BASE_PROPS: React.ComponentProps<typeof EditSoftwareModal> = {
+  softwareId: 1,
+  teamId: 1,
+  softwareInstaller: createMockSoftwarePackage(),
+  refetchSoftwareTitle: jest.fn(),
+  onExit: jest.fn(),
+  installerType: "package",
+  name: "GlobalProtect",
+  displayName: "GlobalProtect",
+  source: "apps",
+  iconUrl: null,
+};
+
+const renderModal = (
+  overrides: Partial<React.ComponentProps<typeof EditSoftwareModal>> = {}
+) => {
+  const render = createCustomRenderer({ withBackendMock: true });
+  return render(<EditSoftwareModal {...BASE_PROPS} {...overrides} />);
+};
+
+// The modal loads the self-service categories when it renders.
+beforeEach(() => {
+  mockServer.use(emptySelfServiceCategoriesHandler);
+});
+
+describe("EditSoftwareModal — multi-package title", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("renders the 'Edit software' title by default (single-package legacy path)", () => {
+    renderModal();
+    expect(screen.getByText("Edit software")).toBeInTheDocument();
+    expect(screen.queryByText("Edit version")).not.toBeInTheDocument();
+  });
+
+  it("renders the 'Edit version' title when canActivateMultiplePackages is true", () => {
+    renderModal({ canActivateMultiplePackages: true });
+    expect(screen.getByText("Edit version")).toBeInTheDocument();
+    expect(screen.queryByText("Edit software")).not.toBeInTheDocument();
+  });
+
+  it("accepts an installerId prop (threaded into the API call on save)", () => {
+    // Smoke test — the prop is optional and exists on the interface. We don't
+    // submit here since that would require asserting against the mocked API
+    // client; the page tests cover the submit path end-to-end.
+    expect(() => renderModal({ installerId: 7 })).not.toThrow();
+  });
+
+  // Regression: a patch-when-closed installer must treat the pre-install query
+  // as AutoMDM-managed even when the caller doesn't pass preInstallQueryLocked —
+  // the modal derives it from the installer's own patch policy. Otherwise the
+  // pre-install query is sent on save and the backend rejects unrelated edits
+  // (e.g. toggling self-service).
+  it("treats the pre-install query as AutoMDM-managed when the installer's patch policy is patch-when-closed", async () => {
+    const { user } = renderModal({
+      softwareInstaller: createMockSoftwarePackage({
+        patch_policy: {
+          id: 5,
+          name: "GlobalProtect up to date",
+          patch_when_closed: true,
+          continuous_automations_enabled: true,
+        },
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Advanced options" }));
+
+    expect(
+      screen.getByText(
+        /Pre-install query won't run when install is triggered via self-service/
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("treats the pre-install query as AutoMDM-managed when the installer's patch policy is notify-before-patching on macOS", async () => {
+    const { user } = renderModal({
+      source: "apps", // maps to darwin
+      softwareInstaller: createMockSoftwarePackage({
+        patch_policy: {
+          id: 6,
+          name: "GlobalProtect up to date",
+          patch_when_closed: false,
+          notify_before_patching: true,
+          continuous_automations_enabled: true,
+        },
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Advanced options" }));
+
+    expect(
+      screen.getByText(
+        /Pre-install query won't run when install is triggered via self-service/
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("locks the pre-install query when notify-before-patching is set", async () => {
+    const { user } = renderModal({
+      softwareInstaller: createMockSoftwarePackage({
+        patch_policy: {
+          id: 7,
+          name: "GlobalProtect up to date",
+          patch_when_closed: false,
+          notify_before_patching: true,
+          continuous_automations_enabled: true,
+        },
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Advanced options" }));
+
+    expect(
+      screen.getByText(
+        /Pre-install query won't run when install is triggered via self-service/
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the pre-install query editable when there is no patch-when-closed policy", async () => {
+    const { user } = renderModal({
+      softwareInstaller: createMockSoftwarePackage({ patch_policy: null }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Advanced options" }));
+
+    expect(
+      screen.queryByText(
+        /Pre-install query won't run when install is triggered via self-service/
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  // Regression (#56506): currentData must mirror formData's shape so that
+  // deepDifference only reports fields that actually changed. If currentData
+  // regresses on `software` (the installer reference) or `automaticInstall`,
+  // the self-service-only diff gains an extra key, hasChangeSideEffects
+  // flips to true, and the "cancel pending installs" modal shows for an
+  // edit that cancels nothing. Save flow is the right place to catch this
+  // since the helper tests use hand-rolled diff objects and wouldn't see a
+  // shape regression.
+  it("saves a package self-service-only edit without the cancel-installs confirm modal", async () => {
+    const { user } = renderModal({
+      softwareInstaller: createMockSoftwarePackage({ self_service: false }),
+    });
+
+    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.queryByText("Save changes?")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(softwareAPI.editSoftwarePackage).toHaveBeenCalled();
+    });
+  });
+
+  it("saves a VPP self-service-only edit without the cancel-installs confirm modal", async () => {
+    const { user } = renderModal({
+      installerType: "app-store",
+      softwareInstaller: createMockAppStoreApp({ self_service: false }),
+    });
+
+    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.queryByText("Save changes?")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(softwareAPI.editAppStoreApp).toHaveBeenCalled();
+    });
+  });
+
+  // In-house iOS/iPadOS edits take the same package save path. The backend
+  // (updateInHouseAppInstaller) only cancels pending installs on real
+  // side-effect edits (new installer file, label targeting, managed app
+  // configuration), so the FE treats self-service-only the same as any
+  // other package.
+  it("saves an in-house iOS/iPadOS self-service-only edit without the cancel-installs confirm modal", async () => {
+    const { user } = renderModal({
+      isIosOrIpadosApp: true,
+      softwareInstaller: createMockSoftwarePackage({ self_service: false }),
+    });
+
+    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.queryByText("Save changes?")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(softwareAPI.editSoftwarePackage).toHaveBeenCalled();
+    });
+  });
+});

@@ -1,0 +1,3 @@
+github.com/anilyagiz/automdm/v4/server/automdm/MDMConfigAsset	Name	automdm.MDMAssetName	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMConfigAsset	Value	[]uint8
+github.com/anilyagiz/automdm/v4/server/automdm/MDMConfigAsset	MD5Checksum	string

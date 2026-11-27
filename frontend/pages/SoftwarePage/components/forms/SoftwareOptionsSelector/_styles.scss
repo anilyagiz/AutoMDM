@@ -1,0 +1,65 @@
+.software-options-selector {
+  &__categories-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+
+    .form-field__label {
+      margin: 0;
+    }
+  }
+
+  &__categories-selector {
+    display: flex;
+    flex-direction: column;
+    border-radius: $border-radius-large;
+    border: 1px solid $ui-automdm-black-10;
+    overflow-y: auto;
+    // 210px shows about 4.5 rows so the last row is half-visible, hinting
+    // there is more to scroll to
+    max-height: 210px;
+  }
+
+  &__categories-loading,
+  &__categories-empty {
+    display: flex;
+    align-items: center;
+    gap: $pad-xsmall;
+    font-size: $x-small;
+  }
+
+  &__label {
+    width: 100%;
+    padding: $pad-small $pad-medium;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+
+    &:not(:last-child) {
+      border-bottom: 1px solid $ui-automdm-black-10;
+    }
+
+    .form-field--checkbox {
+      width: auto;
+    }
+  }
+
+  &__label-name {
+    font-size: $x-small;
+  }
+
+  &__self-service {
+    display: flex;
+    flex-direction: column;
+    gap: $medium;
+  }
+
+  &--disabled {
+    .form-field__label,
+    .software-options-selector__label-name {
+      color: $ui-automdm-black-50;
+    }
+  }
+
+}

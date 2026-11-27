@@ -1,0 +1,145 @@
+/* eslint-disable  @typescript-eslint/explicit-module-boundary-types */
+
+import { HostStatusFilter } from "interfaces/host";
+import {
+  DiskEncryptionStatus,
+  BootstrapPackageStatus,
+  MdmProfileStatus,
+} from "interfaces/mdm";
+import sendRequest from "services";
+import endpoints from "utilities/endpoints";
+import {
+  buildQueryStringFromParams,
+  getLabelParam,
+  reconcileMutuallyExclusiveHostParams,
+  reconcileMutuallyInclusiveHostParams,
+} from "utilities/url";
+
+import { DEPDeviceStatus, MacSettingsStatusQueryParam } from "./hosts";
+
+export interface ISortOption {
+  key: string;
+  direction: string;
+}
+
+export interface IHostsCountResponse {
+  count: number;
+}
+
+export interface IHostsCountQueryKey extends IHostCountLoadOptions {
+  scope: "hosts_count";
+}
+
+export interface IHostCountLoadOptions {
+  page?: number;
+  perPage?: number;
+  selectedLabels?: string[];
+  globalFilter?: string;
+  status?: Exclude<HostStatusFilter, "pending">;
+  teamId?: number;
+  policyId?: number;
+  policyResponse?: string;
+  macSettingsStatus?: MacSettingsStatusQueryParam;
+  softwareTitleId?: number;
+  softwareVersionId?: number;
+  softwareStatus?: string;
+  appStoreAppVersionId?: number;
+  lowDiskSpaceHosts?: number;
+  mdmId?: number;
+  mdmEnrollmentStatus?: string;
+  munkiIssueId?: number;
+  osVersionId?: number;
+  osName?: string;
+  osVersion?: string;
+  osSettings?: MdmProfileStatus;
+  vulnerability?: string;
+  diskEncryptionStatus?: DiskEncryptionStatus;
+  bootstrapPackageStatus?: BootstrapPackageStatus;
+  configProfileStatus?: string;
+  configProfileUUID?: string;
+  scriptBatchExecutionStatus?: string;
+  scriptBatchExecutionId?: string;
+  depProfileError?: boolean;
+  depAssignProfileResponse?: DEPDeviceStatus;
+}
+
+export default {
+  load: (
+    options: IHostCountLoadOptions | undefined
+  ): Promise<IHostsCountResponse> => {
+    const selectedLabels = options?.selectedLabels || [];
+    const policyId = options?.policyId;
+    const policyResponse = options?.policyResponse;
+    const globalFilter = options?.globalFilter || "";
+    const teamId = options?.teamId;
+    const softwareTitleId = options?.softwareTitleId;
+    const softwareVersionId = options?.softwareVersionId;
+    const softwareStatus = options?.softwareStatus;
+    const appStoreAppVersionId = options?.appStoreAppVersionId;
+    const macSettingsStatus = options?.macSettingsStatus;
+    const status = options?.status;
+    const mdmId = options?.mdmId;
+    const mdmEnrollmentStatus = options?.mdmEnrollmentStatus;
+    const munkiIssueId = options?.munkiIssueId;
+    const lowDiskSpaceHosts = options?.lowDiskSpaceHosts;
+    const label = getLabelParam(selectedLabels);
+    const osVersionId = options?.osVersionId;
+    const osName = options?.osName;
+    const osVersion = options?.osVersion;
+    const osSettings = options?.osSettings;
+    const vulnerability = options?.vulnerability;
+    const diskEncryptionStatus = options?.diskEncryptionStatus;
+    const bootstrapPackageStatus = options?.bootstrapPackageStatus;
+    const configProfileStatus = options?.configProfileStatus;
+    const configProfileUUID = options?.configProfileUUID;
+    const scriptBatchExecutionStatus = options?.scriptBatchExecutionStatus;
+    const scriptBatchExecutionId = options?.scriptBatchExecutionId;
+    const depProfileError = options?.depProfileError;
+    const depAssignProfileResponse = options?.depAssignProfileResponse;
+
+    const queryParams = {
+      query: globalFilter,
+      ...reconcileMutuallyInclusiveHostParams({
+        teamId,
+        macSettingsStatus,
+        osSettings,
+      }),
+      // TODO: shouldn't macSettingsStatus be included in the mutually exclusive query params too?
+      // If so, this todo applies in other places.
+      ...reconcileMutuallyExclusiveHostParams({
+        teamId,
+        label,
+        policyId,
+        policyResponse,
+        mdmId,
+        mdmEnrollmentStatus,
+        munkiIssueId,
+        softwareTitleId,
+        softwareStatus,
+        appStoreAppVersionId,
+        softwareVersionId,
+        lowDiskSpaceHosts,
+        osName,
+        osVersionId,
+        osVersion,
+        osSettings,
+        vulnerability,
+        diskEncryptionStatus,
+        bootstrapPackageStatus,
+        configProfileStatus,
+        configProfileUUID,
+        scriptBatchExecutionStatus,
+        scriptBatchExecutionId,
+        depProfileError,
+        depAssignProfileResponse,
+      }),
+      label_id: label,
+      status,
+    };
+
+    const queryString = buildQueryStringFromParams(queryParams);
+    const endpoint = endpoints.HOSTS_COUNT;
+    const path = `${endpoint}?${queryString}`;
+    return sendRequest("GET", path);
+  },
+};

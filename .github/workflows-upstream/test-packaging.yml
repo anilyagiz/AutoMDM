@@ -1,0 +1,115 @@
+# This workflow tests packaging of automdmd with the `automdmctl package` command
+# on Linux (ubuntu-24.04).
+#
+# It fetches the targets: orbit, osquery and automdm-desktop from the default
+# (AutoMDM's) TUF server, https://tuf.fleetctl.com.
+#
+# All package types (deb, rpm, pkg.tar.zst, msi, pkg) are built on ubuntu-24.04.
+# Wine in the fleetdm/wix image (used for msi) fails on ubuntu-26.04
+# ("wineserver: socket: Function not implemented").
+# Use ubuntu-latest once msi generation is pure Go: https://github.com/fleetdm/fleet/issues/50503
+name: Test packaging
+
+on:
+  push:
+    branches:
+      - main
+      - patch-*
+      - prepare-*
+    paths:
+      - "cmd/automdmctl/**.go"
+      - "pkg/**.go"
+      - "server/context/**.go"
+      - "orbit/**.go"
+      - "ee/automdmctl/**.go"
+      - "tools/automdmctl-docker/**"
+      - "tools/wix-docker/**"
+      - ".github/workflows/test-packaging.yml"
+  pull_request:
+    paths:
+      - "cmd/automdmctl/**.go"
+      - "pkg/**.go"
+      - "server/context/**.go"
+      - "orbit/**.go"
+      - "ee/automdmctl/**.go"
+      - "tools/automdmctl-docker/**"
+      - "tools/wix-docker/**"
+      - ".github/workflows/test-packaging.yml"
+  workflow_dispatch: # Manual
+
+# This allows a subsequently queued workflow run to interrupt previous runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # fail-fast using bash -eo pipefail. See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#exit-codes-and-error-action-preference
+    shell: bash
+
+permissions: {}
+
+jobs:
+  test-packaging:
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Pull fleetdm/wix
+        # Run in background while other steps complete to speed up the workflow.
+        # Only MSI generation needs a Docker image now that pkg is pure Go.
+        run: |
+          docker pull fleetdm/wix:latest &
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build automdmctl
+        run: make automdmctl
+
+      - name: Build DEB
+        run: ./build/automdmctl package --type deb --enroll-secret=foo --automdm-url=https://localhost:8080
+
+      - name: Build DEB with AutoMDM Desktop
+        run: ./build/automdmctl package --type deb --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
+
+      - name: Build RPM
+        run: ./build/automdmctl package --type rpm --enroll-secret=foo --automdm-url=https://localhost:8080
+
+      - name: Build RPM with AutoMDM Desktop
+        run: ./build/automdmctl package --type rpm --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
+
+      - name: Build PKG.TAR.ZST
+        run: ./build/automdmctl package --type pkg.tar.zst --enroll-secret=foo --automdm-url=https://localhost:8080
+
+      - name: Build PKG.TAR.ZST with AutoMDM Desktop
+        run: ./build/automdmctl package --type pkg.tar.zst --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
+
+      - name: Build MSI
+        run: ./build/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080
+
+      - name: Build MSI with AutoMDM Desktop
+        run: ./build/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
+
+      - name: Build PKG
+        run: ./build/automdmctl package --type pkg --enroll-secret=foo --automdm-url=https://localhost:8080
+
+      - name: Build PKG with AutoMDM Desktop
+        run: ./build/automdmctl package --type pkg --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop

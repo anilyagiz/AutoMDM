@@ -1,0 +1,11953 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	_ "embed"
+	"encoding/asn1"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"log/slog"
+	"math"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"sort"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	automdmmdm "github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/gdmf"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	mdmlifecycle "github.com/anilyagiz/automdm/v4/server/mdm/lifecycle"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	nanomdm_pushsvc "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/service"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mdmmock "github.com/anilyagiz/automdm/v4/server/mock/mdm"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
+	"github.com/micromdm/nanolib/log/stdlogfmt"
+	"github.com/micromdm/plist"
+	"github.com/smallstep/pkcs7"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	mdmtesting "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+)
+
+func setupAppleMDMService(t *testing.T, license *automdm.LicenseInfo, tweakCfg ...func(*config.AutoMDMConfig)) (automdm.Service, context.Context, *mock.Store, *TestServerOpts) {
+	ds := new(mock.Store)
+	cfg := config.TestConfig()
+	// Custom activations are opt-in on the server (#50764). Tests that exercise
+	// them need them on; pass a tweak to turn them back off.
+	cfg.MDM.AllowCustomActivations = true
+	for _, fn := range tweakCfg {
+		fn(&cfg)
+	}
+	testCertPEM, testKeyPEM, err := generateCertWithAPNsTopic()
+	require.NoError(t, err)
+	config.SetTestMDMConfig(t, &cfg, testCertPEM, testKeyPEM, "../../server/service/testdata")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/server/devices"):
+			_, err := w.Write([]byte("{}"))
+			require.NoError(t, err)
+			return
+		case strings.Contains(r.URL.Path, "/session"):
+			_, err := w.Write([]byte(`{"auth_session_token": "yoo"}`))
+			require.NoError(t, err)
+			return
+		case strings.Contains(r.URL.Path, "/profile"):
+			_, err := w.Write([]byte(`{"profile_uuid": "profile123"}`))
+			require.NoError(t, err)
+		}
+	}))
+
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	depStorage := &nanodep_mock.Storage{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+
+	opts := &TestServerOpts{
+		AutoMDMConfig: &cfg,
+		MDMStorage:    mdmStorage,
+		DEPStorage:    depStorage,
+		MDMPusher:     pusher,
+		License:       license,
+	}
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
+
+	mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+		return nil, nil
+	}
+	mdmStorage.RetrievePushInfoFunc = func(ctx context.Context, tokens []string) (map[string]*mdm.Push, error) {
+		res := make(map[string]*mdm.Push, len(tokens))
+		for _, t := range tokens {
+			res[t] = &mdm.Push{
+				PushMagic: "",
+				Token:     []byte(t),
+				Topic:     "",
+			}
+		}
+		return res, nil
+	}
+	mdmStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+		cert, err := tls.LoadX509KeyPair("testdata/server.pem", "testdata/server.key")
+		return &cert, "", err
+	}
+	mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
+		return false, nil
+	}
+
+	depStorage.RetrieveAuthTokensFunc = func(ctx context.Context, name string) (*nanodep_client.OAuth1Tokens, error) {
+		return &nanodep_client.OAuth1Tokens{}, nil
+	}
+	depStorage.RetrieveConfigFunc = func(context.Context, string) (*nanodep_client.Config, error) {
+		return &nanodep_client.Config{
+			BaseURL: ts.URL,
+		}, nil
+	}
+
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo: automdm.OrgInfo{
+				OrgName: "Foo Inc.",
+			},
+			ServerSettings: automdm.ServerSettings{
+				ServerURL: "https://foo.example.com",
+			},
+			MDM: automdm.MDM{
+				EnabledAndConfigured: true,
+			},
+		}, nil
+	}
+	ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+		return nil, nil
+	}
+	ds.NewMDMAppleEnrollmentProfileFunc = func(ctx context.Context, enrollmentPayload automdm.MDMAppleEnrollmentProfilePayload) (*automdm.MDMAppleEnrollmentProfile, error) {
+		return &automdm.MDMAppleEnrollmentProfile{
+			ID:            1,
+			Token:         "foo",
+			Type:          automdm.MDMAppleEnrollmentTypeManual,
+			EnrollmentURL: "https://foo.example.com?token=foo",
+		}, nil
+	}
+	ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+		return &automdm.MDMAppleEnrollmentProfile{ID: 1, Token: token, Type: automdm.MDMAppleEnrollmentTypeAutomatic}, nil
+	}
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		return &automdm.NanoEnrollment{Enabled: false}, nil
+	}
+	ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoMDMEnrollmentDetails, error) {
+		return &automdm.NanoMDMEnrollmentDetails{
+			LastMDMEnrollmentTime: nil,
+			LastMDMSeenTime:       nil,
+			HardwareAttested:      false,
+		}, nil
+	}
+	ds.GetMDMAppleCommandRequestTypeFunc = func(ctx context.Context, commandUUID string) (string, error) {
+		return "", nil
+	}
+	ds.MDMGetEULAMetadataFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform) (*automdm.MDMEULA, error) {
+		return &automdm.MDMEULA{}, nil
+	}
+	ds.MDMGetEULABytesFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform, token string) (*automdm.MDMEULA, error) {
+		return &automdm.MDMEULA{}, nil
+	}
+	ds.MDMGetEULAPlatformFunc = func(ctx context.Context, token string) (automdm.MDMEULAPlatform, error) {
+		return automdm.MDMEULAPlatformDarwin, nil
+	}
+	ds.MDMInsertEULAFunc = func(ctx context.Context, eula *automdm.MDMEULA) error {
+		return nil
+	}
+	ds.MDMDeleteEULAFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform, token string) error {
+		return nil
+	}
+	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
+		return nil
+	}
+	ds.ExpandEmbeddedSecretsFunc = func(ctx context.Context, document string) (string, error) {
+		return document, nil
+	}
+	ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, document string) (string, *time.Time, error) {
+		return document, nil, nil
+	}
+	apnsCert, apnsKey, err := mysqltest.GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
+	require.NoError(t, err)
+	crt, key, err := apple_mdm.NewSCEPCACertKey()
+	require.NoError(t, err)
+	certPEM := tokenpki.PEMCertificate(crt.Raw)
+	keyPEM := tokenpki.PEMRSAPrivateKey(key)
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+		_ sqlx.QueryerContext,
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetAPNSCert: {Value: apnsCert},
+			automdm.MDMAssetAPNSKey:  {Value: apnsKey},
+			automdm.MDMAssetCACert:   {Value: certPEM},
+			automdm.MDMAssetCAKey:    {Value: keyPEM},
+		}, nil
+	}
+	ds.NewAppleSCEPChallengeFunc = func(ctx context.Context, info automdm.AppleSCEPChallengeInfo, ttl time.Duration) (string, error) {
+		return "dynamic-challenge", nil
+	}
+
+	ds.GetABMTokenOrgNamesAssociatedWithTeamFunc = func(ctx context.Context, teamID *uint) ([]string, error) {
+		return []string{"foobar"}, nil
+	}
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{{ID: 1}}, nil
+	}
+	ds.InsertAppleSoftwareUpdateDeviceIDFunc = func(ctx context.Context, hostUUID, updateDeviceID string) error {
+		return nil
+	}
+	ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+		return nil, nil
+	}
+
+	return svc, ctx, ds, opts
+}
+
+func TestAppleMDMAuthorization(t *testing.T) {
+	svc, ctx, ds, opts := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium}, func(fc *config.AutoMDMConfig) {
+		fc.MDM.AppleSCEPStaticChallengeEnabled = true
+	})
+
+	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*automdm.EnrollSecret, error) {
+		return []*automdm.EnrollSecret{
+			{
+				Secret: "abcd",
+				TeamID: nil,
+			},
+			{
+				Secret: "efgh",
+				TeamID: nil,
+			},
+		}, nil
+	}
+
+	ds.VerifyEnrollSecretFunc = func(ctx context.Context, enrollSecret string) (*automdm.EnrollSecret, error) {
+		return &automdm.EnrollSecret{
+			Secret: "abcd",
+			TeamID: nil,
+		}, nil
+	}
+
+	checkAuthErr := func(t *testing.T, err error, shouldFailWithAuth bool) {
+		t.Helper()
+
+		if shouldFailWithAuth {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+
+	// some eula methods read and write access for gitops users. We test them separately
+	// from the other MDM methods.
+	testEULAMethods := func(t *testing.T, user *automdm.User, shouldFailWithAuth bool) {
+		ctx := test.UserContext(ctx, user)
+		for _, platform := range []automdm.MDMEULAPlatform{"", automdm.MDMEULAPlatformDarwin, automdm.MDMEULAPlatformWindows} {
+			_, err := svc.MDMGetEULAMetadata(ctx, platform)
+			checkAuthErr(t, err, shouldFailWithAuth)
+			name, content := "eula.pdf", "%PDF-"
+			if platform == automdm.MDMEULAPlatformWindows {
+				name, content = "terms.md", "# Terms\n"
+			}
+			err = svc.MDMCreateEULA(ctx, platform, name, bytes.NewReader([]byte(content)), false)
+			checkAuthErr(t, err, shouldFailWithAuth)
+		}
+		err := svc.MDMDeleteEULA(ctx, "foo", false)
+		checkAuthErr(t, err, shouldFailWithAuth)
+	}
+
+	// The EULA methods check each platform's MDM after authorization, so both are on.
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+			MDM:            automdm.MDM{EnabledAndConfigured: true, WindowsEnabledAndConfigured: true},
+		}, nil
+	}
+	// Global admin and gitops users can access the eula endpoints.
+	testEULAMethods(t, test.UserAdmin, false)
+	testEULAMethods(t, test.UserGitOps, false)
+
+	// All other users should not have access to the endpoints.
+	for _, user := range []*automdm.User{
+		test.UserNoRoles,
+		test.UserMaintainer,
+		test.UserObserver,
+		test.UserObserverPlus,
+		test.UserTeamAdminTeam1,
+	} {
+		testEULAMethods(t, user, true)
+	}
+	// Token authenticated endpoints can be accessed by anyone.
+	ctx = test.UserContext(ctx, test.UserNoRoles)
+	_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "foo", "", &automdm.MDMAppleMachineInfo{})
+	require.NoError(t, err)
+	_, err = svc.MDMGetEULABytes(ctx, "foo")
+	require.NoError(t, err)
+
+	// The manual enrollment profile embeds the SCEP challenge, so only global
+	// and team admins and maintainers can read it (same roles as enroll secrets).
+	for _, user := range []*automdm.User{
+		test.UserAdmin,
+		test.UserMaintainer,
+		test.UserTeamAdminTeam1,
+		test.UserTeamMaintainerTeam1,
+	} {
+		usrctx := test.UserContext(ctx, user)
+		_, err = svc.GetMDMManualEnrollmentProfile(usrctx, false)
+		require.NoError(t, err)
+	}
+	for _, user := range []*automdm.User{
+		test.UserNoRoles,
+		test.UserObserver,
+		test.UserObserverPlus,
+		test.UserGitOps,
+		test.UserTeamObserverTeam1,
+		test.UserTeamObserverPlusTeam1,
+		test.UserTeamGitOpsTeam1,
+	} {
+		usrctx := test.UserContext(ctx, user)
+		_, err = svc.GetMDMManualEnrollmentProfile(usrctx, false)
+		checkAuthErr(t, err, true)
+	}
+
+	// Must be device-authenticated, should fail
+	_, err = svc.GetDeviceMDMAppleEnrollmentProfile(ctx)
+	checkAuthErr(t, err, true)
+	// works with device-authenticated context
+	hostCtx := test.HostContext(context.Background(), &automdm.Host{})
+	_, err = svc.GetDeviceMDMAppleEnrollmentProfile(hostCtx)
+	require.NoError(t, err)
+
+	hostUUIDsToTeamID := map[string]uint{
+		"host1": 1,
+		"host2": 1,
+		"host3": 2,
+		"host4": 0,
+	}
+	hostUUIDToID := map[string]uint{"host1": 1, "host2": 2, "host3": 3, "host4": 4}
+	ds.ListHostsLiteByUUIDsFunc = func(ctx context.Context, filter automdm.TeamFilter, uuids []string) ([]*automdm.Host, error) {
+		hosts := make([]*automdm.Host, 0, len(uuids))
+		for _, uuid := range uuids {
+			// UUIDs with no host row are skipped by the datastore, so unknown ones
+			// don't resolve to a host here either.
+			tmID, ok := hostUUIDsToTeamID[uuid]
+			if !ok {
+				continue
+			}
+			h := &automdm.Host{ID: hostUUIDToID[uuid], UUID: uuid, Platform: "darwin"}
+			if tmID != 0 {
+				h.TeamID = &tmID
+			}
+			hosts = append(hosts, h)
+		}
+		return hosts, nil
+	}
+
+	rawB64FreeCmd := base64.RawStdEncoding.EncodeToString([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Command</key>
+    <dict>
+        <key>RequestType</key>
+        <string>FooBar</string>
+    </dict>
+    <key>CommandUUID</key>
+    <string>uuid</string>
+</dict>
+</plist>`))
+
+	t.Run("RunMDMCommand", func(t *testing.T) {
+		// Every host of this test has MDM on.
+		ds.AreHostsConnectedToAutoMDMMDMFunc = func(ctx context.Context, hosts []*automdm.Host) (map[string]bool, error) {
+			connected := make(map[string]bool, len(hosts))
+			for _, h := range hosts {
+				connected[h.UUID] = hostUUIDToID[h.UUID] != 0
+			}
+			return connected, nil
+		}
+		mdmStore := opts.MDMStorage.(*mdmmock.MDMAppleStore)
+		var enqueuedIDs []string
+		mdmStore.EnqueueCommandFunc = func(ctx context.Context, ids []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+			enqueuedIDs = append(enqueuedIDs, ids...)
+			return nil, nil
+		}
+		var activityHostUUIDs []string
+		opts.ActivityMock.NewActivityFunc = func(ctx context.Context, user *activity_api.User, details activity_api.ActivityDetails) error {
+			ranCmd, ok := details.(*automdm.ActivityTypeRanCustomMDMCommand)
+			require.True(t, ok)
+			activityHostUUIDs = append(activityHostUUIDs, ranCmd.HostUUID)
+			return nil
+		}
+
+		enqueueCmdCases := []struct {
+			desc               string
+			user               *automdm.User
+			uuids              []string
+			wantEnqueued       []string // UUIDs expected to be enqueued and get an activity
+			shouldFailWithAuth bool
+		}{
+			{"no role", test.UserNoRoles, []string{"host1", "host2", "host3", "host4"}, nil, true},
+			{"maintainer can run", test.UserMaintainer, []string{"host1", "host2", "host3", "host4"}, []string{"host1", "host2", "host3", "host4"}, false},
+			{"admin can run", test.UserAdmin, []string{"host1", "host2", "host3", "host4"}, []string{"host1", "host2", "host3", "host4"}, false},
+			{"observer cannot run", test.UserObserver, []string{"host1", "host2", "host3", "host4"}, nil, true},
+			{"team 1 admin can run team 1", test.UserTeamAdminTeam1, []string{"host1", "host2"}, []string{"host1", "host2"}, false},
+			{"team 2 admin can run team 2", test.UserTeamAdminTeam2, []string{"host3"}, []string{"host3"}, false},
+			{"team 1 maintainer can run team 1", test.UserTeamMaintainerTeam1, []string{"host1", "host2"}, []string{"host1", "host2"}, false},
+			{"team 1 observer cannot run team 1", test.UserTeamObserverTeam1, []string{"host1", "host2"}, nil, true},
+			{"team 1 admin cannot run team 2", test.UserTeamAdminTeam1, []string{"host3"}, nil, true},
+			{"team 1 admin cannot run no team", test.UserTeamAdminTeam1, []string{"host4"}, nil, true},
+			{"team 1 admin cannot run mix of team 1 and 2", test.UserTeamAdminTeam1, []string{"host1", "host3"}, nil, true},
+			{"admin skips unresolvable ids", test.UserAdmin, []string{"host1", "ghost1", "host2", "ghost2"}, []string{"host1", "host2"}, false},
+			{"team 1 maintainer skips unresolvable ids", test.UserTeamMaintainerTeam1, []string{"host1", "ghost1", "host2"}, []string{"host1", "host2"}, false},
+		}
+		for _, c := range enqueueCmdCases {
+			t.Run(c.desc, func(t *testing.T) {
+				enqueuedIDs, activityHostUUIDs = nil, nil
+				ctx = test.UserContext(ctx, c.user)
+				_, err = svc.RunMDMCommand(ctx, rawB64FreeCmd, c.uuids)
+				checkAuthErr(t, err, c.shouldFailWithAuth)
+				require.ElementsMatch(t, c.wantEnqueued, enqueuedIDs)
+				require.ElementsMatch(t, c.wantEnqueued, activityHostUUIDs)
+			})
+		}
+
+		// test with a command that requires a premium license
+		ctx = test.UserContext(ctx, test.UserAdmin)
+		ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		rawB64PremiumCmd := base64.RawStdEncoding.EncodeToString([]byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Command</key>
+    <dict>
+        <key>RequestType</key>
+        <string>%s</string>
+    </dict>
+    <key>CommandUUID</key>
+    <string>uuid</string>
+</dict>
+</plist>`, "DeviceLock")))
+		_, err = svc.RunMDMCommand(ctx, rawB64PremiumCmd, []string{"host1"})
+		require.Error(t, err)
+		require.ErrorContains(t, err, automdm.ErrMissingLicense.Error())
+
+		rawB64PremiumCmd = base64.RawStdEncoding.EncodeToString(fmt.Appendf([]byte{}, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Command</key>
+    <dict>
+        <key>RequestType</key>
+        <string>%s</string>
+    </dict>
+    <key>CommandUUID</key>
+    <string>uuid</string>
+</dict>
+</plist>`, "ClearPasscode"))
+		_, err = svc.RunMDMCommand(ctx, rawB64PremiumCmd, []string{"host1"})
+		require.Error(t, err)
+		require.ErrorContains(t, err, automdm.ErrMissingLicense.Error())
+	})
+
+	cmdUUIDToHostUUIDs := map[string][]string{
+		"uuidTm1":       {"host1", "host2"},
+		"uuidTm2":       {"host3"},
+		"uuidNoTm":      {"host4"},
+		"uuidMixTm1Tm2": {"host1", "host3"},
+	}
+	getResults := func(commandUUID string) ([]*automdm.MDMCommandResult, error) {
+		hosts := cmdUUIDToHostUUIDs[commandUUID]
+		res := make([]*automdm.MDMCommandResult, 0, len(hosts))
+		for _, h := range hosts {
+			res = append(res, &automdm.MDMCommandResult{
+				HostUUID: h,
+			})
+		}
+		return res, nil
+	}
+
+	ds.GetMDMAppleCommandResultsFunc = func(ctx context.Context, commandUUID string, hostUUID string) ([]*automdm.MDMCommandResult, error) {
+		return getResults(commandUUID)
+	}
+
+	ds.GetMDMCommandPlatformFunc = func(ctx context.Context, commandUUID string) (string, error) {
+		return "darwin", nil
+	}
+
+	t.Run("GetMDMCommandResults", func(t *testing.T) {
+		cmdResultsCases := []struct {
+			desc               string
+			user               *automdm.User
+			cmdUUID            string
+			shouldFailWithAuth bool
+		}{
+			{"no role", test.UserNoRoles, "uuidTm1", true},
+			{"maintainer can view", test.UserMaintainer, "uuidTm1", false},
+			{"maintainer can view", test.UserMaintainer, "uuidTm2", false},
+			{"maintainer can view", test.UserMaintainer, "uuidNoTm", false},
+			{"maintainer can view", test.UserMaintainer, "uuidMixTm1Tm2", false},
+			{"observer can view", test.UserObserver, "uuidTm1", false},
+			{"observer can view", test.UserObserver, "uuidTm2", false},
+			{"observer can view", test.UserObserver, "uuidNoTm", false},
+			{"observer can view", test.UserObserver, "uuidMixTm1Tm2", false},
+			{"observer+ can view", test.UserObserverPlus, "uuidTm1", false},
+			{"observer+ can view", test.UserObserverPlus, "uuidTm2", false},
+			{"observer+ can view", test.UserObserverPlus, "uuidNoTm", false},
+			{"observer+ can view", test.UserObserverPlus, "uuidMixTm1Tm2", false},
+			{"admin can view", test.UserAdmin, "uuidTm1", false},
+			{"admin can view", test.UserAdmin, "uuidTm2", false},
+			{"admin can view", test.UserAdmin, "uuidNoTm", false},
+			{"admin can view", test.UserAdmin, "uuidMixTm1Tm2", false},
+			{"tm1 maintainer can view tm1", test.UserTeamMaintainerTeam1, "uuidTm1", false},
+			{"tm1 maintainer cannot view tm2", test.UserTeamMaintainerTeam1, "uuidTm2", true},
+			{"tm1 maintainer cannot view no team", test.UserTeamMaintainerTeam1, "uuidNoTm", true},
+			{"tm1 maintainer cannot view mix", test.UserTeamMaintainerTeam1, "uuidMixTm1Tm2", true},
+			{"tm1 observer can view tm1", test.UserTeamObserverTeam1, "uuidTm1", false},
+			{"tm1 observer cannot view tm2", test.UserTeamObserverTeam1, "uuidTm2", true},
+			{"tm1 observer cannot view no team", test.UserTeamObserverTeam1, "uuidNoTm", true},
+			{"tm1 observer cannot view mix", test.UserTeamObserverTeam1, "uuidMixTm1Tm2", true},
+			{"tm1 observer+ can view tm1", test.UserTeamObserverPlusTeam1, "uuidTm1", false},
+			{"tm1 observer+ cannot view tm2", test.UserTeamObserverPlusTeam1, "uuidTm2", true},
+			{"tm1 observer+ cannot view no team", test.UserTeamObserverPlusTeam1, "uuidNoTm", true},
+			{"tm1 observer+ cannot view mix", test.UserTeamObserverPlusTeam1, "uuidMixTm1Tm2", true},
+			{"tm1 admin can view tm1", test.UserTeamAdminTeam1, "uuidTm1", false},
+			{"tm1 admin cannot view tm2", test.UserTeamAdminTeam1, "uuidTm2", true},
+			{"tm1 admin cannot view no team", test.UserTeamAdminTeam1, "uuidNoTm", true},
+			{"tm1 admin cannot view mix", test.UserTeamAdminTeam1, "uuidMixTm1Tm2", true},
+		}
+		for _, c := range cmdResultsCases {
+			t.Run(c.desc, func(t *testing.T) {
+				ctx = test.UserContext(ctx, c.user)
+				// TODO(sarah): move test to shared file
+				_, err = svc.GetMDMCommandResults(ctx, c.cmdUUID, "")
+				checkAuthErr(t, err, c.shouldFailWithAuth)
+			})
+		}
+	})
+}
+
+func TestMDMAppleConfigProfileAuthz(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	profUUID := "a" + uuid.NewString()
+	testCases := []struct {
+		name             string
+		user             *automdm.User
+		shouldFailGlobal bool
+		shouldFailTeam   bool
+	}{
+		{
+			"global admin",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			false,
+			false,
+		},
+		{
+			"global maintainer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			false,
+			false,
+		},
+		{
+			"global observer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
+			true,
+			true,
+		},
+		{
+			"team admin, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
+			true,
+			false,
+		},
+		{
+			"team admin, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
+			true,
+			true,
+		},
+		{
+			"team maintainer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
+			true,
+			false,
+		},
+		{
+			"team maintainer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
+			true,
+			true,
+		},
+		{
+			"team observer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
+			true,
+			true,
+		},
+		{
+			"team observer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
+			true,
+			true,
+		},
+		{
+			"user no roles",
+			&automdm.User{ID: 1337},
+			true,
+			true,
+		},
+	}
+
+	ds.NewMDMAppleConfigProfileFunc = func(ctx context.Context, cp automdm.MDMAppleConfigProfile, usesVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+		return &cp, nil
+	}
+	ds.ListMDMAppleConfigProfilesFunc = func(ctx context.Context, teamID *uint) ([]*automdm.MDMAppleConfigProfile, error) {
+		return nil, nil
+	}
+	ds.GetMDMAppleProfilesSummaryFunc = func(context.Context, *uint) (*automdm.MDMProfilesSummary, error) {
+		return nil, nil
+	}
+	ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+	) (updates automdm.MDMProfilesUpdates, err error) {
+		return automdm.MDMProfilesUpdates{}, nil
+	}
+	ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+		return &automdm.GroupedCertificateAuthorities{}, nil
+	}
+	mockGetFuncWithTeamID := func(teamID uint) mock.GetMDMAppleConfigProfileFunc {
+		return func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			require.Equal(t, profUUID, puid)
+			return &automdm.MDMAppleConfigProfile{TeamID: &teamID}, nil
+		}
+	}
+	mockDeleteFuncWithTeamID := func(teamID uint) mock.DeleteMDMAppleConfigProfileFunc {
+		return func(ctx context.Context, puid string) error {
+			require.Equal(t, profUUID, puid)
+			return nil
+		}
+	}
+	mockTeamFuncWithUser := func(u *automdm.User) mock.TeamWithExtrasFunc {
+		return func(ctx context.Context, teamID uint) (*automdm.Team, error) {
+			if len(u.Teams) > 0 {
+				for _, t := range u.Teams {
+					if t.ID == teamID {
+						return &automdm.Team{ID: teamID, Users: []automdm.TeamUser{{User: *u, Role: t.Role}}}, nil
+					}
+				}
+			}
+			return &automdm.Team{}, nil
+		}
+	}
+	mockTeamLiteFunc := func(u *automdm.User) mock.TeamLiteFunc {
+		return func(ctx context.Context, teamID uint) (*automdm.TeamLite, error) {
+			if len(u.Teams) > 0 {
+				for _, t := range u.Teams {
+					if t.ID == teamID {
+						return &automdm.TeamLite{ID: teamID}, nil
+					}
+				}
+			}
+			return &automdm.TeamLite{}, nil
+		}
+	}
+
+	checkShouldFail := func(err error, shouldFail bool) {
+		if !shouldFail {
+			require.NoError(t, err)
+		} else {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
+		}
+	}
+
+	mcBytes := mcBytesForTest("Foo", "Bar", "UUID")
+
+	for _, tt := range testCases {
+		ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+		ds.TeamWithExtrasFunc = mockTeamFuncWithUser(tt.user)
+		ds.TeamLiteFunc = mockTeamLiteFunc(tt.user)
+
+		t.Run(tt.name, func(t *testing.T) {
+			// test authz create new profile (no team)
+			_, err := svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+			checkShouldFail(err, tt.shouldFailGlobal)
+
+			// test authz create new profile (team 1)
+			_, err = svc.NewMDMAppleConfigProfile(ctx, 1, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+			checkShouldFail(err, tt.shouldFailTeam)
+
+			// test authz list profiles (no team)
+			_, err = svc.ListMDMAppleConfigProfiles(ctx, 0)
+			checkShouldFail(err, tt.shouldFailGlobal)
+
+			// test authz list profiles (team 1)
+			_, err = svc.ListMDMAppleConfigProfiles(ctx, 1)
+			checkShouldFail(err, tt.shouldFailTeam)
+
+			// test authz get config profile (no team)
+			ds.GetMDMAppleConfigProfileFunc = mockGetFuncWithTeamID(0)
+			_, err = svc.GetMDMAppleConfigProfile(ctx, profUUID)
+			checkShouldFail(err, tt.shouldFailGlobal)
+
+			// test authz delete config profile (no team)
+			ds.DeleteMDMAppleConfigProfileFunc = mockDeleteFuncWithTeamID(0)
+			err = svc.DeleteMDMAppleConfigProfile(ctx, profUUID)
+			checkShouldFail(err, tt.shouldFailGlobal)
+
+			// test authz get config profile (team 1)
+			ds.GetMDMAppleConfigProfileFunc = mockGetFuncWithTeamID(1)
+			_, err = svc.GetMDMAppleConfigProfile(ctx, profUUID)
+			checkShouldFail(err, tt.shouldFailTeam)
+
+			// test authz delete config profile (team 1)
+			ds.DeleteMDMAppleConfigProfileFunc = mockDeleteFuncWithTeamID(1)
+			err = svc.DeleteMDMAppleConfigProfile(ctx, profUUID)
+			checkShouldFail(err, tt.shouldFailTeam)
+
+			// test authz get profiles summary (no team)
+			_, err = svc.GetMDMAppleProfilesSummary(ctx, nil)
+			checkShouldFail(err, tt.shouldFailGlobal)
+
+			// test authz get profiles summary (no team)
+			_, err = svc.GetMDMAppleProfilesSummary(ctx, ptr.Uint(1))
+			checkShouldFail(err, tt.shouldFailTeam)
+		})
+	}
+}
+
+func TestNewMDMAppleConfigProfile(t *testing.T) {
+	identifier := "Bar.$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
+	setup := func(t *testing.T, license *automdm.LicenseInfo, identifier string) (automdm.Service, context.Context, *mock.Store, *TestServerOpts) {
+		svc, ctx, ds, _ := setupAppleMDMService(t, license)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+		mcBytes := mcBytesForTest("Foo", identifier, "UUID")
+
+		ds.NewMDMAppleConfigProfileFunc = func(ctx context.Context, cp automdm.MDMAppleConfigProfile, usesVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			require.Equal(t, "Foo", cp.Name)
+			assert.Equal(t, identifier, cp.Identifier)
+			require.Equal(t, mcBytes, []byte(cp.Mobileconfig))
+			return &cp, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+		ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+			return &automdm.GroupedCertificateAuthorities{}, nil
+		}
+
+		return svc, ctx, ds, nil
+	}
+
+	svc, ctx, _, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium}, identifier)
+	mcBytes := mcBytesForTest("Foo", identifier, "UUID")
+
+	cp, err := svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+	require.NoError(t, err)
+	require.Equal(t, "Foo", cp.Name)
+	assert.Equal(t, identifier, cp.Identifier)
+	require.Equal(t, mcBytes, []byte(cp.Mobileconfig))
+
+	// Unsupported AutoMDM variable
+	mcBytes = mcBytesForTest("Foo", identifier, "UUID${AUTOMDM_VAR_BOZO}")
+	_, err = svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+	assert.ErrorContains(t, err, "AutoMDM variable")
+
+	// Test profile with AUTOMDM_SECRET in PayloadDisplayName
+	mcBytes = mcBytesForTest("Profile $AUTOMDM_SECRET_PASSWORD", "test.identifier", "UUID")
+	_, err = svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+	assert.ErrorContains(t, err, "PayloadDisplayName cannot contain AUTOMDM_SECRET variables")
+
+	// Fails on free license with labels
+	mcBytes = mcBytesForTest("Foo", "identifier", "UUID")
+	svc, ctx, _, _ = setup(t, &automdm.LicenseInfo{Tier: automdm.TierFree}, "identifier")
+	_, err = svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, []string{"test-label"}, automdm.LabelsIncludeAll, nil, "", "", false, false)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	require.ErrorContains(t, err, "Scoping configuration profiles")
+
+	_, err = svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, []string{"test-label"}, "", "", false, false)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	require.ErrorContains(t, err, "Scoping configuration profiles")
+
+	// succeeds without labels on free license
+	_, err = svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+	require.NoError(t, err)
+}
+
+func TestNewMDMAppleConfigProfileCustomHostVitalErrors(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+	ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+		return &automdm.GroupedCertificateAuthorities{}, nil
+	}
+	mcBytes := mcBytesForTest("Foo", "test.identifier.$AUTOMDM_HOST_VITAL_5", "UUID")
+
+	t.Run("unknown vital id is rejected", func(t *testing.T) {
+		ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
+			return &automdm.MissingCustomHostVitalsError{MissingIDs: []uint{5}}
+		}
+		_, err := svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "AUTOMDM_HOST_VITAL_5")
+		var invalidArgErr *automdm.InvalidArgumentError
+		require.ErrorAs(t, err, &invalidArgErr)
+	})
+
+	t.Run("infrastructure failure propagates instead of being reported as invalid input", func(t *testing.T) {
+		ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
+			return ctxerr.Wrap(ctx, errors.New("connection refused"), "validating custom host vitals")
+		}
+		_, err := svc.NewMDMAppleConfigProfile(ctx, 0, mcBytes, nil, automdm.LabelsIncludeAll, nil, "", "", false, false)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "connection refused")
+		var invalidArgErr *automdm.InvalidArgumentError
+		require.NotErrorAs(t, err, &invalidArgErr, "an infrastructure failure must not be reported as invalid input (422)")
+	})
+}
+
+func TestNewMDMAppleDeclarationCustomHostVitalErrors(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+	b := declBytesForTest("D1", "$AUTOMDM_HOST_VITAL_5")
+
+	t.Run("unknown vital id is rejected", func(t *testing.T) {
+		ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
+			return &automdm.MissingCustomHostVitalsError{MissingIDs: []uint{5}}
+		}
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "AUTOMDM_HOST_VITAL_5")
+		var invalidArgErr *automdm.InvalidArgumentError
+		require.ErrorAs(t, err, &invalidArgErr)
+	})
+
+	t.Run("infrastructure failure propagates instead of being reported as invalid input", func(t *testing.T) {
+		ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
+			return ctxerr.Wrap(ctx, errors.New("connection refused"), "validating custom host vitals")
+		}
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "connection refused")
+		var invalidArgErr *automdm.InvalidArgumentError
+		require.NotErrorAs(t, err, &invalidArgErr, "an infrastructure failure must not be reported as invalid input (422)")
+	})
+}
+
+func mcBytesForTest(name, identifier, uuid string) []byte {
+	return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array/>
+	<key>PayloadDisplayName</key>
+	<string>%s</string>
+	<key>PayloadIdentifier</key>
+	<string>%s</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>%s</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
+`, name, identifier, uuid))
+}
+
+// existsErrorForTest is a minimal stand-in for the unexported existsError
+// type in the mysql datastore package, implementing endpointer.ExistsErrorInterface
+// (error + IsExists() bool) so service-layer tests can simulate a duplicate
+// datastore conflict without a real database.
+type existsErrorForTest struct{}
+
+func (existsErrorForTest) Error() string  { return "already exists" }
+func (existsErrorForTest) IsExists() bool { return true }
+
+func TestUpdateMDMAppleConfigProfile(t *testing.T) {
+	newExistingProfile := func(identifier, name string, teamID uint) *automdm.MDMAppleConfigProfile {
+		return &automdm.MDMAppleConfigProfile{
+			ProfileUUID: "a" + uuid.NewString(),
+			Identifier:  identifier,
+			Name:        name,
+			TeamID:      ptr.UintOrNilIfZero(teamID),
+		}
+	}
+
+	setup := func(t *testing.T, lic *automdm.LicenseInfo) (automdm.Service, context.Context, *mock.Store, *TestServerOpts) {
+		svc, ctx, ds, opts := setupAppleMDMService(t, lic)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+		ds.TeamWithExtrasFunc = func(ctx context.Context, teamID uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: teamID, Name: fmt.Sprintf("team-%d", teamID)}, nil
+		}
+		ds.LabelIDsByNameFunc = func(ctx context.Context, labels []string, filter automdm.TeamFilter) (map[string]uint, error) {
+			m := make(map[string]uint)
+			for i, label := range labels {
+				m[label] = uint(i + 1) //nolint:gosec // dismiss G115
+			}
+			return m, nil
+		}
+		ds.LabelsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]*automdm.Label, error) {
+			m := make(map[string]*automdm.Label)
+			for i, name := range names {
+				m[name] = &automdm.Label{ID: uint(i + 1), Name: name} //nolint:gosec // dismiss G115
+			}
+			return m, nil
+		}
+		ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+			return &automdm.GroupedCertificateAuthorities{}, nil
+		}
+
+		return svc, ctx, ds, opts
+	}
+
+	t.Run("labels-only update, happy path", func(t *testing.T) {
+		svc, ctx, ds, opts := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 0)
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			require.Equal(t, existing.ProfileUUID, puid)
+			return existing, nil
+		}
+		var updated automdm.MDMAppleConfigProfile
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			updated = p
+			return &p, nil
+		}
+		var firedActivity activity_api.ActivityDetails
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+			firedActivity = activity
+			return nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		assert.Empty(t, updated.Mobileconfig)
+		assert.Equal(t, existing.Identifier, updated.Identifier)
+		assert.Equal(t, existing.Name, updated.Name)
+		require.Len(t, updated.LabelsIncludeAny, 1)
+		assert.Equal(t, "label1", updated.LabelsIncludeAny[0].LabelName)
+
+		require.NotNil(t, firedActivity)
+		act, ok := firedActivity.(*automdm.ActivityTypeEditedMacosProfile)
+		require.True(t, ok)
+		assert.Equal(t, existing.Name, act.ProfileName)
+		assert.Equal(t, existing.Identifier, act.ProfileIdentifier)
+	})
+
+	t.Run("profile content update, same identifier and name", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 0)
+		mcBytes := mcBytesForTest("Test Profile", "com.fleetdm.test", "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		var updated automdm.MDMAppleConfigProfile
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			updated = p
+			return &p, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, mcBytes, []byte(updated.Mobileconfig))
+		assert.Equal(t, "Test Profile", updated.Name)
+	})
+
+	t.Run("profile content update with a different display name keeps the stored name", func(t *testing.T) {
+		// The name is admin-owned: a replacement file's PayloadDisplayName
+		// does not rename the profile unless the request names it.
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Old Name", 0)
+		existing.Description = "keep me"
+		mcBytes := mcBytesForTest("New Name", "com.fleetdm.test", "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		var updated automdm.MDMAppleConfigProfile
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			updated = p
+			return &p, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "Old Name", updated.Name)
+		assert.Equal(t, "keep me", updated.Description)
+		assert.Equal(t, mcBytes, []byte(updated.Mobileconfig))
+	})
+
+	t.Run("explicit name and description are applied, with or without content", func(t *testing.T) {
+		svc, ctx, ds, opts := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Old Name", 0)
+		mcBytes := mcBytesForTest("Payload Name", "com.fleetdm.test", "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		var updated automdm.MDMAppleConfigProfile
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			updated = p
+			return &p, nil
+		}
+		var firedActivity activity_api.ActivityDetails
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+			firedActivity = activity
+			return nil
+		}
+
+		// with content
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "New Name", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, new("a description"), nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "New Name", updated.Name)
+		assert.Equal(t, "a description", updated.Description)
+
+		// the activity must reflect the NEW name, not the pre-update one --
+		// otherwise a rename would be logged under the profile's old name
+		require.NotNil(t, firedActivity)
+		act, ok := firedActivity.(*automdm.ActivityTypeEditedMacosProfile)
+		require.True(t, ok)
+		assert.Equal(t, "New Name", act.ProfileName)
+
+		// without content: a metadata-only edit
+		err = svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "Newer Name", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, new(""), nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "Newer Name", updated.Name)
+		assert.Empty(t, updated.Description)
+		assert.Empty(t, updated.Mobileconfig)
+
+		// limits apply to the explicit name and description
+		err = svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, strings.Repeat("n", automdm.MaxProfileNameLength+1), nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorContains(t, err, automdm.MaxProfileNameLengthErrMsg)
+		err = svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, new(strings.Repeat("d", automdm.MDMProfileMaxDescriptionLen+1)), nil, nil)
+		require.ErrorContains(t, err, "longer than")
+	})
+
+	t.Run("AutoMDM variables used in the upload are threaded through to the datastore call", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		identifierWithVar := "com.fleetdm.test.$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
+		existing := newExistingProfile(identifierWithVar, "Test Profile", 0)
+		mcBytes := mcBytesForTest("Test Profile", identifierWithVar, "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		var capturedVars []automdm.AutoMDMVarName
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			capturedVars = usesAutoMDMVars
+			return &p, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Contains(t, capturedVars, automdm.AutoMDMVarHostEndUserIDPUsername)
+	})
+
+	t.Run("secrets_updated_at from expanding embedded secrets is threaded through to the datastore call", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 0)
+		mcBytes := mcBytesForTest("Test Profile", "com.fleetdm.test", "UUID")
+
+		secretsUpdatedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, document string) (string, *time.Time, error) {
+			return document, &secretsUpdatedAt, nil
+		}
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		var updated automdm.MDMAppleConfigProfile
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			updated = p
+			return &p, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+		require.NotNil(t, updated.SecretsUpdatedAt)
+		assert.True(t, secretsUpdatedAt.Equal(*updated.SecretsUpdatedAt))
+	})
+
+	t.Run("profile content and labels update atomically in one call", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 0)
+		mcBytes := mcBytesForTest("Test Profile", "com.fleetdm.test", "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		var updated automdm.MDMAppleConfigProfile
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			updated = p
+			return &p, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, []string{"label1"}, automdm.LabelsIncludeAny, []string{"label2"}, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, mcBytes, []byte(updated.Mobileconfig))
+		require.Len(t, updated.LabelsIncludeAny, 1)
+		assert.Equal(t, "label1", updated.LabelsIncludeAny[0].LabelName)
+		require.Len(t, updated.LabelsExcludeAny, 1)
+		assert.Equal(t, "label2", updated.LabelsExcludeAny[0].LabelName)
+	})
+
+	t.Run("profile content update, mismatched identifier is rejected", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.original", "Test Profile", 0)
+		mcBytes := mcBytesForTest("Test Profile", "com.fleetdm.different", "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "PayloadIdentifier must match")
+	})
+
+	t.Run("duplicate name from the datastore maps to a friendly conflict error", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 0)
+		// same identifier as existing (so the identifier-match check passes),
+		// but a different display name -- simulating a rename that collides
+		// with some other profile already using that name in this team.
+		mcBytes := mcBytesForTest("Some Other Profile's Name", "com.fleetdm.test", "UUID")
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, existsErrorForTest{}
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, SameProfileNameEditErrorMsg)
+
+		var statusCoder interface{ Status() int }
+		require.ErrorAs(t, err, &statusCoder)
+		assert.Equal(t, http.StatusConflict, statusCoder.Status())
+	})
+
+	t.Run("editing an AutoMDM-managed profile is rejected", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingProfile(mobileconfig.AutoMDMdConfigPayloadIdentifier, "AutoMDMd configuration", 0)
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "managed by AutoMDM")
+	})
+
+	t.Run("nonexistent profile propagates the not-found error", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		wantErr := errors.New("simulated profile lookup error")
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, wantErr
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, "a"+uuid.NewString(), "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, wantErr)
+	})
+
+	t.Run("labels require a premium license, content-only edits do not", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 0)
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+		require.ErrorContains(t, err, "Scoping configuration profiles")
+
+		// content-only edit (no labels) still succeeds on a free license
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			return &p, nil
+		}
+		mcBytes := mcBytesForTest("Test Profile", "com.fleetdm.test", "UUID")
+		err = svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("team-scoped update on a free license returns a license error", func(t *testing.T) {
+		// team profiles can survive a premium-to-free downgrade; the update
+		// must fail with a license error, not panic on the nil
+		// EnterpriseOverrides that free servers never populate.
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		existing := newExistingProfile("com.fleetdm.test", "Test Profile", 5)
+
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+			return existing, nil
+		}
+		ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		mcBytes := mcBytesForTest("Test Profile", "com.fleetdm.test", "UUID")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", mcBytes, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+
+		err = svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+
+		err = svc.UpdateMDMConfigProfile(ctx, existing.ProfileUUID, "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	})
+
+	t.Run("fails if Apple MDM is not configured", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
+			ac.MDM.EnabledAndConfigured = false
+			return ac, nil
+		}
+		err := svc.UpdateMDMConfigProfile(ctx, "asome-uuid", "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorContains(t, err, "MDM features aren't turned on in AutoMDM.")
+	})
+
+	t.Run("authorization outcome matches user role and team membership", func(t *testing.T) {
+		testCases := []struct {
+			name             string
+			user             *automdm.User
+			shouldFailGlobal bool
+			shouldFailTeam   bool
+		}{
+			{"global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, false, false},
+			{"global maintainer", &automdm.User{GlobalRole: new(automdm.RoleMaintainer)}, false, false},
+			{"global observer", &automdm.User{GlobalRole: new(automdm.RoleObserver)}, true, true},
+			{"team admin, belongs to team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}}, true, false},
+			{"team admin, DOES NOT belong to team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}}, true, true},
+			{"team maintainer, belongs to team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}}, true, false},
+			{"team maintainer, DOES NOT belong to team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}}, true, true},
+			{"team observer, belongs to team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}}, true, true},
+			{"team observer, DOES NOT belong to team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}}, true, true},
+			{"user no roles", &automdm.User{ID: 1337}, true, true},
+		}
+
+		checkShouldFail := func(t *testing.T, err error, shouldFail bool) {
+			t.Helper()
+			if !shouldFail {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
+			}
+		}
+
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				svc, baseCtx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+				ctx := viewer.NewContext(baseCtx, viewer.Viewer{User: tt.user})
+
+				noTeamProfile := newExistingProfile("com.fleetdm.test.noteam", "No Team Profile", 0)
+				teamProfile := newExistingProfile("com.fleetdm.test.team", "Team Profile", 1)
+
+				ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, puid string) (*automdm.MDMAppleConfigProfile, error) {
+					if puid == noTeamProfile.ProfileUUID {
+						return noTeamProfile, nil
+					}
+					return teamProfile, nil
+				}
+				ds.UpdateMDMAppleConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleConfigProfile, error) {
+					return &p, nil
+				}
+
+				// profile content and labels are deliberately nil/empty here --
+				// this isolates the authz checks from content/label validation,
+				// so a failure can only come from permissions, not some other
+				// unrelated rejection.
+				err := svc.UpdateMDMConfigProfile(ctx, noTeamProfile.ProfileUUID, "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+				checkShouldFail(t, err, tt.shouldFailGlobal)
+
+				err = svc.UpdateMDMConfigProfile(ctx, teamProfile.ProfileUUID, "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+				checkShouldFail(t, err, tt.shouldFailTeam)
+			})
+		}
+	})
+}
+
+func TestSetABMTokenDefaultFreeLicense(t *testing.T) {
+	svc, ctx, _, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+	_, err := svc.SetABMTokenDefault(ctx, 1, new(true))
+	assert.ErrorIs(t, err, automdm.ErrMissingLicense)
+}
+
+func TestNewMDMAppleDeclarationFreeLicenseTeam(t *testing.T) {
+	svc, ctx, _, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+	b := declBytesForTest("D1", "d1content")
+
+	_, err := svc.NewMDMAppleDeclaration(ctx, 1, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+	assert.ErrorIs(t, err, automdm.ErrMissingLicense)
+}
+
+func TestNewMDMAppleDeclarationFreeLicenseLabels(t *testing.T) {
+	svc, ctx, _, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+	b := declBytesForTest("D1", "d1content")
+
+	_, err := svc.NewMDMAppleDeclaration(ctx, 0, b, []string{"label-1"}, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	require.ErrorContains(t, err, "Scoping configuration profile")
+
+	_, err = svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, []string{"label-1"}, nil, "", false, false)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	require.ErrorContains(t, err, "Scoping configuration profile")
+}
+
+func TestNewMDMAppleDeclaration(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+	// Unsupported AutoMDM variable
+	b := declBytesForTest("D1", "d1content $AUTOMDM_VAR_BOZO")
+	_, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+	assert.ErrorContains(t, err, "AutoMDM variable")
+
+	// decl type missing actual type
+	b = declarationForTestWithType("D1", "com.apple.configuration")
+	_, err = svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+	require.ErrorContains(t, err, "Only configuration declarations (com.apple.configuration.) and management declarations (com.apple.management.) are supported")
+
+	ds.NewMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleDeclaration, error) {
+		return d, nil
+	}
+	ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+	) (updates automdm.MDMProfilesUpdates, err error) {
+		return automdm.MDMProfilesUpdates{}, nil
+	}
+	ds.ListAppleDDMAssetsFunc = func(ctx context.Context, teamID *uint) ([]*automdm.DDMAsset, error) {
+		return []*automdm.DDMAsset{
+			{
+				Identifier: "valid-asset",
+			},
+		}, nil
+	}
+
+	// decl using a missing asset
+	b = declarationForTestWithAssetReference("D1", "missing-asset")
+	_, err = svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+	require.ErrorContains(t, err, `Asset ("missing-asset") doesn't exist`)
+
+	// Good declaration
+	b = declarationForTestWithAssetReference("D1", "valid-asset")
+	d, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+	require.NoError(t, err)
+	assert.NotNil(t, d)
+}
+
+func TestUpdateMDMAppleDeclaration(t *testing.T) {
+	newExistingDeclaration := func(name, identifier string, teamID uint) *automdm.MDMAppleDeclaration {
+		return &automdm.MDMAppleDeclaration{
+			DeclarationUUID: "d" + uuid.NewString(),
+			Name:            name,
+			Identifier:      identifier,
+			TeamID:          ptr.UintOrNilIfZero(teamID),
+		}
+	}
+
+	// generic Apple MDM service test scaffolding, plus the mocks common to every
+	// subtest below (team lookup, secrets expansion, label ID resolution).
+	setup := func(t *testing.T, lic *automdm.LicenseInfo) (automdm.Service, context.Context, *mock.Store, *TestServerOpts) {
+		svc, ctx, ds, opts := setupAppleMDMService(t, lic)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+		ds.TeamWithExtrasFunc = func(ctx context.Context, teamID uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: teamID, Name: fmt.Sprintf("team-%d", teamID)}, nil
+		}
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, document string) (string, *time.Time, error) {
+			return document, nil, nil
+		}
+		ds.LabelIDsByNameFunc = func(ctx context.Context, labels []string, filter automdm.TeamFilter) (map[string]uint, error) {
+			m := make(map[string]uint)
+			for i, label := range labels {
+				m[label] = uint(i + 1) //nolint:gosec // dismiss G115
+			}
+			return m, nil
+		}
+
+		return svc, ctx, ds, opts
+	}
+
+	t.Run("content update, matching identifier", func(t *testing.T) {
+		svc, ctx, ds, opts := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			require.Equal(t, existing.DeclarationUUID, duid)
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated = d
+			return d, nil
+		}
+		var firedActivity activity_api.ActivityDetails
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+			firedActivity = activity
+			return nil
+		}
+
+		newContent := declBytesForTest("D1", "updated-content")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", newContent, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		assert.Equal(t, existing.Name, updated.Name)
+		assert.Equal(t, existing.Identifier, updated.Identifier)
+		assert.Equal(t, newContent, []byte(updated.RawJSON))
+
+		require.NotNil(t, firedActivity)
+		act, ok := firedActivity.(*automdm.ActivityTypeEditedDeclarationProfile)
+		require.True(t, ok)
+		assert.Equal(t, existing.Name, act.ProfileName)
+		assert.Equal(t, existing.Identifier, act.ProfileIdentifier)
+	})
+
+	t.Run("activation-only update keeps content and replaces the activation", func(t *testing.T) {
+		svc, ctx, ds, opts := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+		existing.RawJSON = declBytesForTest("D1", "unchanged-content")
+		existing.Activation = &automdm.MDMAppleCustomActivation{
+			Identifier:              "com.fleet.actD1",
+			RawJSON:                 activationBytesForTest("com.fleet.actD1", "com.fleet.configD1"),
+			ConfigurationIdentifier: "com.fleet.configD1",
+		}
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated = d
+			return d, nil
+		}
+		var activityCount int
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+			activityCount++
+			return nil
+		}
+
+		newAct := activationBytesForTest("com.fleet.actD1.v2", "com.fleet.configD1")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.SetSlice(newAct), nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		// content is untouched...
+		assert.Equal(t, existing.RawJSON, updated.RawJSON)
+		// ...and the activation is replaced, not appended to
+		require.NotNil(t, updated.Activation)
+		assert.Equal(t, "com.fleet.actD1.v2", updated.Activation.Identifier)
+		assert.JSONEq(t, string(newAct), string(updated.Activation.RawJSON))
+
+		// editing the activation emits exactly one edited-declaration activity
+		assert.Equal(t, 1, activityCount)
+	})
+
+	t.Run("labels-only update preserves the stored activation", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+		stored := &automdm.MDMAppleCustomActivation{
+			Identifier:              "com.fleet.actD1",
+			RawJSON:                 activationBytesForTest("com.fleet.actD1", "com.fleet.configD1"),
+			ConfigurationIdentifier: "com.fleet.configD1",
+		}
+		existing.Activation = stored
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		var gotAction automdm.MDMAppleActivationAction
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated, gotAction = d, activationAction
+			return d, nil
+		}
+
+		// no profile content, no activation -- just labels. The datastore
+		// clears the activation of any declaration written without one, so the
+		// stored activation has to be carried forward here.
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, []string{"label-1"}, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		// The datastore is told to leave it alone rather than being handed a copy,
+		// so nothing can drop it or its variable associations.
+		assert.Equal(t, automdm.MDMAppleActivationKeep, gotAction,
+			"labels-only edit must not touch the activation")
+	})
+
+	t.Run("new content without mentioning the activation preserves it", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+		existing.Activation = &automdm.MDMAppleCustomActivation{
+			Identifier:              "com.fleet.actD1",
+			RawJSON:                 activationBytesForTest("com.fleet.actD1", "com.fleet.configD1"),
+			ConfigurationIdentifier: "com.fleet.configD1",
+		}
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		var gotAction automdm.MDMAppleActivationAction
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated, gotAction = d, activationAction
+			return d, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "",
+			declBytesForTest("D1", "updated-content"), nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		assert.Equal(t, automdm.MDMAppleActivationKeep, gotAction,
+			"an edit that doesn't mention the activation must leave it alone")
+	})
+
+	t.Run("an explicitly emptied activation is removed", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+		existing.Activation = &automdm.MDMAppleCustomActivation{
+			Identifier:              "com.fleet.actD1",
+			RawJSON:                 activationBytesForTest("com.fleet.actD1", "com.fleet.configD1"),
+			ConfigurationIdentifier: "com.fleet.configD1",
+		}
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated = d
+			return d, nil
+		}
+
+		// activationSet with no content is how the API says "remove it".
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{Set: true}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		assert.Nil(t, updated.Activation)
+	})
+
+	t.Run("labels-only update, happy path", func(t *testing.T) {
+		svc, ctx, ds, opts := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated = d
+			return d, nil
+		}
+		var firedActivity activity_api.ActivityDetails
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+			firedActivity = activity
+			return nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		assert.Empty(t, updated.RawJSON)
+		assert.Equal(t, existing.Name, updated.Name)
+		assert.Equal(t, existing.Identifier, updated.Identifier)
+		require.Len(t, updated.LabelsIncludeAny, 1)
+		assert.Equal(t, "label1", updated.LabelsIncludeAny[0].LabelName)
+
+		require.NotNil(t, firedActivity)
+		_, ok := firedActivity.(*automdm.ActivityTypeEditedDeclarationProfile)
+		require.True(t, ok)
+	})
+
+	t.Run("labels-only update preserves the content's AutoMDM variables and scope", func(t *testing.T) {
+		// SetOrUpdateMDMAppleDeclaration rewrites variable associations and
+		// the scope column from what it's given, so a labels-only edit must
+		// pass the unchanged content's variables and scope or they'd be wiped.
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+		existing.RawJSON = declBytesForTest("D1", "content with $AUTOMDM_VAR_"+string(automdm.AutoMDMVarHostUUID))
+		existing.Scope = automdm.PayloadScopeUser
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var capturedVars []automdm.AutoMDMVarName
+		var capturedDecl *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			capturedDecl = d
+			capturedVars = usesAutoMDMVars
+			return d, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Contains(t, capturedVars, automdm.AutoMDMVarHostUUID)
+		require.NotNil(t, capturedDecl)
+		assert.Equal(t, automdm.PayloadScopeUser, capturedDecl.Scope)
+	})
+
+	t.Run("team-scoped update on a free license returns a license error", func(t *testing.T) {
+		// team declarations can survive a premium-to-free downgrade; the
+		// update must fail with a license error, not panic on the nil
+		// EnterpriseOverrides that free servers never populate.
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 5)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		newContent := declBytesForTest("D1", "updated-content")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", newContent, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+
+		err = svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	})
+
+	t.Run("content and labels update atomically in one call", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated = d
+			return d, nil
+		}
+
+		newContent := declBytesForTest("D1", "updated-content")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", newContent, []string{"label1"}, automdm.LabelsIncludeAny, []string{"label2"}, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		assert.Equal(t, newContent, []byte(updated.RawJSON))
+		require.Len(t, updated.LabelsIncludeAny, 1)
+		assert.Equal(t, "label1", updated.LabelsIncludeAny[0].LabelName)
+		require.Len(t, updated.LabelsExcludeAny, 1)
+		assert.Equal(t, "label2", updated.LabelsExcludeAny[0].LabelName)
+	})
+
+	t.Run("content update for a team-scoped declaration", func(t *testing.T) {
+		svc, ctx, ds, opts := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 5)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		var updated *automdm.MDMAppleDeclaration
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			updated = d
+			return d, nil
+		}
+		var firedActivity activity_api.ActivityDetails
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+			firedActivity = activity
+			return nil
+		}
+
+		newContent := declBytesForTest("D1", "updated-content")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", newContent, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.NoError(t, err)
+
+		require.NotNil(t, updated)
+		require.NotNil(t, updated.TeamID)
+		assert.EqualValues(t, 5, *updated.TeamID)
+
+		require.NotNil(t, firedActivity)
+		act, ok := firedActivity.(*automdm.ActivityTypeEditedDeclarationProfile)
+		require.True(t, ok)
+		require.NotNil(t, act.TeamID)
+		assert.EqualValues(t, 5, *act.TeamID)
+		require.NotNil(t, act.TeamName)
+		assert.Equal(t, "team-5", *act.TeamName)
+	})
+
+	t.Run("identifier mismatch is rejected", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		mismatchedContent := declarationForTestWithType("com.fleet.configD2", "com.apple.configuration.management.test")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", mismatchedContent, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "Identifier must match the existing profile's")
+	})
+
+	t.Run("invalid profile content is rejected", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		invalidContent := declarationForTestWithType(existing.Identifier, "com.example.not-a-real-type")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", invalidContent, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "Only configuration declarations (com.apple.configuration.) and management declarations (com.apple.management.) are supported")
+	})
+
+	t.Run("label appearing in both include and exclude lists is rejected", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, []string{"label1"}, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, `label "label1" cannot appear in both include and exclude lists`)
+	})
+
+	t.Run("editing an AutoMDM-managed declaration is rejected", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration(automdmmdm.AutoMDMMacOSUpdatesProfileName, "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			t.Fatal("should not reach the datastore update")
+			return nil, nil
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", nil, []string{"label1"}, automdm.LabelsIncludeAny, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "managed by AutoMDM")
+	})
+
+	t.Run("nonexistent declaration propagates the not-found error", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		wantErr := errors.New("simulated declaration lookup error")
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return nil, wantErr
+		}
+
+		err := svc.UpdateMDMConfigProfile(ctx, "d"+uuid.NewString(), "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, wantErr)
+	})
+
+	t.Run("a conflict from the datastore maps to a friendly conflict error", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+		existing := newExistingDeclaration("Test Declaration", "com.fleet.configD1", 0)
+
+		ds.GetMDMAppleDeclarationFunc = func(ctx context.Context, duid string) (*automdm.MDMAppleDeclaration, error) {
+			return existing, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			return nil, existsErrorForTest{}
+		}
+
+		// identifier is required to match the existing declaration's (checked
+		// earlier, before the datastore is ever called), so this exercises the
+		// generic ExistsErrorInterface -> 409 mapping rather than any specific
+		// identifier collision.
+		newContent := declarationForTestWithType(existing.Identifier, "com.apple.configuration.management.test")
+		err := svc.UpdateMDMConfigProfile(ctx, existing.DeclarationUUID, "", newContent, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "Couldn't edit. A configuration profile with this identifier already exists.")
+
+		var statusCoder interface{ Status() int }
+		require.ErrorAs(t, err, &statusCoder)
+		assert.Equal(t, http.StatusConflict, statusCoder.Status())
+	})
+
+	t.Run("fails if Apple MDM is not configured", func(t *testing.T) {
+		svc, ctx, ds, _ := setup(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
+			ac.MDM.EnabledAndConfigured = false
+			return ac, nil
+		}
+		err := svc.UpdateMDMConfigProfile(ctx, "dsome-uuid", "", nil, nil, automdm.LabelsIncludeAll, nil, optjson.Slice[byte]{}, nil, nil, nil)
+		require.ErrorContains(t, err, "MDM features aren't turned on in AutoMDM.")
+	})
+}
+
+func setupAppleMDMServiceWithSkipValidation(t *testing.T, license *automdm.LicenseInfo, skipValidation bool) (automdm.Service, context.Context, *mock.Store) {
+	ds := new(mock.Store)
+	cfg := config.TestConfig()
+	cfg.MDM.AllowAllDeclarations = skipValidation
+	testCertPEM, testKeyPEM, err := generateCertWithAPNsTopic()
+	require.NoError(t, err)
+	config.SetTestMDMConfig(t, &cfg, testCertPEM, testKeyPEM, "../../server/service/testdata")
+
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	depStorage := &nanodep_mock.Storage{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+
+	opts := &TestServerOpts{
+		AutoMDMConfig: &cfg,
+		MDMStorage:    mdmStorage,
+		DEPStorage:    depStorage,
+		MDMPusher:     pusher,
+		License:       license,
+	}
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
+
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo: automdm.OrgInfo{
+				OrgName: "Foo Inc.",
+			},
+			ServerSettings: automdm.ServerSettings{
+				ServerURL: "https://foo.example.com",
+			},
+			MDM: automdm.MDM{
+				EnabledAndConfigured: true,
+			},
+		}, nil
+	}
+
+	return svc, ctx, ds
+}
+
+func TestNewMDMAppleDeclarationSkipValidation(t *testing.T) {
+	t.Run("forbidden declaration type fails validation by default", func(t *testing.T) {
+		svc, ctx, ds := setupAppleMDMServiceWithSkipValidation(t, &automdm.LicenseInfo{Tier: automdm.TierPremium}, false)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, s string) (string, *time.Time, error) {
+			return s, nil, nil
+		}
+
+		// Status subscription declarations are forbidden
+		b := []byte(`{
+			"Type": "com.apple.configuration.management.status-subscriptions",
+			"Identifier": "test-status-sub",
+			"Payload": {}
+		}`)
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "test-status-sub", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "status subscription type")
+	})
+
+	t.Run("forbidden declaration type allowed with skip validation", func(t *testing.T) {
+		svc, ctx, ds := setupAppleMDMServiceWithSkipValidation(t, &automdm.LicenseInfo{Tier: automdm.TierPremium}, true)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, s string) (string, *time.Time, error) {
+			return s, nil, nil
+		}
+		ds.NewMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleDeclaration, error) {
+			return d, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+
+		// Status subscription declarations are forbidden but should be allowed when skip is enabled
+		b := []byte(`{
+			"Type": "com.apple.configuration.management.status-subscriptions",
+			"Identifier": "test-status-sub",
+			"Payload": {}
+		}`)
+		d, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "test-status-sub", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+		assert.NotNil(t, d)
+	})
+
+	t.Run("invalid declaration type fails by default", func(t *testing.T) {
+		svc, ctx, ds := setupAppleMDMServiceWithSkipValidation(t, &automdm.LicenseInfo{Tier: automdm.TierPremium}, false)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, s string) (string, *time.Time, error) {
+			return s, nil, nil
+		}
+
+		// Non com.apple.configuration.* types are invalid
+		b := []byte(`{
+			"Type": "com.example.invalid",
+			"Identifier": "test-invalid",
+			"Payload": {}
+		}`)
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "test-invalid", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "Only configuration declarations")
+	})
+
+	t.Run("invalid declaration type allowed with skip validation", func(t *testing.T) {
+		svc, ctx, ds := setupAppleMDMServiceWithSkipValidation(t, &automdm.LicenseInfo{Tier: automdm.TierPremium}, true)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, s string) (string, *time.Time, error) {
+			return s, nil, nil
+		}
+		ds.NewMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleDeclaration, error) {
+			return d, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+
+		// Invalid type should be allowed when skip is enabled
+		b := []byte(`{
+			"Type": "com.example.invalid",
+			"Identifier": "test-invalid",
+			"Payload": {}
+		}`)
+		d, err := svc.NewMDMAppleDeclaration(ctx, 0, b, nil, "test-invalid", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+		assert.NotNil(t, d)
+	})
+}
+
+// TestNewMDMAppleDeclarationSoftwareUpdate exercises the OS-updates handling
+// performed by handleDeclarationSoftwareUpdate through the public
+// NewMDMAppleDeclaration entry point. Skip validation is enabled so the
+// declaration reaches the software-update handling without tripping the
+// user-provided payload validation first.
+func TestNewMDMAppleDeclarationSoftwareUpdate(t *testing.T) {
+	const (
+		osUpdateDecl = `{
+			"Type": "com.apple.configuration.softwareupdate.enforcement.specific",
+			"Identifier": "test-os-update",
+			"Payload": {}
+		}`
+		otherDecl = `{
+			"Type": "com.apple.configuration.passcode.settings",
+			"Identifier": "test-passcode",
+			"Payload": {}
+		}`
+	)
+
+	// configuredSettings returns an AppleOSUpdateSettings that reports Configured() == true.
+	configuredSettings := func() automdm.AppleOSUpdateSettings {
+		return automdm.AppleOSUpdateSettings{
+			MinimumVersion: optjson.SetString("14.0"),
+			Deadline:       optjson.SetString("2025-01-01"),
+		}
+	}
+
+	// setup wires the common mocks required for NewMDMAppleDeclaration to reach
+	// the software-update handling code with skip-validation enabled.
+	setup := func(t *testing.T, premium bool) (automdm.Service, context.Context, *mock.Store) {
+		licenseTier := automdm.TierFree
+		if premium {
+			licenseTier = automdm.TierPremium
+		}
+		svc, ctx, ds := setupAppleMDMServiceWithSkipValidation(t, &automdm.LicenseInfo{Tier: licenseTier}, true)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, s string) (string, *time.Time, error) {
+			return s, nil, nil
+		}
+		// The existing-profile check and tracking insert now happen inside this
+		// datastore call's transaction; the unit test only verifies that the
+		// service passes the correct isSoftwareUpdate flag and surfaces errors.
+		ds.NewMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleDeclaration, error) {
+			d.DeclarationUUID = "decl-uuid"
+			return d, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+		// Team lookup used by the enterprise overrides for teamID > 0 cases.
+		ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: tid, Name: "team1"}, nil
+		}
+		return svc, ctx, ds
+	}
+
+	// appConfigWith builds an AppConfig with MDM enabled (so VerifyMDMAppleConfigured
+	// passes) plus the provided mutation applied for OS update settings.
+	appConfigWith := func(apply func(*automdm.AppConfig)) func(context.Context) (*automdm.AppConfig, error) {
+		return func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
+			ac.MDM.EnabledAndConfigured = true
+			if apply != nil {
+				apply(ac)
+			}
+			return ac, nil
+		}
+	}
+
+	t.Run("non software-update declaration skips OS update checks", func(t *testing.T) {
+		svc, ctx, ds := setup(t, true)
+
+		d, err := svc.NewMDMAppleDeclaration(ctx, 0, []byte(otherDecl), nil, "test-passcode", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+		assert.NotNil(t, d)
+		assert.False(t, ds.TeamMDMConfigFuncInvoked)
+	})
+
+	t.Run("software-update declaration requires premium license", func(t *testing.T) {
+		svc, ctx, ds := setup(t, false)
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, []byte(osUpdateDecl), nil, "test-os-update", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+		// The gate fails before the declaration is inserted.
+		assert.False(t, ds.NewMDMAppleDeclarationFuncInvoked)
+		assert.False(t, ds.TeamMDMConfigFuncInvoked)
+	})
+
+	t.Run("no team - app config has no OS updates configured", func(t *testing.T) {
+		svc, ctx, ds := setup(t, true)
+		ds.AppConfigFunc = appConfigWith(nil)
+
+		d, err := svc.NewMDMAppleDeclaration(ctx, 0, []byte(osUpdateDecl), nil, "test-os-update", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+		assert.NotNil(t, d)
+		assert.False(t, ds.TeamMDMConfigFuncInvoked)
+		assert.True(t, ds.NewMDMAppleDeclarationFuncInvoked)
+	})
+
+	t.Run("team - team config has no OS updates configured", func(t *testing.T) {
+		svc, ctx, ds := setup(t, true)
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+			assert.EqualValues(t, 5, teamID)
+			return &automdm.TeamMDM{}, nil
+		}
+
+		d, err := svc.NewMDMAppleDeclaration(ctx, 5, []byte(osUpdateDecl), nil, "test-os-update", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+		assert.NotNil(t, d)
+		assert.True(t, ds.TeamMDMConfigFuncInvoked)
+		assert.True(t, ds.NewMDMAppleDeclarationFuncInvoked)
+	})
+
+	t.Run("no team - app config has OS updates configured is rejected", func(t *testing.T) {
+		platforms := map[string]func(*automdm.AppConfig){
+			"macOS":  func(ac *automdm.AppConfig) { ac.MDM.MacOSUpdates = configuredSettings() },
+			"iOS":    func(ac *automdm.AppConfig) { ac.MDM.IOSUpdates = configuredSettings() },
+			"iPadOS": func(ac *automdm.AppConfig) { ac.MDM.IPadOSUpdates = configuredSettings() },
+		}
+		for name, apply := range platforms {
+			t.Run(name, func(t *testing.T) {
+				svc, ctx, ds := setup(t, true)
+				ds.AppConfigFunc = appConfigWith(apply)
+
+				_, err := svc.NewMDMAppleDeclaration(ctx, 0, []byte(osUpdateDecl), nil, "test-os-update", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+				require.Error(t, err)
+				require.ErrorContains(t, err, "OS updates are already configured")
+				// The gate fails before the declaration is inserted.
+				assert.False(t, ds.NewMDMAppleDeclarationFuncInvoked)
+			})
+		}
+	})
+
+	t.Run("team - team config has OS updates configured is rejected", func(t *testing.T) {
+		platforms := map[string]func(*automdm.TeamMDM){
+			"macOS":  func(tc *automdm.TeamMDM) { tc.MacOSUpdates = configuredSettings() },
+			"iOS":    func(tc *automdm.TeamMDM) { tc.IOSUpdates = configuredSettings() },
+			"iPadOS": func(tc *automdm.TeamMDM) { tc.IPadOSUpdates = configuredSettings() },
+		}
+		for name, apply := range platforms {
+			t.Run(name, func(t *testing.T) {
+				svc, ctx, ds := setup(t, true)
+				ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+					tc := &automdm.TeamMDM{}
+					apply(tc)
+					return tc, nil
+				}
+
+				_, err := svc.NewMDMAppleDeclaration(ctx, 5, []byte(osUpdateDecl), nil, "test-os-update", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+				require.Error(t, err)
+				require.ErrorContains(t, err, automdm.OSUpdatesAlreadyConfiguredErrorMessage)
+				assert.False(t, ds.NewMDMAppleDeclarationFuncInvoked)
+			})
+		}
+	})
+}
+
+// Fragile test: This test is fragile because of the large reliance on Datastore mocks. Consider refactoring test/logic or removing the test. It may be slowing us down more than helping us.
+func TestHostDetailsMDMProfiles(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ds.GetConfigEnableDiskEncryptionFunc = func(ctx context.Context, teamID *uint) (automdm.DiskEncryptionConfig, error) {
+		return automdm.DiskEncryptionConfig{}, nil
+	}
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+	expected := []automdm.HostMDMAppleProfile{
+		{HostUUID: "H057-UU1D-1337", Name: "NAME-5", ProfileUUID: "a" + uuid.NewString(), CommandUUID: "CMD-UU1D-5", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeInstall, Detail: ""},
+		{HostUUID: "H057-UU1D-1337", Name: "NAME-9", ProfileUUID: "a" + uuid.NewString(), CommandUUID: "CMD-UU1D-8", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall, Detail: ""},
+		{HostUUID: "H057-UU1D-1337", Name: "NAME-13", ProfileUUID: "a" + uuid.NewString(), CommandUUID: "CMD-UU1D-13", Status: &automdm.MDMDeliveryFailed, OperationType: automdm.MDMOperationTypeRemove, Detail: "Error removing profile"},
+	}
+
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+		return true, nil
+	}
+	ds.GetHostMDMAppleProfilesFunc = func(ctx context.Context, hostUUID string) ([]automdm.HostMDMAppleProfile, error) {
+		if hostUUID == "H057-UU1D-1337" {
+			return expected, nil
+		}
+		return []automdm.HostMDMAppleProfile{}, nil
+	}
+	ds.HostFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+		if hostID == uint(42) {
+			return &automdm.Host{ID: uint(42), UUID: "H057-UU1D-1337", Platform: "darwin"}, nil
+		}
+		return &automdm.Host{ID: hostID, UUID: "WR0N6-UU1D", Platform: "darwin"}, nil
+	}
+	ds.HostIDByIdentifierFunc = func(ctx context.Context, identifier string, _ automdm.HostIDByIdentifierOptions) (uint, error) {
+		if identifier == "h0571d3n71f13r" {
+			return 42, nil
+		}
+		return 21, nil
+	}
+	ds.LoadHostSoftwareFunc = func(ctx context.Context, host *automdm.Host, includeCVEScores bool) error {
+		return nil
+	}
+	ds.ListLabelsForHostFunc = func(ctx context.Context, hid uint) ([]*automdm.Label, error) {
+		return nil, nil
+	}
+	ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*automdm.HostBattery, error) {
+		return nil, nil
+	}
+	ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hid uint) ([]*automdm.HostMaintenanceWindow, error) {
+		return nil, nil
+	}
+	ds.ListPoliciesForHostFunc = func(ctx context.Context, host *automdm.Host) ([]*automdm.HostPolicy, error) {
+		return nil, nil
+	}
+	ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]automdm.HostCustomHostVital, error) {
+		return nil, nil
+	}
+	ds.GetHostPatchDeadlineAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
+		return nil, nil
+	}
+	ds.GetHostMDMMacOSSetupFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDMMacOSSetup, error) {
+		return nil, nil
+	}
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+		return &automdm.HostLockWipeStatus{}, nil
+	}
+	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+		return nil, nil
+	}
+	ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*automdm.HostDeviceMapping, error) {
+		return nil, nil
+	}
+	ds.ConditionalAccessBypassedAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
+		return nil, nil
+	}
+	ds.GetHostIssuesLastUpdatedFunc = func(ctx context.Context, hostId uint) (time.Time, error) {
+		return time.Time{}, nil
+	}
+	ds.UpdateHostIssuesFailingPoliciesFunc = func(ctx context.Context, hostIDs []uint) error {
+		return nil
+	}
+	ds.UpdateHostIssuesFailingPoliciesForSingleHostFunc = func(ctx context.Context, hostID uint) error {
+		return nil
+	}
+	ds.IsHostDiskEncryptionKeyArchivedFunc = func(ctx context.Context, hostID uint) (bool, error) {
+		return false, nil
+	}
+	ds.ConditionalAccessBypassedAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
+		return nil, nil
+	}
+	ds.GetHostRecoveryLockPasswordStatusFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMRecoveryLockPassword, error) {
+		return nil, nil
+	}
+	ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMManagedLocalAccount, error) {
+		return nil, nil
+	}
+	ds.GetHostDeviceNameEnforcementFunc = func(ctx context.Context, hostUUID string) (*automdm.HostDeviceNameEnforcement, error) {
+		return nil, nil
+	}
+	ds.ListAppleProfilesForReconcileByTeamFunc = func(ctx context.Context, teamID uint) ([]*automdm.AppleProfileForReconcile, error) {
+		return nil, nil
+	}
+
+	expectedNilSlice := []automdm.HostMDMAppleProfile(nil)
+	expectedEmptySlice := []automdm.HostMDMAppleProfile{}
+
+	cases := []struct {
+		name           string
+		mdmEnabled     bool
+		hostID         *uint
+		hostIdentifier *string
+		expected       *[]automdm.HostMDMAppleProfile
+	}{
+		{
+			name:           "TestGetHostMDMProfilesOK",
+			mdmEnabled:     true,
+			hostID:         ptr.Uint(42),
+			hostIdentifier: nil,
+			expected:       &expected,
+		},
+		{
+			name:           "TestGetHostMDMProfilesEmpty",
+			mdmEnabled:     true,
+			hostID:         ptr.Uint(21),
+			hostIdentifier: nil,
+			expected:       &expectedEmptySlice,
+		},
+		{
+			name:           "TestGetHostMDMProfilesNil",
+			mdmEnabled:     false,
+			hostID:         ptr.Uint(42),
+			hostIdentifier: nil,
+			expected:       &expectedNilSlice,
+		},
+		{
+			name:           "TestHostByIdentifierMDMProfilesOK",
+			mdmEnabled:     true,
+			hostID:         nil,
+			hostIdentifier: ptr.String("h0571d3n71f13r"),
+			expected:       &expected,
+		},
+		{
+			name:           "TestHostByIdentifierMDMProfilesNil",
+			mdmEnabled:     false,
+			hostID:         nil,
+			hostIdentifier: ptr.String("h0571d3n71f13r"),
+			expected:       &expectedNilSlice,
+		},
+		{
+			name:           "TestHostByIdentifierMDMProfilesEmpty",
+			mdmEnabled:     true,
+			hostID:         nil,
+			hostIdentifier: ptr.String("4n07h3r1d3n71f13r"),
+			expected:       &expectedEmptySlice,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: c.mdmEnabled}}, nil
+			}
+			ds.AppConfigFuncInvoked = false
+			ds.HostFuncInvoked = false
+			ds.HostIDByIdentifierFuncInvoked = false
+			ds.GetHostMDMAppleProfilesFuncInvoked = false
+
+			var gotHost *automdm.HostDetail
+			if c.hostID != nil {
+				h, err := svc.GetHost(ctx, *c.hostID, automdm.HostDetailOptions{})
+				require.NoError(t, err)
+				require.True(t, ds.HostFuncInvoked)
+				gotHost = h
+			}
+			if c.hostIdentifier != nil {
+				h, err := svc.GetHostByIDOrIdentifier(ctx, *c.hostIdentifier, automdm.HostDetailOptions{})
+				require.NoError(t, err)
+				require.True(t, ds.HostIDByIdentifierFuncInvoked)
+				gotHost = h
+			}
+			require.NotNil(t, gotHost)
+			require.True(t, ds.AppConfigFuncInvoked)
+
+			if !c.mdmEnabled {
+				var ep []automdm.HostMDMProfile
+				switch c.expected {
+				case &expectedNilSlice:
+					ns := []automdm.HostMDMProfile(nil)
+					ep = ns
+				case &expectedEmptySlice:
+					ep = []automdm.HostMDMProfile{}
+				default:
+					for _, p := range *c.expected {
+						ep = append(ep, p.ToHostMDMProfile(gotHost.Platform))
+					}
+				}
+				require.Equal(t, gotHost.MDM.Profiles, &ep)
+				return
+			}
+
+			require.True(t, ds.GetHostMDMAppleProfilesFuncInvoked)
+			require.NotNil(t, gotHost.MDM.Profiles)
+			ep := make([]automdm.HostMDMProfile, 0, len(*gotHost.MDM.Profiles))
+			for _, p := range *c.expected {
+				ep = append(ep, p.ToHostMDMProfile(gotHost.Platform))
+			}
+			require.ElementsMatch(t, ep, *gotHost.MDM.Profiles)
+		})
+	}
+}
+
+func TestMDMCommandAuthz(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+		switch hostID {
+		case 1:
+			return &automdm.Host{UUID: "test-host-team-1", TeamID: ptr.Uint(1), Platform: "darwin"}, nil
+		default:
+			return &automdm.Host{UUID: "test-host-no-team", Platform: "darwin"}, nil
+		}
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		return &automdm.HostMDMCheckinInfo{Platform: "darwin"}, nil
+	}
+
+	ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+		return &automdm.HostMDM{HostID: hostID, Enrolled: true}, nil
+	}
+
+	ds.MDMTurnOffFunc = func(ctx context.Context, uuid string) ([]*automdm.User, []automdm.ActivityDetails, error) {
+		return nil, nil, nil
+	}
+
+	var mdmEnabled atomic.Bool
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		// This function is called twice during EnqueueMDMAppleCommandRemoveEnrollmentProfile.
+		// It first is called to check that the device is enrolled as a pre-condition to enqueueing the
+		// command. It is called second time after the command has been enqueued to check whether
+		// the device was successfully unenrolled.
+		//
+		// For each test run, the bool should be initialized to true to simulate an existing device
+		// that is initially enrolled to AutoMDM's MDM.
+		enroll := automdm.NanoEnrollment{
+			Enabled: mdmEnabled.Swap(!mdmEnabled.Load()),
+		}
+		return &enroll, nil
+	}
+
+	testCases := []struct {
+		name             string
+		user             *automdm.User
+		shouldFailGlobal bool
+		shouldFailTeam   bool
+	}{
+		{
+			"global admin",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			false,
+			false,
+		},
+		{
+			"global maintainer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			false,
+			false,
+		},
+		{
+			"global observer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
+			true,
+			true,
+		},
+		{
+			"team admin, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
+			true,
+			false,
+		},
+		{
+			"team admin, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
+			true,
+			true,
+		},
+		{
+			"team maintainer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
+			true,
+			false,
+		},
+		{
+			"team maintainer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
+			true,
+			true,
+		},
+		{
+			"team observer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
+			true,
+			true,
+		},
+		{
+			"team observer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
+			true,
+			true,
+		},
+		{
+			"user no roles",
+			&automdm.User{ID: 1337},
+			true,
+			true,
+		},
+	}
+
+	for _, tt := range testCases {
+		// This matrix only cares that the caller is denied, not which form the
+		// denial takes.
+		requireDenied := func(t *testing.T, err error) {
+			t.Helper()
+			require.Error(t, err)
+			if automdm.IsNotFound(err) {
+				return
+			}
+			require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+
+			mdmEnabled.Store(true)
+			err := svc.UnenrollMDM(ctx, 42) // global host
+			if !tt.shouldFailGlobal {
+				require.NoError(t, err)
+			} else {
+				requireDenied(t, err)
+			}
+
+			mdmEnabled.Store(true)
+			err = svc.UnenrollMDM(ctx, 1) // host belongs to team 1
+			if !tt.shouldFailTeam {
+				require.NoError(t, err)
+			} else {
+				requireDenied(t, err)
+			}
+		})
+	}
+}
+
+func TestMDMAuthenticateManualEnrollment(t *testing.T) {
+	ds := new(mock.Store)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		keyValueStore:    redis_key_value.New(redistest.NopRedis()),
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	ctx := context.Background()
+	uuid, serial, model := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1"
+
+	ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
+		require.Equal(t, uuid, mdmHost.UUID)
+		require.Equal(t, serial, mdmHost.HardwareSerial)
+		require.Equal(t, model, mdmHost.HardwareModel)
+		require.Equal(t, automdm.PersonalEnrollmentTypeNone, personalType)
+		return nil
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HardwareSerial:   serial,
+			DisplayName:      fmt.Sprintf("%s (%s)", model, serial),
+			InstalledFromDEP: false,
+		}, nil
+	}
+
+	ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error {
+		require.Equal(t, uuid, hostUUID)
+		return nil
+	}
+
+	ds.SetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string, accessRights int) error {
+		require.Equal(t, uuid, hostUUID)
+		require.Equal(t, apple_mdm.MDMAccessRightAll, accessRights)
+		return nil
+	}
+
+	err := svc.Authenticate(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: uuid}},
+		&mdm.Authenticate{
+			Enrollment: mdm.Enrollment{
+				UDID: uuid,
+			},
+			SerialNumber: serial,
+			Model:        model,
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.MDMAppleUpsertHostFuncInvoked)
+	require.True(t, ds.GetHostMDMCheckinInfoFuncInvoked)
+	require.True(t, ds.MDMResetEnrollmentFuncInvoked)
+	require.True(t, ds.SetHostMDMAppleEnrollmentPermissionsFuncInvoked)
+}
+
+func TestMDMAuthenticatePersonalEnrollmentFlag(t *testing.T) {
+	uuid, serial, model := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1"
+
+	cases := []struct {
+		name           string
+		checkinInfo    *automdm.HostMDMCheckinInfo // nil: no host with this UUID yet
+		depAssignments []*automdm.HostDEPAssignment
+		depErr         error
+		wantPersonal   bool
+		wantErr        string
+	}{
+		{name: "new device", wantPersonal: true},
+		{name: "unenrolled host", checkinInfo: &automdm.HostMDMCheckinInfo{HardwareSerial: serial}, wantPersonal: true},
+		{name: "personal host enrolls again", checkinInfo: &automdm.HostMDMCheckinInfo{HardwareSerial: serial, OsqueryEnrolled: true}, wantPersonal: true},
+		{name: "host enrolled as company-owned", checkinInfo: &automdm.HostMDMCheckinInfo{HardwareSerial: serial, AutoMDMEnrolledCorporate: true}},
+		{name: "host assigned in Apple Business", checkinInfo: &automdm.HostMDMCheckinInfo{HardwareSerial: serial, DEPAssignedToAutoMDM: true}},
+		{name: "new device with a serial assigned in Apple Business", depAssignments: []*automdm.HostDEPAssignment{{HostID: 1}}},
+		{name: "Apple Business lookup fails", depErr: errors.New("db down"), wantErr: "db down"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ds := new(mock.Store)
+			mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+			svc := MDMAppleCheckinAndCommandService{
+				notificationsSvc: &mock.MockNotificationsService{},
+				ds:               ds,
+				mdmLifecycle:     mdmLifecycle,
+				keyValueStore:    redis_key_value.New(redistest.NopRedis()),
+				logger:           slog.New(slog.DiscardHandler),
+			}
+
+			wantType, wantRights := automdm.PersonalEnrollmentTypeNone, apple_mdm.MDMAccessRightAll
+			if tc.wantPersonal {
+				wantType, wantRights = automdm.PersonalEnrollmentTypeManualProfile, apple_mdm.AppleEnrollmentAccessRights(true)
+			}
+			ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+				if tc.checkinInfo == nil {
+					return nil, newNotFoundError()
+				}
+				return tc.checkinInfo, nil
+			}
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, s string) ([]*automdm.HostDEPAssignment, error) {
+				require.Equal(t, serial, s)
+				return tc.depAssignments, tc.depErr
+			}
+			ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
+				require.Equal(t, wantType, personalType)
+				return nil
+			}
+			ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error { return nil }
+			ds.SetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string, accessRights int) error {
+				require.Equal(t, wantRights, accessRights)
+				return nil
+			}
+
+			err := svc.Authenticate(
+				&mdm.Request{
+					Context:  context.Background(),
+					EnrollID: &mdm.EnrollID{ID: uuid},
+					Params:   map[string]string{apple_mdm.AutoMDMPersonalEnrollmentKey: "1"},
+				},
+				&mdm.Authenticate{UDID: uuid, SerialNumber: serial, Model: model},
+			)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				require.False(t, ds.MDMAppleUpsertHostFuncInvoked)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, ds.MDMAppleUpsertHostFuncInvoked)
+			require.True(t, ds.SetHostMDMAppleEnrollmentPermissionsFuncInvoked)
+		})
+	}
+}
+
+func TestMDMAuthenticateAccountDrivenUserEnrollment(t *testing.T) {
+	ds := new(mock.Store)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		keyValueStore:    redis_key_value.New(redistest.NopRedis()),
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	ctx := t.Context()
+	enrollID, productName := "B24CC50B-75F5-4FF2-8D2C-25B4CD900703", "iPad15,7"
+
+	ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
+		require.Equal(t, enrollID, mdmHost.UUID)
+		require.Equal(t, automdm.PersonalEnrollmentTypeAccountDriven, personalType)
+		return nil
+	}
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, enrollID, hostUUID)
+		return &automdm.HostMDMCheckinInfo{}, nil
+	}
+	ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error {
+		require.Equal(t, enrollID, hostUUID)
+		return nil
+	}
+	ds.SetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string, accessRights int) error {
+		require.Equal(t, enrollID, hostUUID)
+		require.Equal(t, apple_mdm.AppleEnrollmentAccessRights(true), accessRights)
+		return nil
+	}
+
+	err := svc.Authenticate(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice}},
+		&mdm.Authenticate{
+			EnrollmentID: enrollID,
+			ProductName:  productName,
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.MDMAppleUpsertHostFuncInvoked)
+	require.True(t, ds.SetHostMDMAppleEnrollmentPermissionsFuncInvoked)
+}
+
+func TestMDMAuthenticateADE(t *testing.T) {
+	ds := new(mock.Store)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		keyValueStore:    redis_key_value.New(redistest.NopRedis()),
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	ctx := context.Background()
+	uuid, serial, model := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1"
+
+	ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
+		require.Equal(t, uuid, mdmHost.UUID)
+		require.Equal(t, serial, mdmHost.HardwareSerial)
+		require.Equal(t, model, mdmHost.HardwareModel)
+		require.Equal(t, automdm.PersonalEnrollmentTypeNone, personalType)
+		return nil
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HardwareSerial:       serial,
+			DisplayName:          fmt.Sprintf("%s (%s)", model, serial),
+			DEPAssignedToAutoMDM: true,
+		}, nil
+	}
+
+	ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error {
+		require.Equal(t, uuid, hostUUID)
+		return nil
+	}
+
+	ds.SetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string, accessRights int) error {
+		require.Equal(t, uuid, hostUUID)
+		require.Equal(t, apple_mdm.MDMAccessRightAll, accessRights)
+		return nil
+	}
+
+	err := svc.Authenticate(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: uuid}},
+		&mdm.Authenticate{
+			Enrollment: mdm.Enrollment{
+				UDID: uuid,
+			},
+			SerialNumber: serial,
+			Model:        model,
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.MDMAppleUpsertHostFuncInvoked)
+	require.True(t, ds.GetHostMDMCheckinInfoFuncInvoked)
+	require.True(t, ds.MDMResetEnrollmentFuncInvoked)
+	require.True(t, ds.SetHostMDMAppleEnrollmentPermissionsFuncInvoked)
+}
+
+func TestMDMAuthenticateSCEPRenewal(t *testing.T) {
+	ds := new(mock.Store)
+	var newActivityInvoked bool
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
+		newActivityInvoked = true
+		return nil
+	})
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	ctx := context.Background()
+	uuid, serial, model := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1"
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HardwareSerial:        serial,
+			DisplayName:           fmt.Sprintf("%s (%s)", model, serial),
+			SCEPRenewalInProgress: true,
+		}, nil
+	}
+
+	ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error {
+		require.Equal(t, uuid, hostUUID)
+		require.True(t, scepRenewalInProgress)
+		return nil
+	}
+	ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
+		require.Equal(t, uuid, mdmHost.UUID)
+		require.Equal(t, serial, mdmHost.HardwareSerial)
+		require.Equal(t, model, mdmHost.HardwareModel)
+		require.Equal(t, automdm.PersonalEnrollmentTypeNone, personalType)
+		return nil
+	}
+
+	ds.SetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string, accessRights int) error {
+		return nil
+	}
+
+	err := svc.Authenticate(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: uuid}},
+		&mdm.Authenticate{
+			Enrollment: mdm.Enrollment{
+				UDID: uuid,
+			},
+			SerialNumber: serial,
+			Model:        model,
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, ds.MDMAppleUpsertHostFuncInvoked)
+	require.True(t, ds.GetHostMDMCheckinInfoFuncInvoked)
+	require.False(t, newActivityInvoked)
+	require.True(t, ds.MDMResetEnrollmentFuncInvoked)
+	// Permissions must NOT be rewritten during SCEP renewal — doing so would
+	// widen a personal enrollment's bitmask back to MDMAccessRightAll.
+	require.False(t, ds.SetHostMDMAppleEnrollmentPermissionsFuncInvoked)
+}
+
+// When a device re-enrolls (fresh) presenting a new-enrollment identity cert, a stale pending SCEP
+// renewal must NOT short-circuit the enrollment. Authenticate detects the AutoMDMEnrollmentSubjectOU
+// marker in the cert Subject, clears the renew refs, and runs the checkin as a fresh enrollment
+// (host upsert + non-renewal reset + permissions written).
+func TestMDMAuthenticateSCEPRenewalWithNewEnrollmentCert(t *testing.T) {
+	ds := new(mock.Store)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
+		return nil
+	})
+
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	ctx := context.Background()
+	uuid, serial, model := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1"
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HardwareSerial:        serial,
+			DisplayName:           fmt.Sprintf("%s (%s)", model, serial),
+			SCEPRenewalInProgress: true,
+		}, nil
+	}
+	ds.CleanSCEPRenewRefsFunc = func(ctx context.Context, hostUUID string) error {
+		require.Equal(t, uuid, hostUUID)
+		return nil
+	}
+	// The new-enrollment cert marker overrides the stale renewal, so the reset runs as a fresh
+	// enrollment (scepRenewalInProgress == false) and the host is upserted.
+	ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error {
+		require.Equal(t, uuid, hostUUID)
+		require.False(t, scepRenewalInProgress)
+		return nil
+	}
+	ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
+		require.Equal(t, uuid, mdmHost.UUID)
+		return nil
+	}
+	ds.SetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string, accessRights int) error {
+		return nil
+	}
+
+	err := svc.Authenticate(
+		&mdm.Request{
+			Context:     ctx,
+			EnrollID:    &mdm.EnrollID{ID: uuid},
+			Certificate: &x509.Certificate{Subject: pkix.Name{OrganizationalUnit: []string{apple_mdm.AutoMDMEnrollmentSubjectOU}}},
+		},
+		&mdm.Authenticate{
+			Enrollment:   mdm.Enrollment{UDID: uuid},
+			SerialNumber: serial,
+			Model:        model,
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.CleanSCEPRenewRefsFuncInvoked)
+	require.True(t, ds.MDMAppleUpsertHostFuncInvoked)
+	require.True(t, ds.MDMResetEnrollmentFuncInvoked)
+	require.True(t, ds.SetHostMDMAppleEnrollmentPermissionsFuncInvoked)
+}
+
+func TestGetMDMManualEnrollmentProfileStaticChallenge(t *testing.T) {
+	premium := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+
+	svc, ctx, _, _ := setupAppleMDMService(t, premium)
+	_, err := svc.GetMDMManualEnrollmentProfile(test.UserContext(ctx, test.UserAdmin), false)
+	var notAllowed *automdm.NotAllowedByDefaultDeprecationError
+	require.ErrorAs(t, err, &notAllowed)
+	require.ErrorContains(t, err, automdm.AutoMDM5MigrationGuide)
+
+	svc, ctx, _, _ = setupAppleMDMService(t, premium, func(cfg *config.AutoMDMConfig) {
+		cfg.MDM.AppleSCEPStaticChallengeEnabled = true
+	})
+	profile, err := svc.GetMDMManualEnrollmentProfile(test.UserContext(ctx, test.UserAdmin), false)
+	require.NoError(t, err)
+	require.NotEmpty(t, profile)
+}
+
+func TestCertIsFromNewEnrollment(t *testing.T) {
+	require.False(t, certIsFromNewEnrollment(nil))
+	require.False(t, certIsFromNewEnrollment(&x509.Certificate{Subject: pkix.Name{OrganizationalUnit: []string{"Some Other OU"}}}))
+	require.True(t, certIsFromNewEnrollment(&x509.Certificate{Subject: pkix.Name{OrganizationalUnit: []string{apple_mdm.AutoMDMEnrollmentSubjectOU}}}))
+
+	// a bound certificate is decided by its purpose, whatever its OU says
+	for purpose, fresh := range map[automdm.AppleMDMCertPurpose]bool{
+		automdm.AppleMDMCertPurposeADE:         true,
+		automdm.AppleMDMCertPurposeOTAPhaseTwo: true,
+		automdm.AppleMDMCertPurposeADUE:        true,
+		automdm.AppleMDMCertPurposeACME:        true,
+		automdm.AppleMDMCertPurposeSCEPRenewal: false,
+		automdm.AppleMDMCertPurposeACMERenewal: false,
+	} {
+		binding := &apple_mdm.AppleMDMCertificateBindingExtension{Purpose: purpose}
+		require.Equal(t, fresh, certIsFromNewEnrollment(newBindingCert(t, binding)), purpose)
+		require.Equal(t, fresh, certIsFromNewEnrollment(newBindingCert(t, binding, apple_mdm.AutoMDMEnrollmentSubjectOU)), purpose)
+	}
+}
+
+func TestAppleMDMUnenrollment(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+	hostOne := &automdm.Host{ID: 1, UUID: "test-host-no-team-2", Platform: "ios"}
+	hostGlobal := &automdm.Host{ID: 42, UUID: "test-host-no-team", Platform: "darwin"}
+	hostLinux := &automdm.Host{ID: 7, UUID: "test-host-linux", Platform: "ubuntu"}
+
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+		switch hostID {
+		case hostOne.ID:
+			return hostOne, nil
+		case hostGlobal.ID:
+			return hostGlobal, nil
+		case hostLinux.ID:
+			return hostLinux, nil
+		default:
+			return nil, errors.New("not found")
+		}
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		return &automdm.HostMDMCheckinInfo{Platform: "darwin"}, nil
+	}
+
+	ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+		return &automdm.HostMDM{HostID: hostID, Enrolled: true}, nil
+	}
+
+	ds.MDMTurnOffFunc = func(ctx context.Context, uuid string) ([]*automdm.User, []automdm.ActivityDetails, error) {
+		return nil, nil, nil
+	}
+
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		enrollmentType := mdm.EnrollType(mdm.Device).String()
+		if hostUUID == "test-host-no-team-2" {
+			enrollmentType = mdm.EnrollType(mdm.UserEnrollmentDevice).String()
+		}
+		enroll := automdm.NanoEnrollment{
+			Enabled: true,
+			Type:    enrollmentType,
+		}
+		return &enroll, nil
+	}
+
+	t.Run("Unenrolls macos device", func(t *testing.T) {
+		err := svc.UnenrollMDM(ctx, hostGlobal.ID) // global host
+		require.NoError(t, err)
+	})
+
+	t.Run("Unenrolls personal ios device", func(t *testing.T) {
+		err := svc.UnenrollMDM(ctx, hostOne.ID) // personal host
+		require.NoError(t, err)
+	})
+
+	// An offline host keeps its nano enrollment enabled until it receives the
+	// removal command, so the enrollment check alone lets every repeat call
+	// through -- each one queueing another RemoveProfile and logging another
+	// unenroll activity. See #50103.
+	t.Run("Refuses to turn off MDM that is already off", func(t *testing.T) {
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{HostID: hostID, Enrolled: false}, nil
+		}
+		ds.MDMTurnOffFuncInvoked = false
+
+		err := svc.UnenrollMDM(ctx, hostGlobal.ID)
+
+		var conflict *automdm.ConflictError
+		require.ErrorAs(t, err, &conflict)
+		require.False(t, ds.MDMTurnOffFuncInvoked, "must not re-run turn off for an already unenrolled host")
+	})
+
+	// An unsupported host has no enrolled host_mdm row either, so the
+	// already-off check would happily claim that instead of saying the platform
+	// isn't supported. The platform has to be rejected first.
+	t.Run("Reports an unsupported platform rather than already off", func(t *testing.T) {
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{HostID: hostID, Enrolled: false}, nil
+		}
+
+		err := svc.UnenrollMDM(ctx, hostLinux.ID)
+
+		var badRequest *automdm.BadRequestError
+		require.ErrorAs(t, err, &badRequest)
+		require.Contains(t, badRequest.Message, "not supported for this host platform")
+	})
+}
+
+func TestMDMTokenUpdate(t *testing.T) {
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ds := new(mock.Store)
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+	cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	uuid, serial, model, wantTeamID := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1", uint(12)
+	var newActivityFuncInvoked bool
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+		newActivityFuncInvoked = true
+		a, ok := activity.(*automdm.ActivityTypeMDMEnrolled)
+		require.True(t, ok)
+		require.Nil(t, user)
+		require.Equal(t, "mdm_enrolled", activity.ActivityName())
+		require.NotNil(t, a.HostSerial)
+		require.Equal(t, serial, *a.HostSerial)
+		require.Nil(t, a.EnrollmentID)
+		require.Equal(t, a.HostDisplayName, model)
+		require.True(t, a.InstalledFromDEP)
+		require.Equal(t, automdm.MDMPlatformApple, a.MDMPlatform)
+		return nil
+	})
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		commander:        cmdr,
+		logger:           slog.New(slog.DiscardHandler),
+	}
+
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HostID:               1337,
+			HardwareSerial:       serial,
+			DisplayName:          model,
+			InstalledFromDEP:     true,
+			TeamID:               wantTeamID,
+			DEPAssignedToAutoMDM: true,
+			Platform:             "darwin",
+		}, nil
+	}
+
+	ds.GetMDMIdPAccountByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.MDMIdPAccount, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.MDMIdPAccount{
+			UUID:     "some-uuid",
+			Username: "some-user",
+			Email:    "some-user@example.com",
+			Fullname: "Some User",
+		}, nil
+	}
+
+	ds.NewJobFunc = func(ctx context.Context, j *automdm.Job) (*automdm.Job, error) {
+		return j, nil
+	}
+
+	ds.MDMAppleResetOnReenrollmentFunc = func(ctx context.Context, hostUUID string, preserveHostActivities bool) error {
+		return nil
+	}
+
+	err := svc.TokenUpdate(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: uuid}},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.GetHostMDMCheckinInfoFuncInvoked)
+	require.True(t, ds.NewJobFuncInvoked)
+	require.True(t, newActivityFuncInvoked)
+	ds.GetHostMDMCheckinInfoFuncInvoked = false
+	ds.NewJobFuncInvoked = false
+
+	// with enrollment reference
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.GetHostMDMCheckinInfoFuncInvoked)
+	require.True(t, ds.NewJobFuncInvoked)
+	require.True(t, newActivityFuncInvoked)
+
+	// With AwaitingConfiguration - should check for and enqueue SetupExperience items
+	ds.EnqueueSetupExperienceItemsFunc = func(ctx context.Context, hostPlatform, hostPlatformLike string, hostUUID string, teamID uint) (bool, error) {
+		require.Equal(t, "darwin", hostPlatformLike)
+		require.Equal(t, uuid, hostUUID)
+		require.Equal(t, wantTeamID, teamID)
+		return true, nil
+	}
+
+	ds.ClearHostEnrolledFromMigrationFunc = func(ctx context.Context, hostUUID string) error {
+		require.Equal(t, uuid, hostUUID)
+		return nil
+	}
+
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				AwaitingConfiguration: true,
+				Enrollment: mdm.Enrollment{
+					UDID: uuid,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+	require.True(t, ds.ClearHostEnrolledFromMigrationFuncInvoked)
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HostID:               1337,
+			HardwareSerial:       serial,
+			DisplayName:          model,
+			InstalledFromDEP:     true,
+			TeamID:               wantTeamID,
+			DEPAssignedToAutoMDM: true,
+			Platform:             "darwin",
+			MigrationInProgress:  true,
+		}, nil
+	}
+
+	ds.SetHostMDMMigrationCompletedFunc = func(ctx context.Context, hostID uint) error {
+		require.Equal(t, uint(1337), hostID)
+		return nil
+	}
+
+	ds.EnqueueSetupExperienceItemsFuncInvoked = false
+	ds.ClearHostEnrolledFromMigrationFuncInvoked = false
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				AwaitingConfiguration: true,
+				Enrollment: mdm.Enrollment{
+					UDID: uuid,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	// Should NOT call the setup experience enqueue function but it should mark the migration complete
+	require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+	require.True(t, ds.SetHostMDMMigrationCompletedFuncInvoked)
+	require.True(t, ds.ClearHostEnrolledFromMigrationFuncInvoked)
+	require.True(t, newActivityFuncInvoked)
+
+	ds.SetHostMDMMigrationCompletedFuncInvoked = false
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	// Should NOT call the setup experience enqueue function but it should mark the migration complete
+	require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+	require.True(t, ds.SetHostMDMMigrationCompletedFuncInvoked)
+	require.True(t, newActivityFuncInvoked)
+}
+
+// TestMDMTokenUpdateResetOnReenrollment exercises the gate around
+// svc.ds.MDMAppleResetOnReenrollment in TokenUpdate. The reset must run only
+// when:
+//   - the device reports AwaitingConfiguration (DEP enrollment), AND
+//   - the nano enrollment's TokenUpdateTally == 1 (first token update), AND
+//   - we are NOT in a darwin migration (skipped to preserve host state).
+func TestMDMTokenUpdateResetOnReenrollment(t *testing.T) {
+	const hostUUID = "ABC-DEF-GHI"
+
+	// newSvc returns a service wired up with a fresh mock.Store and minimal
+	// happy-path mocks for everything TokenUpdate touches besides the gate.
+	// Per-case overrides go on the returned ds.
+	newSvc := func(t *testing.T) (*MDMAppleCheckinAndCommandService, *mock.Store) {
+		ds := new(mock.Store)
+		mdmStorage := &mdmmock.MDMAppleStore{}
+		pushFactory, _ := newMockAPNSPushProviderFactory()
+		pusher := nanomdm_pushsvc.New(
+			mdmStorage,
+			mdmStorage,
+			pushFactory,
+			NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+		)
+		cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+		mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil })
+		svc := &MDMAppleCheckinAndCommandService{
+			notificationsSvc: &mock.MockNotificationsService{},
+			ds:               ds,
+			mdmLifecycle:     mdmLifecycle,
+			commander:        cmdr,
+			logger:           slog.New(slog.DiscardHandler),
+		}
+
+		// Defaults: each case overrides the fields it cares about.
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
+		}
+		ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+		ds.GetNanoMDMEnrollmentFunc = func(context.Context, string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+		}
+		ds.GetHostMDMCheckinInfoFunc = func(context.Context, string) (*automdm.HostMDMCheckinInfo, error) {
+			return &automdm.HostMDMCheckinInfo{HostID: 1, Platform: "darwin"}, nil
+		}
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return nil, nil
+		}
+		ds.MDMAppleResetOnReenrollmentFunc = func(context.Context, string, bool) error { return nil }
+		ds.ClearHostEnrolledFromMigrationFunc = func(context.Context, string) error { return nil }
+		ds.SetHostMDMMigrationCompletedFunc = func(context.Context, uint) error { return nil }
+		ds.CleanSCEPRenewRefsFunc = func(context.Context, string) error { return nil }
+		ds.MDMResetEnrollmentFunc = func(context.Context, string, bool) error { return nil }
+		ds.EnqueueSetupExperienceItemsFunc = func(context.Context, string, string, string, uint) (bool, error) {
+			return false, nil
+		}
+		ds.NewJobFunc = func(_ context.Context, j *automdm.Job) (*automdm.Job, error) { return j, nil }
+
+		return svc, ds
+	}
+
+	type tc struct {
+		name                  string
+		platform              string
+		awaitingConfig        bool
+		tokenUpdateTally      int
+		migrationInProgress   bool
+		nanoEnrollNil         bool
+		scepRenewalInProgress bool
+		wantResetCall         bool
+	}
+
+	cases := []tc{
+		{
+			name:             "manual enrollment - AwaitingConfig=false even with TokenUpdateTally=1",
+			platform:         "darwin",
+			awaitingConfig:   false,
+			tokenUpdateTally: 1,
+			wantResetCall:    false,
+		},
+		{
+			name:                "darwin migration in progress - skipped",
+			platform:            "darwin",
+			awaitingConfig:      true,
+			tokenUpdateTally:    1,
+			migrationInProgress: true,
+			wantResetCall:       false,
+		},
+		{
+			name:             "macOS DEP first token update",
+			platform:         "darwin",
+			awaitingConfig:   true,
+			tokenUpdateTally: 1,
+			wantResetCall:    true,
+		},
+		{
+			name:             "iOS DEP first token update",
+			platform:         "ios",
+			awaitingConfig:   true,
+			tokenUpdateTally: 1,
+			wantResetCall:    true,
+		},
+		{
+			name:             "iPadOS DEP first token update",
+			platform:         "ipados",
+			awaitingConfig:   true,
+			tokenUpdateTally: 1,
+			wantResetCall:    true,
+		},
+		{
+			name:             "subsequent token update - tally != 1",
+			platform:         "darwin",
+			awaitingConfig:   true,
+			tokenUpdateTally: 2,
+			wantResetCall:    false,
+		},
+		{
+			name:                "iOS migration in progress - NOT skipped (skip is darwin-only)",
+			platform:            "ios",
+			awaitingConfig:      true,
+			tokenUpdateTally:    1,
+			migrationInProgress: true,
+			wantResetCall:       true,
+		},
+		{
+			name:                "iPadOS migration in progress - NOT skipped (skip is darwin-only)",
+			platform:            "ipados",
+			awaitingConfig:      true,
+			tokenUpdateTally:    1,
+			migrationInProgress: true,
+			wantResetCall:       true,
+		},
+		{
+			name:             "nano enrollment is nil",
+			platform:         "darwin",
+			awaitingConfig:   true,
+			tokenUpdateTally: 1, // ignored - nanoEnroll itself is nil
+			nanoEnrollNil:    true,
+			wantResetCall:    false,
+		},
+		{
+			name:                  "SCEP renewal without AwaitingConfiguration - short-circuits",
+			platform:              "darwin",
+			awaitingConfig:        false,
+			tokenUpdateTally:      1,
+			scepRenewalInProgress: true,
+			wantResetCall:         false,
+		},
+		{
+			name:                  "SCEP renewal with AwaitingConfiguration - falls through and calls reset",
+			platform:              "darwin",
+			awaitingConfig:        true,
+			tokenUpdateTally:      1,
+			scepRenewalInProgress: true,
+			wantResetCall:         true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			svc, ds := newSvc(t)
+
+			ds.GetHostMDMCheckinInfoFunc = func(context.Context, string) (*automdm.HostMDMCheckinInfo, error) {
+				return &automdm.HostMDMCheckinInfo{
+					HostID:                1,
+					Platform:              c.platform,
+					MigrationInProgress:   c.migrationInProgress,
+					SCEPRenewalInProgress: c.scepRenewalInProgress,
+				}, nil
+			}
+			ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+			ds.GetNanoMDMEnrollmentFunc = func(context.Context, string) (*automdm.NanoEnrollment, error) {
+				if c.nanoEnrollNil {
+					return nil, nil
+				}
+				return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: c.tokenUpdateTally}, nil
+			}
+
+			err := svc.TokenUpdate(
+				&mdm.Request{Context: context.Background(), EnrollID: &mdm.EnrollID{ID: hostUUID, Type: mdm.Device}},
+				&mdm.TokenUpdate{
+					TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+						AwaitingConfiguration: c.awaitingConfig,
+						Enrollment:            mdm.Enrollment{UDID: hostUUID},
+					},
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, c.wantResetCall, ds.MDMAppleResetOnReenrollmentFuncInvoked,
+				"MDMAppleResetOnReenrollment invocation mismatch")
+		})
+	}
+
+	t.Run("forwards PreserveHostActivitiesOnReenrollment from AppConfig", func(t *testing.T) {
+		svc, ds := newSvc(t)
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+			cfg := &automdm.AppConfig{}
+			cfg.ActivityExpirySettings.PreserveHostActivitiesOnReenrollment = true
+			return cfg, nil
+		}
+		var gotPreserve bool
+		ds.MDMAppleResetOnReenrollmentFunc = func(_ context.Context, _ string, preserve bool) error {
+			gotPreserve = preserve
+			return nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{Context: context.Background(), EnrollID: &mdm.EnrollID{ID: hostUUID, Type: mdm.Device}},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					AwaitingConfiguration: true,
+					Enrollment:            mdm.Enrollment{UDID: hostUUID},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.True(t, ds.MDMAppleResetOnReenrollmentFuncInvoked)
+		assert.True(t, gotPreserve, "preserve flag from AppConfig should be forwarded to the datastore call")
+	})
+}
+
+func TestMDMTokenUpdateIOS(t *testing.T) {
+	ctx := context.Background()
+	ds := new(mock.Store)
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+	cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		commander:        cmdr,
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	uuid, serial, model, wantTeamID := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1", uint(12)
+
+	ds.GetMDMIdPAccountByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.MDMIdPAccount, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.MDMIdPAccount{
+			UUID:     "some-uuid",
+			Username: "some-user",
+			Email:    "some-user@example.com",
+			Fullname: "Some User",
+		}, nil
+	}
+
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+
+	ds.NewJobFunc = func(ctx context.Context, j *automdm.Job) (*automdm.Job, error) {
+		return j, nil
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HostID:               1337,
+			HardwareSerial:       serial,
+			DisplayName:          model,
+			InstalledFromDEP:     true,
+			TeamID:               wantTeamID,
+			DEPAssignedToAutoMDM: true,
+			Platform:             "ios",
+		}, nil
+	}
+
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+	}
+
+	ds.EnqueueSetupExperienceItemsFunc = func(ctx context.Context, hostPlatform, hostPlatformLike string, hostUUID string, teamID uint) (bool, error) {
+		require.Equal(t, "ios", hostPlatformLike)
+		require.Equal(t, uuid, hostUUID)
+		require.Equal(t, wantTeamID, teamID)
+		return true, nil
+	}
+
+	// DEP-installed without AwaitingConfiguration - should not enqueue SetupExperience items
+	err := svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid, Type: mdm.Device},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+
+	// Non-DEP-installed, non device-type enrollment should not enqueue SetupExperience items
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid, Type: mdm.User},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+
+	// Non-DEP-installed without AwaitingConfiguration - should not enqueue SetupExperience items if token count is > 1
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HostID:               1337,
+			HardwareSerial:       serial,
+			DisplayName:          model,
+			InstalledFromDEP:     false,
+			TeamID:               wantTeamID,
+			DEPAssignedToAutoMDM: true,
+			Platform:             "ios",
+		}, nil
+	}
+
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 2}, nil
+	}
+
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid, Type: mdm.Device},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+
+	// Non-DEP-installed without AwaitingConfiguration - should enqueue SetupExperience items if token count is 1
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HostID:               1337,
+			HardwareSerial:       serial,
+			DisplayName:          model,
+			InstalledFromDEP:     false,
+			TeamID:               wantTeamID,
+			DEPAssignedToAutoMDM: true,
+			Platform:             "ios",
+		}, nil
+	}
+
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+
+	ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+		return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+	}
+
+	err = svc.TokenUpdate(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid, Type: mdm.Device},
+			Params:   map[string]string{"enroll_reference": "abcd"},
+		},
+		&mdm.TokenUpdate{
+			TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+				Enrollment: mdm.Enrollment{UDID: uuid},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+}
+
+func TestMDMTokenUpdateUserEnrollmentManagedAppleID(t *testing.T) {
+	ctx := context.Background()
+	ds := new(mock.Store)
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+	cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	var activities []automdm.ActivityDetails
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		commander:        cmdr,
+		logger:           slog.New(slog.DiscardHandler),
+		newActivityFn: func(_ context.Context, _ *automdm.User, act automdm.ActivityDetails) error {
+			activities = append(activities, act)
+			return nil
+		},
+	}
+
+	const (
+		enrollID = "ENROLL-ID-XYZ"
+		hostID   = uint(7777)
+	)
+
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+	ds.NewJobFunc = func(_ context.Context, j *automdm.Job) (*automdm.Job, error) {
+		return j, nil
+	}
+	ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+		return nil, nil
+	}
+	ds.GetHostMDMCheckinInfoFunc = func(context.Context, string) (*automdm.HostMDMCheckinInfo, error) {
+		return &automdm.HostMDMCheckinInfo{
+			HostID:   hostID,
+			Platform: "ios",
+		}, nil
+	}
+	ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+	ds.GetNanoMDMEnrollmentFunc = func(context.Context, string) (*automdm.NanoEnrollment, error) {
+		return &automdm.NanoEnrollment{
+			Enabled:          true,
+			Type:             mdm.EnrollType(mdm.UserEnrollmentDevice).String(),
+			TokenUpdateTally: 1,
+		}, nil
+	}
+	ds.EnqueueSetupExperienceItemsFunc = func(context.Context, string, string, string, uint) (bool, error) {
+		return false, nil
+	}
+	ds.GetADUEEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*automdm.ADUEEnrollmentChallenge, error) {
+		return &automdm.ADUEEnrollmentChallenge{
+			IdPAccountUUID: "idp-uuid",
+		}, nil
+	}
+	ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+		return &automdm.ABMToken{
+			BYODDefaultTeamID: nil,
+		}, nil
+	}
+	ds.AddHostsToTeamFunc = func(ctx context.Context, params *automdm.AddHostsToTeamParams) error {
+		return nil
+	}
+
+	t.Run("UserEnrollmentDevice with linked IDP account persists managed_apple_id", func(t *testing.T) {
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: "idp-uuid", Email: "managed.user@example.com"}, nil
+		}
+		ds.SetHostManagedAppleIDFuncInvoked = false
+		var gotHostID uint
+		var gotMAID string
+		ds.SetHostManagedAppleIDFunc = func(_ context.Context, hostID uint, managedAppleID string) error {
+			gotHostID = hostID
+			gotMAID = managedAppleID
+			return nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{
+				Context:  ctx,
+				EnrollID: &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice},
+			},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					Enrollment: mdm.Enrollment{UDID: enrollID, EnrollmentID: enrollID},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.True(t, ds.SetHostManagedAppleIDFuncInvoked)
+		require.Equal(t, hostID, gotHostID)
+		require.Equal(t, "managed.user@example.com", gotMAID)
+	})
+
+	t.Run("UserEnrollmentDevice resolves IDP account from Bearer token and persists managed_apple_id", func(t *testing.T) {
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return nil, nil
+		}
+		ds.GetMDMIdPAccountByUUIDFunc = func(_ context.Context, uuid string) (*automdm.MDMIdPAccount, error) {
+			require.Equal(t, "idp-uuid", uuid)
+			return &automdm.MDMIdPAccount{UUID: "idp-uuid", Email: "bearer.user@example.com"}, nil
+		}
+		ds.AssociateHostMDMIdPAccountFunc = func(context.Context, string, string) (string, error) { return "", nil }
+		ds.SetHostManagedAppleIDFuncInvoked = false
+		var gotMAID string
+		ds.SetHostManagedAppleIDFunc = func(_ context.Context, _ uint, managedAppleID string) error {
+			gotMAID = managedAppleID
+			return nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{
+				Context:       ctx,
+				EnrollID:      &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice},
+				Authorization: "Bearer challenge",
+				Certificate: newBindingCert(t, &apple_mdm.AppleMDMCertificateBindingExtension{
+					Purpose:        automdm.AppleMDMCertPurposeADUE,
+					IDPAccountUUID: new("idp-uuid"),
+				}),
+			},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					Enrollment: mdm.Enrollment{UDID: enrollID, EnrollmentID: enrollID},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.True(t, ds.SetHostManagedAppleIDFuncInvoked)
+		require.Equal(t, "bearer.user@example.com", gotMAID)
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeBoundHostToIdPAccount{
+			HostUUID: enrollID,
+			IdPEmail: "bearer.user@example.com",
+		}}, activities)
+	})
+
+	t.Run("UserEnrollmentDevice skips IDP account the enrollment certificate is not bound to", func(t *testing.T) {
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return nil, nil
+		}
+		ds.GetMDMIdPAccountByUUIDFunc = func(_ context.Context, uuid string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: uuid, Email: "other.user@example.com"}, nil
+		}
+		ds.AssociateHostMDMIdPAccountFunc = func(context.Context, string, string) (string, error) { return "", nil }
+
+		cases := []struct {
+			name string
+			cert *x509.Certificate
+		}{
+			{"no certificate", nil},
+			{"certificate without binding extension", newBindingCert(t, nil)},
+			{"certificate binding without IdP account", newBindingCert(t, &apple_mdm.AppleMDMCertificateBindingExtension{
+				Purpose:      automdm.AppleMDMCertPurposeSCEPRenewal,
+				EnrollmentID: new(enrollID),
+			})},
+			{"invalid binding extension", newRawBindingCert(t, []byte("not-asn1"))},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				activities = nil
+				ds.AssociateHostMDMIdPAccountFuncInvoked = false
+				ds.SetHostManagedAppleIDFuncInvoked = false
+				gotMAID := "unset"
+				ds.SetHostManagedAppleIDFunc = func(_ context.Context, _ uint, managedAppleID string) error {
+					gotMAID = managedAppleID
+					return nil
+				}
+
+				err := svc.TokenUpdate(
+					&mdm.Request{
+						Context:       ctx,
+						EnrollID:      &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice},
+						Authorization: "Bearer challenge",
+						Certificate:   c.cert,
+					},
+					&mdm.TokenUpdate{UDID: enrollID, EnrollmentID: enrollID},
+				)
+				require.NoError(t, err)
+				require.False(t, ds.AssociateHostMDMIdPAccountFuncInvoked)
+				require.Empty(t, activities)
+				require.True(t, ds.SetHostManagedAppleIDFuncInvoked)
+				require.Empty(t, gotMAID)
+			})
+		}
+	})
+
+	t.Run("UserEnrollmentDevice links the IDP account its certificate is bound to, not the bearer's", func(t *testing.T) {
+		activities = nil
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return nil, nil
+		}
+		ds.GetADUEEnrollmentChallengeFuncInvoked = false
+		ds.GetMDMIdPAccountByUUIDFunc = func(_ context.Context, uuid string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: uuid, Email: uuid + "@example.com"}, nil
+		}
+		var gotAcct string
+		ds.AssociateHostMDMIdPAccountFunc = func(_ context.Context, _ string, acctUUID string) (string, error) {
+			gotAcct = acctUUID
+			return "", nil
+		}
+		var gotMAID string
+		ds.SetHostManagedAppleIDFunc = func(_ context.Context, _ uint, managedAppleID string) error {
+			gotMAID = managedAppleID
+			return nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{
+				Context:       ctx,
+				EnrollID:      &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice},
+				Authorization: "Bearer challenge-for-idp-uuid",
+				Certificate: newBindingCert(t, &apple_mdm.AppleMDMCertificateBindingExtension{
+					Purpose:        automdm.AppleMDMCertPurposeADUE,
+					IDPAccountUUID: new("other-idp-uuid"),
+				}),
+			},
+			&mdm.TokenUpdate{UDID: enrollID, EnrollmentID: enrollID},
+		)
+		require.NoError(t, err)
+		require.Equal(t, "other-idp-uuid", gotAcct)
+		require.Equal(t, "other-idp-uuid@example.com", gotMAID)
+		require.False(t, ds.GetADUEEnrollmentChallengeFuncInvoked)
+	})
+
+	t.Run("UserEnrollmentDevice without IDP account clears managed_apple_id", func(t *testing.T) {
+		// Even when no IdP account is available, we still call SetHostManagedAppleID
+		// (with an empty value) to clear any stale Managed Apple ID a prior
+		// enrollment may have left behind, so it can't be reused for user-scoped
+		// VPP actions.
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return nil, nil
+		}
+		ds.SetHostManagedAppleIDFuncInvoked = false
+		var gotMAID string
+		ds.SetHostManagedAppleIDFunc = func(_ context.Context, _ uint, managedAppleID string) error {
+			gotMAID = managedAppleID
+			return nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{
+				Context:  ctx,
+				EnrollID: &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice},
+			},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					Enrollment: mdm.Enrollment{UDID: enrollID, EnrollmentID: enrollID},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.True(t, ds.SetHostManagedAppleIDFuncInvoked)
+		require.Empty(t, gotMAID)
+	})
+
+	t.Run("Device enrollment never writes managed_apple_id even with linked IDP account", func(t *testing.T) {
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: "idp-uuid", Email: "ignored@example.com"}, nil
+		}
+		ds.SetHostManagedAppleIDFuncInvoked = false
+		ds.SetHostManagedAppleIDFunc = func(context.Context, uint, string) error {
+			return nil
+		}
+		ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+		ds.GetNanoMDMEnrollmentFunc = func(context.Context, string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+		}
+		ds.EnqueueSetupExperienceItemsFunc = func(context.Context, string, string, string, uint) (bool, error) {
+			return false, nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{
+				Context:  ctx,
+				EnrollID: &mdm.EnrollID{ID: enrollID, Type: mdm.Device},
+			},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					Enrollment: mdm.Enrollment{UDID: enrollID, EnrollmentID: enrollID},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.False(t, ds.SetHostManagedAppleIDFuncInvoked)
+	})
+}
+
+// TestMDMTokenUpdateUserEnrollmentSetupExperience verifies that
+// Account-Driven User Enrolled (BYOD) iOS/iPadOS hosts go through the same
+// setup-experience-enqueue branch that manual iOS/iPadOS hosts do on first
+// TokenUpdate (#44008). Before this change, only `mdm.Device` was matched
+// in the non-DEP iOS/iPadOS branch, so user-enrolled hosts never got
+// setup-experience apps installed automatically.
+func TestMDMTokenUpdateUserEnrollmentSetupExperience(t *testing.T) {
+	ctx := context.Background()
+	ds := new(mock.Store)
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+	cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		commander:        cmdr,
+		logger:           slog.New(slog.DiscardHandler),
+	}
+
+	const (
+		enrollID = "USER-ENROLL-1"
+		hostID   = uint(8888)
+	)
+
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+	ds.NewJobFunc = func(_ context.Context, j *automdm.Job) (*automdm.Job, error) {
+		return j, nil
+	}
+	ds.GetMDMIdPAccountByHostUUIDFunc = func(context.Context, string) (*automdm.MDMIdPAccount, error) {
+		return nil, nil
+	}
+	ds.SetHostManagedAppleIDFunc = func(context.Context, uint, string) error {
+		return nil
+	}
+	// !InstalledFromDEP — this is the user-enrollment branch, not the DEP one.
+	ds.GetHostMDMCheckinInfoFunc = func(context.Context, string) (*automdm.HostMDMCheckinInfo, error) {
+		return &automdm.HostMDMCheckinInfo{
+			HostID:           hostID,
+			Platform:         "ios",
+			InstalledFromDEP: false,
+		}, nil
+	}
+
+	doTokenUpdate := func(t *testing.T, enrollType string, tokenUpdateTally int) {
+		t.Helper()
+		ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+		ds.GetNanoMDMEnrollmentFunc = func(context.Context, string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{
+				Enabled:          true,
+				Type:             enrollType,
+				TokenUpdateTally: tokenUpdateTally,
+			}, nil
+		}
+
+		require.NoError(t, svc.TokenUpdate(
+			&mdm.Request{
+				Context:  ctx,
+				EnrollID: &mdm.EnrollID{ID: enrollID, Type: mdm.UserEnrollmentDevice},
+			},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					Enrollment: mdm.Enrollment{UDID: enrollID, EnrollmentID: enrollID},
+				},
+			},
+		))
+	}
+
+	t.Run("first TokenUpdate enqueues setup-experience items", func(t *testing.T) {
+		ds.EnqueueSetupExperienceItemsFuncInvoked = false
+		var gotPlatform, gotPlatformLike, gotHostUUID string
+		ds.EnqueueSetupExperienceItemsFunc = func(_ context.Context, hostPlatform, hostPlatformLike, hostUUID string, _ uint) (bool, error) {
+			gotPlatform = hostPlatform
+			gotPlatformLike = hostPlatformLike
+			gotHostUUID = hostUUID
+			return true, nil
+		}
+
+		doTokenUpdate(t, mdm.EnrollType(mdm.UserEnrollmentDevice).String(), 1)
+
+		require.True(t, ds.EnqueueSetupExperienceItemsFuncInvoked, "setup-experience must be enqueued for user enrollments on first TokenUpdate")
+		require.Equal(t, "ios", gotPlatform)
+		require.Equal(t, "ios", gotPlatformLike)
+		require.Equal(t, enrollID, gotHostUUID)
+	})
+
+	t.Run("subsequent TokenUpdate does not re-enqueue", func(t *testing.T) {
+		ds.EnqueueSetupExperienceItemsFuncInvoked = false
+		ds.EnqueueSetupExperienceItemsFunc = func(context.Context, string, string, string, uint) (bool, error) {
+			return false, nil
+		}
+
+		doTokenUpdate(t, mdm.EnrollType(mdm.UserEnrollmentDevice).String(), 2)
+
+		require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked, "second-and-later TokenUpdates must not re-enqueue setup-experience items")
+	})
+}
+
+func TestMDMCheckout(t *testing.T) {
+	ds := new(mock.Store)
+	mdmLifecycle := mdmlifecycle.New(ds, slog.New(slog.DiscardHandler), func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil })
+	var newActivityFuncInvoked bool
+	svc := MDMAppleCheckinAndCommandService{
+		notificationsSvc: &mock.MockNotificationsService{},
+		ds:               ds,
+		mdmLifecycle:     mdmLifecycle,
+		logger:           slog.New(slog.DiscardHandler),
+	}
+	ctx := context.Background()
+	uuid, serial, installedFromDEP, displayName, platform := "ABC-DEF-GHI", "XYZABC", true, "Test's MacBook", "darwin"
+	hostID := uint(42)
+
+	ds.MDMTurnOffFunc = func(ctx context.Context, hostUUID string) ([]*automdm.User, []automdm.ActivityDetails, error) {
+		require.Equal(t, uuid, hostUUID)
+		return nil, nil, nil
+	}
+
+	ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+		require.Equal(t, uuid, hostUUID)
+		return &automdm.HostMDMCheckinInfo{
+			HostID:           hostID,
+			HardwareSerial:   serial,
+			DisplayName:      displayName,
+			InstalledFromDEP: installedFromDEP,
+			Platform:         platform,
+		}, nil
+	}
+
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+	svc.newActivityFn = func(
+		_ context.Context, user *automdm.User, activity automdm.ActivityDetails,
+	) error {
+		newActivityFuncInvoked = true
+		a, ok := activity.(*automdm.ActivityTypeMDMUnenrolled)
+		require.True(t, ok)
+		require.Nil(t, user)
+		require.Equal(t, "mdm_unenrolled", activity.ActivityName())
+		require.Equal(t, hostID, a.HostID)
+		require.Equal(t, serial, a.HostSerial)
+		require.Equal(t, displayName, a.HostDisplayName)
+		require.True(t, a.InstalledFromDEP)
+		require.Equal(t, platform, a.Platform)
+		require.Equal(t, []uint{hostID}, a.HostIDs())
+		return nil
+	}
+
+	err := svc.CheckOut(
+		&mdm.Request{
+			Context:  ctx,
+			EnrollID: &mdm.EnrollID{ID: uuid},
+		},
+		&mdm.CheckOut{
+			Enrollment: mdm.Enrollment{
+				UDID: uuid,
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.MDMTurnOffFuncInvoked)
+	require.True(t, ds.GetHostMDMCheckinInfoFuncInvoked)
+	require.True(t, newActivityFuncInvoked)
+}
+
+func TestMDMCommandAndReportResultsProfileHandling(t *testing.T) {
+	ctx := context.Background()
+	hostUUID := "ABC-DEF-GHI"
+	commandUUID := "COMMAND-UUID"
+	profileIdentifier := "PROFILE-IDENTIFIER"
+
+	cases := []struct {
+		status      string
+		requestType string
+		errors      []mdm.ErrorChain
+		want        *automdm.HostMDMAppleProfile
+		prevRetries uint
+	}{
+		{
+			status:      "Acknowledged",
+			requestType: "InstallProfile",
+			errors:      nil,
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryVerifying,
+				Detail:        "",
+				OperationType: automdm.MDMOperationTypeInstall,
+			},
+		},
+		{
+			status:      "Acknowledged",
+			requestType: "RemoveProfile",
+			errors:      nil,
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryVerifying,
+				Detail:        "",
+				OperationType: automdm.MDMOperationTypeRemove,
+			},
+		},
+		{
+			status:      "Error",
+			requestType: "InstallProfile",
+			errors: []mdm.ErrorChain{
+				{ErrorCode: 123, ErrorDomain: "testDomain", USEnglishDescription: "testMessage"},
+			},
+			prevRetries: 0, // expect to retry
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryPending,
+				Detail:        "",
+				OperationType: automdm.MDMOperationTypeInstall,
+			},
+		},
+		{
+			status:      "Error",
+			requestType: "InstallProfile",
+			errors: []mdm.ErrorChain{
+				{ErrorCode: 123, ErrorDomain: "testDomain", USEnglishDescription: "testMessage"},
+			},
+			prevRetries: automdmmdm.MaxAppleProfileRetries, // expect to fail
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryFailed,
+				Detail:        "testDomain (123): testMessage\n",
+				OperationType: automdm.MDMOperationTypeInstall,
+			},
+		},
+		{
+			status:      "Error",
+			requestType: "RemoveProfile",
+			errors: []mdm.ErrorChain{
+				{ErrorCode: 123, ErrorDomain: "testDomain", USEnglishDescription: "testMessage"},
+				{ErrorCode: 321, ErrorDomain: "domainTest", USEnglishDescription: "messageTest"},
+			},
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryFailed,
+				Detail:        "testDomain (123): testMessage\ndomainTest (321): messageTest\n",
+				OperationType: automdm.MDMOperationTypeRemove,
+			},
+		},
+		{
+			status:      "Error",
+			requestType: "RemoveProfile",
+			errors:      nil,
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryFailed,
+				Detail:        "",
+				OperationType: automdm.MDMOperationTypeRemove,
+			},
+		},
+		{
+			status:      "Error",
+			requestType: "RemoveProfile",
+			errors: []mdm.ErrorChain{
+				{ErrorCode: 89, ErrorDomain: "MDMClientError", USEnglishDescription: "Profile with identifier 'com.example' not found."},
+			},
+			want: &automdm.HostMDMAppleProfile{
+				Status:        &automdm.MDMDeliveryVerifying,
+				Detail:        "",
+				OperationType: automdm.MDMOperationTypeRemove,
+			},
+		},
+	}
+
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("%s%s-%d", c.requestType, c.status, i), func(t *testing.T) {
+			ds := new(mock.Store)
+			ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+				return true, nil
+			}
+			svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+			ds.GetMDMAppleCommandRequestTypeFunc = func(ctx context.Context, targetCmd string) (string, error) {
+				require.Equal(t, commandUUID, targetCmd)
+				return c.requestType, nil
+			}
+			ds.UpdateOrDeleteHostMDMAppleProfileFunc = func(ctx context.Context, profile *automdm.HostMDMAppleProfile) error {
+				c.want.CommandUUID = commandUUID
+				c.want.HostUUID = hostUUID
+				require.Equal(t, c.want, profile)
+				return nil
+			}
+			ds.GetHostMDMProfileRetryCountByCommandUUIDFunc = func(ctx context.Context, host *automdm.Host, cmdUUID string) (automdm.HostMDMProfileRetryCount, error) {
+				require.Equal(t, hostUUID, host.UUID)
+				require.Equal(t, commandUUID, cmdUUID)
+				return automdm.HostMDMProfileRetryCount{ProfileIdentifier: profileIdentifier, Retries: c.prevRetries}, nil
+			}
+			ds.UpdateHostMDMProfilesVerificationFunc = func(ctx context.Context, host *automdm.Host, toVerify, toFail, toRetry []string) error {
+				require.Equal(t, hostUUID, host.UUID)
+				require.Nil(t, toVerify)
+				require.Nil(t, toFail)
+				require.ElementsMatch(t, toRetry, []string{profileIdentifier})
+				return nil
+			}
+			ds.ProfileHasACMEPayloadForCommandFunc = func(ctx context.Context, hUUID, cmdUUID string) (automdm.ProfileACMECommandResult, error) {
+				return automdm.ProfileACMECommandResult{Platform: "ios"}, nil
+			}
+			ds.OktaCACleanupTargetForInstallCommandFunc = func(ctx context.Context, hUUID, cmdUUID string) (automdm.OktaCACleanupTarget, bool, error) {
+				return automdm.OktaCACleanupTarget{}, false, nil
+			}
+
+			_, err := svc.CommandAndReportResults(
+				&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+				&mdm.CommandResults{
+					Enrollment:  mdm.Enrollment{UDID: hostUUID},
+					CommandUUID: commandUUID,
+					Status:      c.status,
+					ErrorChain:  c.errors,
+				},
+			)
+			require.NoError(t, err)
+			require.True(t, ds.GetMDMAppleCommandRequestTypeFuncInvoked)
+			var shouldCheckCount, shouldRetry, shouldUpdateOrDelete bool
+			if c.requestType == "InstallProfile" && c.status == "Error" {
+				shouldCheckCount = true
+			}
+			if shouldCheckCount && c.prevRetries < automdmmdm.MaxAppleProfileRetries {
+				shouldRetry = true
+			}
+			if c.requestType == "RemoveProfile" || (c.requestType == "InstallProfile" && !shouldRetry) {
+				shouldUpdateOrDelete = true
+			}
+			require.Equal(t, shouldCheckCount, ds.GetHostMDMProfileRetryCountByCommandUUIDFuncInvoked)
+			require.Equal(t, shouldRetry, ds.UpdateHostMDMProfilesVerificationFuncInvoked)
+			require.Equal(t, shouldUpdateOrDelete, ds.UpdateOrDeleteHostMDMAppleProfileFuncInvoked)
+		})
+	}
+}
+
+func TestMDMCommandAndReportResultsDeclarativeManagementDetail(t *testing.T) {
+	ctx := t.Context()
+	hostUUID := "DDM-HOST-UUID"
+	commandUUID := "DDM-CMD-UUID"
+
+	cases := []struct {
+		status     string
+		errors     []mdm.ErrorChain
+		wantStatus *automdm.MDMDeliveryStatus
+		wantDetail string
+	}{
+		{
+			status:     automdm.MDMAppleStatusAcknowledged,
+			wantStatus: &automdm.MDMDeliveryVerifying,
+			wantDetail: "",
+		},
+		{
+			status:     automdm.MDMAppleStatusNotNow,
+			wantStatus: &automdm.MDMDeliveryPending,
+			wantDetail: "",
+		},
+		{
+			status: automdm.MDMAppleStatusError,
+			errors: []mdm.ErrorChain{
+				{ErrorCode: 12001, ErrorDomain: "MDMClientError", USEnglishDescription: "declaration error"},
+			},
+			wantStatus: &automdm.MDMDeliveryFailed,
+			wantDetail: "MDMClientError (12001): declaration error\n. Make sure the host is on macOS 13+, iOS 17+, iPadOS 17+.",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.status, func(t *testing.T) {
+			ds := new(mock.Store)
+			ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+				return true, nil
+			}
+			svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler)}
+			ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, _ string) (string, error) {
+				return "DeclarativeManagement", nil
+			}
+			var gotStatus *automdm.MDMDeliveryStatus
+			var gotDetail string
+			ds.MDMAppleSetPendingDeclarationsAsFunc = func(_ context.Context, _ string, _ automdm.PayloadScope, status *automdm.MDMDeliveryStatus, detail string) error {
+				gotStatus = status
+				gotDetail = detail
+				return nil
+			}
+
+			_, err := svc.CommandAndReportResults(
+				&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: hostUUID}},
+				&mdm.CommandResults{
+					Enrollment:  mdm.Enrollment{UDID: hostUUID},
+					CommandUUID: commandUUID,
+					Status:      c.status,
+					ErrorChain:  c.errors,
+				},
+			)
+			require.NoError(t, err)
+			require.True(t, ds.MDMAppleSetPendingDeclarationsAsFuncInvoked)
+			require.Equal(t, c.wantStatus, gotStatus)
+			assert.Equal(t, c.wantDetail, gotDetail)
+		})
+	}
+}
+
+// TestMaybeQueueCertificateListForACMEProfile verifies the on-demand
+// CertificateList trigger fires on hosts whose acked profile
+// contains an ACME payload, and that it dedups against pending refetches.
+func TestMaybeQueueCertificateListForACMEProfile(t *testing.T) {
+	ctx := context.Background()
+	const (
+		hostUUID    = "host-uuid"
+		commandUUID = "cmd-uuid"
+		profileUUID = "profile-uuid"
+		hostID      = uint(42)
+	)
+
+	const userEnrollmentID = hostUUID + ":user-uuid"
+
+	cases := []struct {
+		name             string
+		probeResult      automdm.ProfileACMECommandResult
+		probeErr         error
+		enqueueErr       error
+		pushFail         bool
+		expectAddCommand bool
+		expectEnqueue    bool
+		expectRemove     bool
+		expectErr        bool
+		// expectTarget defaults to the host's device channel.
+		expectTarget string
+	}{
+		{
+			name: "macOS + ACME profile: enqueues CertificateList",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: true,
+			},
+			expectAddCommand: true,
+			expectEnqueue:    true,
+		},
+		{
+			name: "macOS + ACME profile: enqueue failure untracks the row",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: true,
+			},
+			enqueueErr:       errors.New("db down"),
+			expectAddCommand: true,
+			expectEnqueue:    true,
+			expectRemove:     true,
+			expectErr:        true,
+		},
+		{
+			name: "macOS + ACME profile: push failure keeps the row",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: true,
+			},
+			pushFail:         true,
+			expectAddCommand: true,
+			expectEnqueue:    true,
+			expectRemove:     false,
+			expectErr:        true,
+		},
+		{
+			name: "system-scoped profile: enqueues to the device channel",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: true, Scope: automdm.PayloadScopeSystem,
+				// A user enrollment exists but is irrelevant here.
+				UserEnrollmentID: userEnrollmentID,
+			},
+			expectAddCommand: true,
+			expectEnqueue:    true,
+		},
+		{
+			name: "user-scoped profile: enqueues to the user channel",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: true, Scope: automdm.PayloadScopeUser,
+				UserEnrollmentID: userEnrollmentID,
+			},
+			expectAddCommand: true,
+			expectEnqueue:    true,
+			expectTarget:     userEnrollmentID,
+		},
+		{
+			name: "user-scoped profile without user enrollment: no trigger",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: true, Scope: automdm.PayloadScopeUser,
+			},
+			// Nothing can report the login keychain.
+			expectAddCommand: false,
+			expectEnqueue:    false,
+		},
+		{
+			name: "iOS host: skipped (existing refetch cron handles it)",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "ios", ProfileUUID: profileUUID,
+				HasACMEPayload: true,
+			},
+			expectAddCommand: false,
+			expectEnqueue:    false,
+		},
+		{
+			name: "macOS + non-ACME profile: no trigger",
+			probeResult: automdm.ProfileACMECommandResult{
+				HostID: hostID, Platform: "darwin", ProfileUUID: profileUUID,
+				HasACMEPayload: false,
+			},
+			expectAddCommand: false,
+			expectEnqueue:    false,
+		},
+		{
+			name:             "command not found: no error, no trigger",
+			probeErr:         &notFoundError{},
+			expectAddCommand: false,
+			expectEnqueue:    false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ds := new(mock.Store)
+			ds.ProfileHasACMEPayloadForCommandFunc = func(ctx context.Context, hUUID, cmdUUID string) (automdm.ProfileACMECommandResult, error) {
+				require.Equal(t, hostUUID, hUUID)
+				require.Equal(t, commandUUID, cmdUUID)
+				return c.probeResult, c.probeErr
+			}
+			var addedCommands []automdm.HostMDMCommand
+			ds.AddHostMDMCommandsFunc = func(ctx context.Context, cmds []automdm.HostMDMCommand) error {
+				addedCommands = append(addedCommands, cmds...)
+				return nil
+			}
+			var removed bool
+			ds.RemoveHostMDMCommandFunc = func(ctx context.Context, cmd automdm.HostMDMCommand) error {
+				removed = true
+				require.Equal(t, hostID, cmd.HostID)
+				require.Equal(t, automdm.RefetchCertsCommandUUIDPrefix, cmd.CommandType)
+				require.Len(t, addedCommands, 1)
+				require.Equal(t, addedCommands[0].CommandUUID, cmd.CommandUUID,
+					"rollback must target the command it tracked")
+				return nil
+			}
+
+			mdmStorage := &mdmmock.MDMAppleStore{}
+			pushFactory, pushProvider := newMockAPNSPushProviderFactory()
+			if c.pushFail {
+				pushProvider.PushFunc = func(_ context.Context, pushes []*mdm.Push) (map[string]*nanomdm_push.Response, error) {
+					res := make(map[string]*nanomdm_push.Response, len(pushes))
+					for _, p := range pushes {
+						res[p.Token.String()] = &nanomdm_push.Response{Err: errors.New("apns unavailable")}
+					}
+					return res, nil
+				}
+			}
+			pusher := nanomdm_pushsvc.New(mdmStorage, mdmStorage, pushFactory, NewNanoMDMLogger(slog.New(slog.DiscardHandler)))
+			cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+			var enqueued bool
+			expectTarget := c.expectTarget
+			if expectTarget == "" {
+				expectTarget = hostUUID
+			}
+			mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+				enqueued = true
+				require.Equal(t, []string{expectTarget}, id)
+				require.Equal(t, "CertificateList", cmd.Command.Command.RequestType)
+				require.Len(t, addedCommands, 1)
+				require.Equal(t, addedCommands[0].CommandUUID, cmd.CommandUUID,
+					"enqueued command must be the one the tracking row records")
+				return nil, c.enqueueErr
+			}
+			mdmStorage.RetrievePushInfoFunc = func(ctx context.Context, ids []string) (map[string]*mdm.Push, error) {
+				res := make(map[string]*mdm.Push, len(ids))
+				for _, id := range ids {
+					res[id] = &mdm.Push{Token: []byte(id), Topic: "topic", PushMagic: "magic"}
+				}
+				return res, nil
+			}
+			mdmStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+				cert, err := tls.LoadX509KeyPair("testdata/server.pem", "testdata/server.key")
+				return &cert, "", err
+			}
+			mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
+				return false, nil
+			}
+
+			svc := &MDMAppleCheckinAndCommandService{
+				notificationsSvc: &mock.MockNotificationsService{},
+				ds:               ds,
+				logger:           slog.New(slog.DiscardHandler),
+				commander:        cmdr,
+			}
+			err := svc.maybeQueueCertificateListForACMEProfile(ctx, hostUUID, commandUUID)
+			if c.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if c.expectAddCommand {
+				require.Len(t, addedCommands, 1)
+				require.Equal(t, automdm.RefetchCertsCommandUUIDPrefix, addedCommands[0].CommandType)
+				require.Equal(t, hostID, addedCommands[0].HostID)
+			} else {
+				require.Empty(t, addedCommands)
+			}
+			require.Equal(t, c.expectEnqueue, enqueued)
+			require.Equal(t, c.expectRemove, removed)
+		})
+	}
+}
+
+// TestHandleRefetchCertsResultsChannelScoping verifies a CertificateList response
+// is attributed to the answering channel's keychain, that reconciliation spares
+// the other channel's certs, and that the stale-command cleanup uses the
+// enrollment the command was queued on.
+func TestHandleRefetchCertsResultsChannelScoping(t *testing.T) {
+	ctx := context.Background()
+	const (
+		hostUUID    = "HOST-UUID"
+		hostID      = uint(42)
+		commandUUID = automdm.RefetchCertsCommandUUIDPrefix + "cmd-uuid"
+		userID      = "USER-UUID"
+		shortName   = "alice"
+	)
+	userEnrollmentID := hostUUID + ":" + userID
+
+	// As a device reports it: DER in Data, UserID/UserShortName only on the user channel.
+	certTmpl := mdmtesting.NewTestMDMAppleCertTemplate()
+	certTmpl.Subject.CommonName = "acme-cert"
+	certPEM, _, err := mysqltest.GenerateTestCertBytes(certTmpl)
+	require.NoError(t, err)
+	certBlock, _ := pem.Decode(certPEM)
+	require.NotNil(t, certBlock)
+	rawResponse := func(userChannel bool, reportShortName bool) []byte {
+		resp := automdm.MDMAppleCertificateListResponse{
+			CommandUUID: commandUUID,
+			Status:      "Acknowledged",
+			UDID:        hostUUID,
+			CertificateList: []automdm.MDMAppleCertificateListItem{
+				{CommonName: certTmpl.Subject.CommonName, Data: certBlock.Bytes},
+			},
+		}
+		if userChannel {
+			resp.UserID = userID
+			if reportShortName {
+				resp.UserShortName = shortName
+			}
+		}
+		raw, err := plist.Marshal(resp)
+		require.NoError(t, err)
+		return raw
+	}
+
+	deviceEnrollID := &mdm.EnrollID{Type: mdm.Device, ID: hostUUID}
+	userEnrollID := &mdm.EnrollID{Type: mdm.User, ID: userEnrollmentID, ParentID: hostUUID}
+
+	cases := []struct {
+		name string
+		// enrollID as nanomdm resolved the answering enrollment.
+		enrollID *mdm.EnrollID
+		// reportShortName off mirrors a device that omits UserShortName.
+		reportShortName bool
+		// nanoShortName / nanoUserID are what nano has on record for the host's
+		// first active user enrollment.
+		nanoShortName  string
+		nanoUserID     string
+		wantSource     automdm.HostCertificateSource
+		wantUsername   string
+		wantCleanupID  string
+		wantNanoLookup bool
+		wantErr        bool
+	}{
+		{
+			name:          "device channel: system keychain",
+			enrollID:      deviceEnrollID,
+			wantSource:    automdm.SystemHostCertificate,
+			wantCleanupID: hostUUID,
+		},
+		{
+			name:            "user channel: login keychain of the reporting user",
+			enrollID:        userEnrollID,
+			reportShortName: true,
+			wantSource:      automdm.UserHostCertificate,
+			wantUsername:    shortName,
+			wantCleanupID:   userEnrollmentID,
+		},
+		{
+			name:           "user channel without UserShortName: falls back to nano",
+			enrollID:       userEnrollID,
+			wantSource:     automdm.UserHostCertificate,
+			wantUsername:   shortName,
+			wantCleanupID:  userEnrollmentID,
+			wantNanoLookup: true,
+		},
+		{
+			name:           "user channel with nothing on record: error, no ingest",
+			enrollID:       userEnrollID,
+			nanoShortName:  "",
+			nanoUserID:     userID,
+			wantNanoLookup: true,
+			wantErr:        true,
+		},
+		{
+			name:     "user channel whose enrollment is no longer nano's first: error, no ingest",
+			enrollID: userEnrollID,
+			// A different user enrollment now sorts first, so its short name
+			// says nothing about who answered here.
+			nanoShortName:  "bob",
+			nanoUserID:     "OTHER-USER-UUID",
+			wantNanoLookup: true,
+			wantErr:        true,
+		},
+		{
+			name:          "no enrollment id: treated as device channel",
+			enrollID:      nil,
+			wantSource:    automdm.SystemHostCertificate,
+			wantCleanupID: hostUUID,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ds := new(mock.Store)
+			ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error {
+				require.Equal(t, hostID, command.HostID)
+				require.Equal(t, automdm.RefetchCertsCommandUUIDPrefix, command.CommandType)
+				require.Equal(t, commandUUID, command.CommandUUID, "removal must target the acked command")
+				return nil
+			}
+			nanoShortName, nanoUserID := c.nanoShortName, c.nanoUserID
+			if nanoShortName == "" && nanoUserID == "" {
+				nanoShortName, nanoUserID = shortName, userID
+			}
+			ds.GetNanoMDMUserEnrollmentUsernameAndUUIDFunc = func(ctx context.Context, deviceID string) (string, string, error) {
+				require.Equal(t, hostUUID, deviceID)
+				return nanoShortName, nanoUserID, nil
+			}
+			var gotScopes []automdm.HostCertificateScope
+			var gotCerts []*automdm.HostCertificateRecord
+			ds.UpdateHostCertificatesFunc = func(ctx context.Context, incomingHostID uint, incomingHostUUID string,
+				certs []*automdm.HostCertificateRecord, origin automdm.HostCertificateOrigin, observedScopes []automdm.HostCertificateScope,
+			) error {
+				require.Equal(t, hostID, incomingHostID)
+				require.Equal(t, hostUUID, incomingHostUUID)
+				require.Equal(t, automdm.HostCertificateOriginMDM, origin)
+				gotCerts, gotScopes = certs, observedScopes
+				return nil
+			}
+			var cleanupEnrollmentID string
+			ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID, commandUUIDPrefix, currentCommandUUID string, _ time.Duration) error {
+				cleanupEnrollmentID = enrollmentID
+				require.Equal(t, automdm.RefetchCertsCommandUUIDPrefix, commandUUIDPrefix)
+				require.Equal(t, commandUUID, currentCommandUUID)
+				return nil
+			}
+
+			svc := &MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler)}
+			host := &automdm.Host{ID: hostID, UUID: hostUUID, Platform: "darwin"}
+			userChannel := c.enrollID != nil && c.enrollID.ParentID != ""
+			_, err := svc.handleRefetchCertsResults(ctx, host, c.enrollID, &mdm.CommandResults{
+				Enrollment:  mdm.Enrollment{UDID: hostUUID},
+				CommandUUID: commandUUID,
+				Status:      "Acknowledged",
+				Raw:         rawResponse(userChannel, c.reportShortName),
+			})
+			if c.wantErr {
+				require.Error(t, err)
+				require.Nil(t, gotCerts, "certificates must not be ingested under an unknown user")
+				require.Equal(t, c.wantNanoLookup, ds.GetNanoMDMUserEnrollmentUsernameAndUUIDFuncInvoked)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Len(t, gotCerts, 1)
+			require.Equal(t, c.wantSource, gotCerts[0].Source)
+			require.Equal(t, c.wantUsername, gotCerts[0].Username)
+			// Only the answering keychain may be reconciled.
+			require.Equal(t, []automdm.HostCertificateScope{{Source: c.wantSource, Username: c.wantUsername}}, gotScopes)
+			require.Equal(t, c.wantCleanupID, cleanupEnrollmentID)
+			require.Equal(t, c.wantNanoLookup, ds.GetNanoMDMUserEnrollmentUsernameAndUUIDFuncInvoked)
+		})
+	}
+}
+
+func TestMDMCommandAndReportResultsCommandNotQueued(t *testing.T) {
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		require.Equal(t, "host-uuid", enrollmentID)
+		require.Equal(t, "cmd-uuid", commandUUID)
+		return false, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler)}
+
+	cmd, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: t.Context(), EnrollID: &mdm.EnrollID{ID: "host-uuid"}},
+		&mdm.CommandResults{CommandUUID: "cmd-uuid", Status: "Acknowledged"},
+	)
+	require.NoError(t, err)
+	require.Nil(t, cmd)
+	require.True(t, ds.IsMDMAppleCommandQueuedForEnrollmentFuncInvoked)
+	require.False(t, ds.GetMDMAppleCommandRequestTypeFuncInvoked)
+}
+
+// TestMDMCommandAndReportResultsRemoveProfileQueuesCertificateList verifies the
+// RemoveProfile ack path queues a CertificateList for an ACME profile, and that
+// it does so BEFORE UpdateOrDeleteHostMDMAppleProfile deletes the host profile
+// row the probe reads.
+func TestMDMCommandAndReportResultsRemoveProfileQueuesCertificateList(t *testing.T) {
+	ctx := context.Background()
+	const (
+		hostUUID    = "host-uuid"
+		commandUUID = "cmd-uuid"
+		hostID      = uint(42)
+	)
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	ds.GetMDMAppleCommandRequestTypeFunc = func(ctx context.Context, cmdUUID string) (string, error) {
+		return "RemoveProfile", nil
+	}
+
+	var profileDeleted bool
+	ds.ProfileHasACMEPayloadForCommandFunc = func(ctx context.Context, hUUID, cmdUUID string) (automdm.ProfileACMECommandResult, error) {
+		require.False(t, profileDeleted, "probe must run before the host profile row is deleted")
+		return automdm.ProfileACMECommandResult{HostID: hostID, Platform: "darwin", HasACMEPayload: true}, nil
+	}
+	var addedCommands []automdm.HostMDMCommand
+	ds.AddHostMDMCommandsFunc = func(ctx context.Context, cmds []automdm.HostMDMCommand) error {
+		addedCommands = append(addedCommands, cmds...)
+		return nil
+	}
+	ds.UpdateOrDeleteHostMDMAppleProfileFunc = func(ctx context.Context, profile *automdm.HostMDMAppleProfile) error {
+		profileDeleted = true
+		return nil
+	}
+
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(mdmStorage, mdmStorage, pushFactory, NewNanoMDMLogger(slog.New(slog.DiscardHandler)))
+	cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	var enqueuedCertList bool
+	mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+		if cmd.Command.Command.RequestType == "CertificateList" {
+			enqueuedCertList = true
+			require.Equal(t, []string{hostUUID}, id)
+		}
+		return nil, nil
+	}
+	mdmStorage.RetrievePushInfoFunc = func(ctx context.Context, ids []string) (map[string]*mdm.Push, error) {
+		res := make(map[string]*mdm.Push, len(ids))
+		for _, id := range ids {
+			res[id] = &mdm.Push{Token: []byte(id), Topic: "topic", PushMagic: "magic"}
+		}
+		return res, nil
+	}
+	mdmStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+		cert, err := tls.LoadX509KeyPair("testdata/server.pem", "testdata/server.key")
+		return &cert, "", err
+	}
+	mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
+		return false, nil
+	}
+
+	svc := &MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), commander: cmdr, notificationsSvc: &mock.MockNotificationsService{}}
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Status:      "Acknowledged",
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.ProfileHasACMEPayloadForCommandFuncInvoked)
+	require.True(t, ds.UpdateOrDeleteHostMDMAppleProfileFuncInvoked)
+	require.True(t, enqueuedCertList, "CertificateList should be queued on ACME profile removal")
+	require.Len(t, addedCommands, 1)
+	require.Equal(t, automdm.RefetchCertsCommandUUIDPrefix, addedCommands[0].CommandType)
+}
+
+func TestMDMCommandAndReportResultsInstallApplicationAlreadyInstalled(t *testing.T) {
+	const (
+		hostUUID    = "HOST-UUID-XYZ"
+		commandUUID = "CMD-UUID-XYZ"
+	)
+	ctx := context.Background()
+
+	noopActivityFn := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil }
+	newSvc := func(ds *mock.Store) MDMAppleCheckinAndCommandService {
+		return MDMAppleCheckinAndCommandService{
+			notificationsSvc: &mock.MockNotificationsService{},
+			ds:               ds,
+			logger:           slog.New(slog.DiscardHandler),
+			newActivityFn:    noopActivityFn,
+		}
+	}
+
+	// enrollReq builds an MDM request carrying the enrollment type the way
+	// nanomdm populates it in production. The InstallApplication handler reads
+	// r.Type directly (no DB lookup) to tell BYOD/Account-Driven User
+	// Enrollment apart from fully managed hosts.
+	enrollReq := func(personal bool) *mdm.Request {
+		var enrollType mdm.EnrollType = mdm.Device
+		if personal {
+			enrollType = mdm.UserEnrollmentDevice
+		}
+		return &mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{Type: enrollType, ID: hostUUID}}
+	}
+
+	t.Run("managed host: already installed bypasses retry and routes to verification", func(t *testing.T) {
+		ds := new(mock.Store)
+		ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+			return true, nil
+		}
+		svc := newSvc(ds)
+
+		ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, cmd string) (string, error) {
+			require.Equal(t, commandUUID, cmd)
+			return "InstallApplication", nil
+		}
+		// Returning true short-circuits the InstalledApplicationList enqueue and
+		// keeps the test focused on routing, without requiring a real commander.
+		ds.IsHostPendingMDMInstallVerificationFunc = func(_ context.Context, uuid string) (bool, error) {
+			require.Equal(t, hostUUID, uuid)
+			return true, nil
+		}
+
+		_, err := svc.CommandAndReportResults(
+			enrollReq(false),
+			&mdm.CommandResults{
+				Enrollment:  mdm.Enrollment{UDID: hostUUID},
+				CommandUUID: commandUUID,
+				Status:      automdm.MDMAppleStatusError,
+				ErrorChain: []mdm.ErrorChain{
+					{ErrorCode: 12042, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "The app with iTunes Store ID 546505307 is already installed."},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		// No retry, no failure-activity lookup.
+		require.False(t, ds.GetHostVPPInstallByCommandUUIDFuncInvoked)
+		require.False(t, ds.RetryVPPInstallFuncInvoked)
+		require.False(t, ds.GetPastActivityDataForVPPAppInstallFuncInvoked)
+		// Verification path was entered.
+		require.True(t, ds.IsHostPendingMDMInstallVerificationFuncInvoked)
+	})
+
+	t.Run("managed host: already installed via message fallback when code is unknown", func(t *testing.T) {
+		ds := new(mock.Store)
+		ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+			return true, nil
+		}
+		svc := newSvc(ds)
+
+		ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, _ string) (string, error) {
+			return "InstallApplication", nil
+		}
+		ds.IsHostPendingMDMInstallVerificationFunc = func(_ context.Context, _ string) (bool, error) {
+			return true, nil
+		}
+
+		_, err := svc.CommandAndReportResults(
+			enrollReq(false),
+			&mdm.CommandResults{
+				Enrollment:  mdm.Enrollment{UDID: hostUUID},
+				CommandUUID: commandUUID,
+				Status:      automdm.MDMAppleStatusError,
+				ErrorChain: []mdm.ErrorChain{
+					// Unknown numeric code; the message-based match should still trigger.
+					{ErrorCode: 99999, ErrorDomain: "FutureDomain", LocalizedDescription: "The app with iTunes Store ID 1 is already installed."},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.False(t, ds.GetHostVPPInstallByCommandUUIDFuncInvoked)
+		require.False(t, ds.RetryVPPInstallFuncInvoked)
+		require.True(t, ds.IsHostPendingMDMInstallVerificationFuncInvoked)
+	})
+
+	t.Run("BYOD host: already installed surfaces custom error and skips retry+verification", func(t *testing.T) {
+		ds := new(mock.Store)
+		ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+			return true, nil
+		}
+		svc := newSvc(ds)
+
+		ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, _ string) (string, error) {
+			return "InstallApplication", nil
+		}
+		// VPP install record returned with low retry count — should still NOT
+		// retry because the BYOD already-installed case is terminal.
+		ds.GetHostVPPInstallByCommandUUIDFunc = func(_ context.Context, _ string) (*automdm.HostVPPSoftwareInstallLite, error) {
+			return &automdm.HostVPPSoftwareInstallLite{HostID: 1, RetryCount: 0}, nil
+		}
+		// Setup-experience update is best-effort; return no-op so the test
+		// stays focused on the install-result path.
+		ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(_ context.Context, _ string, _ string, _ automdm.SetupExperienceStatusResultStatus) (bool, error) {
+			return false, nil
+		}
+		ds.GetVPPInstallAutomationReasonsFunc = func(_ context.Context, _ string) (bool, bool, error) {
+			return false, false, nil
+		}
+		var activityCmdResult *mdm.CommandResults
+		ds.GetPastActivityDataForVPPAppInstallFunc = func(_ context.Context, c *mdm.CommandResults) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
+			activityCmdResult = c
+			return nil, &automdm.ActivityInstalledAppStoreApp{HostID: 1, Status: string(automdm.SoftwareInstallFailed)}, nil
+		}
+		ds.SetVPPInstallAsFailedFunc = func(_ context.Context, _ uint, _ string, _ string) error {
+			return nil
+		}
+
+		cr := &mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Status:      automdm.MDMAppleStatusError,
+			ErrorChain: []mdm.ErrorChain{
+				{ErrorCode: 12042, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "The app with iTunes Store ID 546505307 is already installed."},
+			},
+		}
+
+		_, err := svc.CommandAndReportResults(enrollReq(true), cr)
+		require.NoError(t, err)
+
+		// Status stays Error — we did NOT promote to success.
+		require.Equal(t, automdm.MDMAppleStatusError, cr.Status)
+		// ErrorChain swapped to the user-facing copy.
+		require.Len(t, cr.ErrorChain, 1)
+		require.Equal(t, apple_mdm.AppAlreadyInstalledBYODUserMessage, cr.ErrorChain[0].USEnglishDescription)
+		// No retry, no verification — failure activity recorded with the swapped chain.
+		require.True(t, ds.GetHostVPPInstallByCommandUUIDFuncInvoked)
+		require.False(t, ds.RetryVPPInstallFuncInvoked)
+		require.False(t, ds.IsHostPendingMDMInstallVerificationFuncInvoked)
+		require.True(t, ds.GetPastActivityDataForVPPAppInstallFuncInvoked)
+		require.NotNil(t, activityCmdResult)
+		require.Equal(t, apple_mdm.AppAlreadyInstalledBYODUserMessage, activityCmdResult.ErrorChain[0].USEnglishDescription)
+	})
+
+	t.Run("unrelated install error still goes through retry path", func(t *testing.T) {
+		ds := new(mock.Store)
+		ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+			return true, nil
+		}
+		svc := newSvc(ds)
+
+		ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, _ string) (string, error) {
+			return "InstallApplication", nil
+		}
+		// Return a retry-eligible install so RetryVPPInstall is called and the
+		// handler returns early — keeping this test focused on routing.
+		ds.GetHostVPPInstallByCommandUUIDFunc = func(_ context.Context, _ string) (*automdm.HostVPPSoftwareInstallLite, error) {
+			return &automdm.HostVPPSoftwareInstallLite{HostID: 1, RetryCount: 0}, nil
+		}
+		ds.RetryVPPInstallFunc = func(_ context.Context, _ *automdm.HostVPPSoftwareInstallLite) error {
+			return nil
+		}
+
+		_, err := svc.CommandAndReportResults(
+			&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+			&mdm.CommandResults{
+				Enrollment:  mdm.Enrollment{UDID: hostUUID},
+				CommandUUID: commandUUID,
+				Status:      automdm.MDMAppleStatusError,
+				ErrorChain: []mdm.ErrorChain{
+					{ErrorCode: 9610, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "Cannot establish a connection."},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		// Retry path entered.
+		require.True(t, ds.GetHostVPPInstallByCommandUUIDFuncInvoked)
+		require.True(t, ds.RetryVPPInstallFuncInvoked)
+		// Verification path NOT entered (status was not promoted).
+		require.False(t, ds.IsHostPendingMDMInstallVerificationFuncInvoked)
+	})
+}
+
+// TestMDMCommandAndReportResultsInstallApplicationAutoUpdateFailure covers the
+// iPad terminal-failure emission path in the InstallApplication handler.
+// Before #45011, this branch called GetPastActivityDataForVPPAppInstall and
+// emitted the activity without ever consulting GetVPPInstallAutomationReasons, so a
+// scheduled auto-update that terminally failed was attributed to actor_full_name
+// instead of AutoMDM. The InstalledApplicationList success handler already did
+// the right thing; this test locks in parity for the failure path.
+func TestMDMCommandAndReportResultsInstallApplicationAutoUpdateFailure(t *testing.T) {
+	const (
+		hostUUID    = "HOST-UUID-AUTO"
+		commandUUID = "CMD-UUID-AUTO"
+	)
+	ctx := t.Context()
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	var emitted *automdm.ActivityInstalledAppStoreApp
+	svc := MDMAppleCheckinAndCommandService{
+		ds:     ds,
+		logger: slog.New(slog.DiscardHandler),
+		newActivityFn: func(_ context.Context, _ *automdm.User, act automdm.ActivityDetails) error {
+			// Capture the emitted VPP-install activity so we can assert on the
+			// FromAutoUpdate flag downstream.
+			if a, ok := act.(*automdm.ActivityInstalledAppStoreApp); ok {
+				emitted = a
+			}
+			return nil
+		},
+	}
+
+	ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, cmd string) (string, error) {
+		require.Equal(t, commandUUID, cmd)
+		return "InstallApplication", nil
+	}
+	// Retry-exhausted install so we fall through to the failure-activity emission.
+	ds.GetHostVPPInstallByCommandUUIDFunc = func(_ context.Context, _ string) (*automdm.HostVPPSoftwareInstallLite, error) {
+		return &automdm.HostVPPSoftwareInstallLite{HostID: 1, RetryCount: automdm.MaxSoftwareInstallAttempts}, nil
+	}
+	ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(_ context.Context, _ string, _ string, _ automdm.SetupExperienceStatusResultStatus) (bool, error) {
+		return false, nil
+	}
+	ds.GetVPPInstallAutomationReasonsFunc = func(_ context.Context, cmd string) (bool, bool, error) {
+		require.Equal(t, commandUUID, cmd)
+		return true, false, nil
+	}
+	ds.GetPastActivityDataForVPPAppInstallFunc = func(_ context.Context, _ *mdm.CommandResults) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
+		return nil, &automdm.ActivityInstalledAppStoreApp{HostID: 1, Status: string(automdm.SoftwareInstallFailed)}, nil
+	}
+	ds.SetVPPInstallAsFailedFunc = func(_ context.Context, _ uint, _ string, _ string) error {
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{Type: mdm.Device, ID: hostUUID}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Status:      automdm.MDMAppleStatusError,
+			ErrorChain: []mdm.ErrorChain{
+				{ErrorCode: 9610, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "Cannot establish a connection."},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	require.True(t, ds.GetVPPInstallAutomationReasonsFuncInvoked)
+	require.True(t, ds.GetPastActivityDataForVPPAppInstallFuncInvoked)
+	require.NotNil(t, emitted)
+	require.True(t, emitted.FromAutoUpdate, "auto-update terminal failures must carry FromAutoUpdate so the activity is attributed to AutoMDM")
+}
+
+func TestUpdateMDMAppleSettings(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: id, Name: "team"}, nil
+	}
+	ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+		return team, nil
+	}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+	ds.SaveAppConfigFunc = func(ctx context.Context, appConfig *automdm.AppConfig) error {
+		return nil
+	}
+
+	testCases := []struct {
+		name    string
+		user    *automdm.User
+		premium bool
+		teamID  *uint
+		wantErr string
+	}{
+		{
+			"global admin",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			false,
+			nil,
+			automdm.ErrMissingLicense.Error(),
+		},
+		{
+			"global admin premium",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			true,
+			nil,
+			"",
+		},
+		{
+			"global admin, team",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			true,
+			ptr.Uint(1),
+			"",
+		},
+		{
+			"global maintainer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			false,
+			nil,
+			automdm.ErrMissingLicense.Error(),
+		},
+		{
+			"global maintainer premium",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			true,
+			nil,
+			"",
+		},
+		{
+			"global maintainer, team",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			true,
+			ptr.Uint(1),
+			"",
+		},
+		{
+			"global observer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
+			true,
+			nil,
+			authz.ForbiddenErrorMessage,
+		},
+		{
+			"team admin, DOES belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
+			true,
+			ptr.Uint(1),
+			"",
+		},
+		{
+			"team admin, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
+			true,
+			ptr.Uint(1),
+			authz.ForbiddenErrorMessage,
+		},
+		{
+			"team maintainer, DOES belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
+			true,
+			ptr.Uint(1),
+			"",
+		},
+		{
+			"team maintainer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
+			true,
+			ptr.Uint(1),
+			authz.ForbiddenErrorMessage,
+		},
+		{
+			"team observer, DOES belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
+			true,
+			ptr.Uint(1),
+			authz.ForbiddenErrorMessage,
+		},
+		{
+			"team observer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
+			true,
+			ptr.Uint(1),
+			authz.ForbiddenErrorMessage,
+		},
+		{
+			"user no roles",
+			&automdm.User{ID: 1337},
+			true,
+			nil,
+			authz.ForbiddenErrorMessage,
+		},
+		{
+			"team id with free license",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			false,
+			ptr.Uint(1),
+			automdm.ErrMissingLicense.Error(),
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// prepare the context with the user and license
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+			tier := automdm.TierFree
+			if tt.premium {
+				tier = automdm.TierPremium
+			}
+			ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: tier})
+
+			err := svc.UpdateMDMDiskEncryption(ctx, tt.teamID, automdm.MDMDiskEncryptionSettingsPayload{})
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestUpdateMDMHostNameTemplate(t *testing.T) {
+	svc, baseCtx, ds, svcOpts := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	// currentTemplate is what the team already carries when loaded; individual
+	// subtests adjust it to exercise the idempotency and clear paths.
+	currentTemplate := ""
+	ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: id, Name: "team", Config: automdm.TeamConfig{
+			MDM: automdm.TeamMDM{HostNameTemplate: currentTemplate},
+		}}, nil
+	}
+	var savedTeam *automdm.Team
+	ds.SaveTeamFunc = func(ctx context.Context, tm *automdm.Team) (*automdm.Team, error) {
+		savedTeam = tm
+		return tm, nil
+	}
+	// currentAppConfigTemplate is the "No team" template loaded from app config;
+	// No-team subtests adjust it to exercise idempotency and clear paths.
+	currentAppConfigTemplate := ""
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		ac := &automdm.AppConfig{}
+		ac.MDM.EnabledAndConfigured = true
+		ac.MDM.HostNameTemplate = optjson.SetString(currentAppConfigTemplate)
+		return ac, nil
+	}
+	var savedAppConfig *automdm.AppConfig
+	ds.SaveAppConfigFunc = func(ctx context.Context, ac *automdm.AppConfig) error {
+		savedAppConfig = ac
+		return nil
+	}
+	ds.BulkUpsertHostDeviceNameEnforcementFunc = func(ctx context.Context, teamID *uint) error { return nil }
+	ds.DeleteHostDeviceNameEnforcementForTeamFunc = func(ctx context.Context, teamID *uint) error { return nil }
+
+	var lastActivity activity_api.ActivityDetails
+	svcOpts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
+		lastActivity = activity
+		return nil
+	}
+
+	resetInvoked := func() {
+		savedTeam = nil
+		savedAppConfig = nil
+		lastActivity = nil
+		ds.SaveTeamFuncInvoked = false
+		ds.SaveAppConfigFuncInvoked = false
+		ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked = false
+		ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked = false
+		svcOpts.ActivityMock.NewActivityFuncInvoked = false
+	}
+
+	teamUserOnOne := func(role string) *automdm.User {
+		ut := automdm.UserTeam{Role: role}
+		ut.Team.ID = 1
+		return &automdm.User{Teams: []automdm.UserTeam{ut}}
+	}
+
+	premiumAdminCtx := func() context.Context {
+		ctx := viewer.NewContext(baseCtx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+		return license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	}
+
+	t.Run("license and authz matrix", func(t *testing.T) {
+		teamOne := new(uint(1))
+		teamZero := new(uint(0))
+		testCases := []struct {
+			name    string
+			user    *automdm.User
+			premium bool
+			teamID  *uint
+			wantErr string
+		}{
+			{"free tier", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, false, teamOne, automdm.ErrMissingLicense.Error()},
+			{"no team_id targets No team, global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, true, nil, ""},
+			{"No team is a global-scope write, team admin denied", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}}, true, nil, authz.ForbiddenErrorMessage},
+			{"team_id 0 targets No team, global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, true, teamZero, ""},
+			// team_id 0 is No team (global scope), so a team admin can't write it —
+			// the team-scoped authz never matches the virtual team 0.
+			{"team_id 0 is a global-scope write, team admin denied", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}}, true, teamZero, authz.ForbiddenErrorMessage},
+			{"global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, true, teamOne, ""},
+			{"global maintainer", &automdm.User{GlobalRole: new(automdm.RoleMaintainer)}, true, teamOne, ""},
+			{"global observer", &automdm.User{GlobalRole: new(automdm.RoleObserver)}, true, teamOne, authz.ForbiddenErrorMessage},
+			{"team admin, own team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}}, true, teamOne, ""},
+			{"team admin, other team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}}, true, teamOne, authz.ForbiddenErrorMessage},
+			{"team maintainer, own team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}}, true, teamOne, ""},
+			{"team maintainer, other team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}}, true, teamOne, authz.ForbiddenErrorMessage},
+			{"team observer, own team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}}, true, teamOne, authz.ForbiddenErrorMessage},
+			{"team gitops, own team", &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}}, true, teamOne, ""},
+			{"user no roles", &automdm.User{ID: 1337}, true, teamOne, authz.ForbiddenErrorMessage},
+		}
+
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				resetInvoked()
+				ctx := viewer.NewContext(baseCtx, viewer.Viewer{User: tt.user})
+				tier := automdm.TierFree
+				if tt.premium {
+					tier = automdm.TierPremium
+				}
+				ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: tier})
+
+				// clearing an already-empty template is a valid no-op write, so
+				// allowed cases exercise authz without needing side effects.
+				err := svc.UpdateMDMHostNameTemplate(ctx, tt.teamID, "")
+				if tt.wantErr == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErr)
+			})
+		}
+	})
+
+	t.Run("invalid templates are rejected", func(t *testing.T) {
+		for _, tc := range []struct{ name, tmpl string }{
+			{"unsupported CA variable", "WS-$AUTOMDM_VAR_NDES_SCEP_CHALLENGE"},
+			{"control characters", "WS-\x07"},
+			{"too long", strings.Repeat("a", 256)},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				resetInvoked()
+				err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), tc.tmpl)
+				require.Error(t, err)
+				var invalid *automdm.InvalidArgumentError
+				require.ErrorAs(t, err, &invalid)
+				require.False(t, ds.SaveTeamFuncInvoked)
+				require.False(t, svcOpts.ActivityMock.NewActivityFuncInvoked)
+			})
+		}
+	})
+
+	t.Run("custom (secret) variables", func(t *testing.T) {
+		// Restore the permissive default after each subtest overrides it.
+		defaultValidate := ds.ValidateEmbeddedSecretsFunc
+		defer func() { ds.ValidateEmbeddedSecretsFunc = defaultValidate }()
+
+		t.Run("undefined secret is rejected as invalid argument", func(t *testing.T) {
+			resetInvoked()
+			ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error {
+				return &automdm.MissingSecretsError{MissingSecrets: []string{"FOO"}}
+			}
+			err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), "WS-$AUTOMDM_SECRET_FOO")
+			require.Error(t, err)
+			var invalid *automdm.InvalidArgumentError
+			require.ErrorAs(t, err, &invalid)
+			require.Contains(t, err.Error(), "missing from database")
+			require.False(t, ds.SaveTeamFuncInvoked)
+			require.False(t, svcOpts.ActivityMock.NewActivityFuncInvoked)
+		})
+
+		t.Run("datastore error propagates as a server error, not 422", func(t *testing.T) {
+			resetInvoked()
+			ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error {
+				return errors.New("database is down")
+			}
+			err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), "WS-$AUTOMDM_SECRET_FOO")
+			require.Error(t, err)
+			var invalid *automdm.InvalidArgumentError
+			require.NotErrorAs(t, err, &invalid, "a DB error must not be reported as invalid input")
+			require.False(t, ds.SaveTeamFuncInvoked)
+		})
+
+		t.Run("defined secret is accepted and saved", func(t *testing.T) {
+			resetInvoked()
+			currentTemplate = ""
+			ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error { return nil }
+			err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), "WS-$AUTOMDM_SECRET_FOO")
+			require.NoError(t, err)
+			require.True(t, ds.SaveTeamFuncInvoked)
+			require.True(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+			require.True(t, svcOpts.ActivityMock.NewActivityFuncInvoked)
+			// the unexpanded placeholder is what gets persisted, never the value
+			require.NotNil(t, savedTeam)
+			require.Equal(t, "WS-$AUTOMDM_SECRET_FOO", savedTeam.Config.MDM.HostNameTemplate)
+		})
+
+		// A resolved template puts the secret's plaintext in host names the whole
+		// team can read, so only a caller who may set the value may reference one.
+		t.Run("only callers who can write secret variables may reference one", func(t *testing.T) {
+			ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error { return nil }
+			for _, tt := range []struct {
+				name    string
+				user    *automdm.User
+				allowed bool
+			}{
+				{"global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, true},
+				{"global maintainer", &automdm.User{GlobalRole: new(automdm.RoleMaintainer)}, true},
+				{"global gitops", &automdm.User{GlobalRole: new(automdm.RoleGitOps)}, true},
+				{"team admin", teamUserOnOne(automdm.RoleAdmin), false},
+				{"team maintainer", teamUserOnOne(automdm.RoleMaintainer), false},
+				{"team gitops", teamUserOnOne(automdm.RoleGitOps), false},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					resetInvoked()
+					currentTemplate = ""
+					ctx := license.NewContext(viewer.NewContext(baseCtx, viewer.Viewer{User: tt.user}),
+						&automdm.LicenseInfo{Tier: automdm.TierPremium})
+					err := svc.UpdateMDMHostNameTemplate(ctx, new(uint(1)), "WS-$AUTOMDM_SECRET_FOO")
+					if tt.allowed {
+						require.NoError(t, err)
+						require.True(t, ds.SaveTeamFuncInvoked)
+						return
+					}
+					require.Error(t, err)
+					require.Contains(t, err.Error(), "can only be used in a host name template by a global admin")
+					var invalid *automdm.InvalidArgumentError
+					require.ErrorAs(t, err, &invalid)
+					require.False(t, ds.SaveTeamFuncInvoked)
+					require.False(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+				})
+			}
+		})
+
+		t.Run("re-saving the team's existing secret template is allowed", func(t *testing.T) {
+			// Re-saving a global admin's template resolves no new secret, so the
+			// check must not break a team admin's no-op save.
+			resetInvoked()
+			currentTemplate = "WS-$AUTOMDM_SECRET_FOO"
+			ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error { return nil }
+			teamAdmin := teamUserOnOne(automdm.RoleAdmin)
+			ctx := license.NewContext(viewer.NewContext(baseCtx, viewer.Viewer{User: teamAdmin}),
+				&automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+			require.NoError(t, svc.UpdateMDMHostNameTemplate(ctx, new(uint(1)), "  WS-$AUTOMDM_SECRET_FOO "))
+			require.False(t, ds.SaveTeamFuncInvoked, "an unchanged template is a no-op")
+
+			// changing any part of it is still rejected
+			err := svc.UpdateMDMHostNameTemplate(ctx, new(uint(1)), "X-$AUTOMDM_SECRET_FOO")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "can only be used in a host name template by a global admin")
+			require.False(t, ds.SaveTeamFuncInvoked)
+		})
+	})
+
+	t.Run("setting a template saves, emits activity and queues rows", func(t *testing.T) {
+		resetInvoked()
+		currentTemplate = ""
+		// surrounding whitespace is normalized away before persisting.
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), "  WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL ")
+		require.NoError(t, err)
+		require.NotNil(t, savedTeam)
+		require.Equal(t, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", savedTeam.Config.MDM.HostNameTemplate)
+		require.True(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+		require.False(t, ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked)
+
+		act, ok := lastActivity.(automdm.ActivityTypeEditedHostNameTemplate)
+		require.True(t, ok, "expected edited_host_name_template activity, got %T", lastActivity)
+		require.NotNil(t, act.AutoMDMID)
+		require.Equal(t, uint(1), *act.AutoMDMID)
+		require.NotNil(t, act.HostNameTemplate)
+		require.Equal(t, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", *act.HostNameTemplate)
+	})
+
+	t.Run("saving the identical template is a no-op", func(t *testing.T) {
+		resetInvoked()
+		currentTemplate = "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
+		require.NoError(t, err)
+		require.False(t, ds.SaveTeamFuncInvoked)
+		require.False(t, svcOpts.ActivityMock.NewActivityFuncInvoked)
+		require.False(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+		require.False(t, ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked)
+	})
+
+	t.Run("clearing deletes rows and logs a null template", func(t *testing.T) {
+		resetInvoked()
+		currentTemplate = "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(1)), "")
+		require.NoError(t, err)
+		require.NotNil(t, savedTeam)
+		require.Empty(t, savedTeam.Config.MDM.HostNameTemplate)
+		require.True(t, ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked)
+		require.False(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+
+		act, ok := lastActivity.(automdm.ActivityTypeEditedHostNameTemplate)
+		require.True(t, ok, "expected edited_host_name_template activity, got %T", lastActivity)
+		require.Nil(t, act.HostNameTemplate)
+	})
+
+	t.Run("No team: setting saves to app config, queues rows, emits activity with nil team_id", func(t *testing.T) {
+		resetInvoked()
+		currentAppConfigTemplate = ""
+		// nil team_id targets No team; whitespace is normalized like the team path.
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), nil, "  WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL ")
+		require.NoError(t, err)
+		require.False(t, ds.SaveTeamFuncInvoked, "No team must not touch a team row")
+		require.NotNil(t, savedAppConfig)
+		require.Equal(t, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", savedAppConfig.MDM.HostNameTemplate.Value)
+		require.True(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+		require.False(t, ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked)
+
+		act, ok := lastActivity.(automdm.ActivityTypeEditedHostNameTemplate)
+		require.True(t, ok, "expected edited_host_name_template activity, got %T", lastActivity)
+		require.Nil(t, act.AutoMDMID, "No team activity carries a nil team_id")
+		require.Nil(t, act.AutoMDMName)
+		require.NotNil(t, act.HostNameTemplate)
+		require.Equal(t, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", *act.HostNameTemplate)
+	})
+
+	t.Run("No team: team_id 0 is treated as No team", func(t *testing.T) {
+		resetInvoked()
+		currentAppConfigTemplate = ""
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), new(uint(0)), "WS-$AUTOMDM_VAR_HOST_UUID")
+		require.NoError(t, err)
+		require.False(t, ds.SaveTeamFuncInvoked)
+		require.NotNil(t, savedAppConfig)
+		require.Equal(t, "WS-$AUTOMDM_VAR_HOST_UUID", savedAppConfig.MDM.HostNameTemplate.Value)
+		require.True(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+	})
+
+	t.Run("No team: saving the identical template is a no-op", func(t *testing.T) {
+		resetInvoked()
+		currentAppConfigTemplate = "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), nil, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
+		require.NoError(t, err)
+		require.False(t, ds.SaveAppConfigFuncInvoked)
+		require.False(t, svcOpts.ActivityMock.NewActivityFuncInvoked)
+		require.False(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+		require.False(t, ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked)
+	})
+
+	t.Run("No team: clearing deletes rows and logs a null template", func(t *testing.T) {
+		resetInvoked()
+		currentAppConfigTemplate = "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
+		err := svc.UpdateMDMHostNameTemplate(premiumAdminCtx(), nil, "")
+		require.NoError(t, err)
+		require.NotNil(t, savedAppConfig)
+		require.Empty(t, savedAppConfig.MDM.HostNameTemplate.Value)
+		require.True(t, ds.DeleteHostDeviceNameEnforcementForTeamFuncInvoked)
+		require.False(t, ds.BulkUpsertHostDeviceNameEnforcementFuncInvoked)
+
+		act, ok := lastActivity.(automdm.ActivityTypeEditedHostNameTemplate)
+		require.True(t, ok, "expected edited_host_name_template activity, got %T", lastActivity)
+		require.Nil(t, act.AutoMDMID)
+		require.Nil(t, act.HostNameTemplate)
+	})
+}
+
+func TestUpdateMDMAppleSetup(t *testing.T) {
+	setupTest := func(tier string) (automdm.Service, context.Context, *mock.Store) {
+		svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: tier})
+		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: id, Name: "team"}, nil
+		}
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			return team, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
+		}
+		ds.SaveAppConfigFunc = func(ctx context.Context, appConfig *automdm.AppConfig) error {
+			return nil
+		}
+		return svc, ctx, ds
+	}
+
+	type testCase struct {
+		name    string
+		user    *automdm.User
+		teamID  *uint
+		wantErr string
+	}
+	// TODO: Add tests for gitops and observer plus roles? (Settings endpoint test above may also need to be updated)
+
+	t.Run("FreeTier", func(t *testing.T) {
+		freeTestCases := []testCase{
+			{
+				"global admin",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+				nil,
+				"Requires AutoMDM Premium license",
+			},
+			{
+				"global maintainer",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+				nil,
+				"Requires AutoMDM Premium license",
+			},
+			{
+				"team id with free license",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+				ptr.Uint(1),
+				"Requires AutoMDM Premium license",
+			},
+		}
+		svc, ctx, _ := setupTest(automdm.TierFree)
+		for _, tt := range freeTestCases {
+			t.Run(tt.name, func(t *testing.T) {
+				// prepare the context with the user and license
+				ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+				err := svc.UpdateMDMAppleSetup(ctx, automdm.MDMAppleSetupPayload{TeamID: tt.teamID})
+				if tt.wantErr == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErr)
+			})
+		}
+	})
+	t.Run("PremiumTier", func(t *testing.T) {
+		premiumTestCases := []testCase{
+			{
+				"global admin premium",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+				nil,
+				"",
+			},
+			{
+				"global admin, team",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+				ptr.Uint(1),
+				"",
+			},
+			{
+				"global maintainer premium",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+				nil,
+				"",
+			},
+			{
+				"global maintainer, team",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+				ptr.Uint(1),
+				"",
+			},
+			{
+				"global observer",
+				&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
+				nil,
+				authz.ForbiddenErrorMessage,
+			},
+			{
+				"team admin, DOES belong to team",
+				&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
+				ptr.Uint(1),
+				"",
+			},
+			{
+				"team admin, DOES NOT belong to team",
+				&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
+				ptr.Uint(1),
+				authz.ForbiddenErrorMessage,
+			},
+			{
+				"team maintainer, DOES belong to team",
+				&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
+				ptr.Uint(1),
+				"",
+			},
+			{
+				"team maintainer, DOES NOT belong to team",
+				&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
+				ptr.Uint(1),
+				authz.ForbiddenErrorMessage,
+			},
+			{
+				"team observer, DOES belong to team",
+				&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
+				ptr.Uint(1),
+				authz.ForbiddenErrorMessage,
+			},
+			{
+				"team observer, DOES NOT belong to team",
+				&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
+				ptr.Uint(1),
+				authz.ForbiddenErrorMessage,
+			},
+			{
+				"user no roles",
+				&automdm.User{ID: 1337},
+				nil,
+				authz.ForbiddenErrorMessage,
+			},
+		}
+		svc, ctx, _ := setupTest(automdm.TierPremium)
+		for _, tt := range premiumTestCases {
+			t.Run(tt.name, func(t *testing.T) {
+				// prepare the context with the user and license
+				ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+				err := svc.UpdateMDMAppleSetup(ctx, automdm.MDMAppleSetupPayload{TeamID: tt.teamID})
+				if tt.wantErr == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErr)
+			})
+		}
+	})
+}
+
+func TestAppleMDMFileVaultEscrowFunctions(t *testing.T) {
+	svc := Service{}
+
+	err := svc.MDMAppleReconcileFileVaultProfile(context.Background(), new(uint(1)))
+	require.ErrorIs(t, automdm.ErrMissingLicense, err)
+}
+
+func TestGenerateEnrollmentProfileMobileConfig(t *testing.T) {
+	// SCEP challenge should be escaped for XML
+	b, err := apple_mdm.GenerateEnrollmentProfileMobileconfig("foo", "https://example.com", "foo&bar", "topic", apple_mdm.MDMAccessRightAll, true)
+	require.NoError(t, err)
+	require.Contains(t, string(b), "foo&amp;bar")
+}
+
+func TestEnsureAutoMDMdConfig(t *testing.T) {
+	testError := errors.New("test error")
+	testURL := "https://example.com"
+	logger := slog.New(slog.DiscardHandler)
+	mdmConfig := config.MDMConfig{
+		AppleSCEPCert: "./testdata/server.pem",
+		AppleSCEPKey:  "./testdata/server.key",
+	}
+	signingCert, _, _, err := mdmConfig.AppleSCEP()
+	require.NoError(t, err)
+
+	t.Run("no enroll secret found", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
+		}
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, newNotFoundError()
+		}
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return []*automdm.EnrollSecret{}, nil
+		}
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
+			require.Empty(t, ps)
+			return nil
+		}
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.NoError(t, err)
+		require.True(t, ds.BulkUpsertMDMAppleConfigProfilesFuncInvoked)
+		require.True(t, ds.AggregateEnrollSecretPerTeamFuncInvoked)
+		require.True(t, ds.AppConfigFuncInvoked)
+	})
+
+	t.Run("all enroll secrets empty", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+		secrets := []*automdm.EnrollSecret{
+			{Secret: "", TeamID: nil},
+			{Secret: "", TeamID: ptr.Uint(1)},
+			{Secret: "", TeamID: ptr.Uint(2)},
+		}
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, newNotFoundError()
+		}
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return secrets, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
+		}
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
+			require.Empty(t, ps)
+			return nil
+		}
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.NoError(t, err)
+		require.True(t, ds.BulkUpsertMDMAppleConfigProfilesFuncInvoked)
+		require.True(t, ds.AggregateEnrollSecretPerTeamFuncInvoked)
+		require.True(t, ds.AppConfigFuncInvoked)
+	})
+
+	t.Run("uses the enroll secret of each team if available", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+		secrets := []*automdm.EnrollSecret{
+			{Secret: "global", TeamID: nil},
+			{Secret: "team-1", TeamID: ptr.Uint(1)},
+			{Secret: "team-2", TeamID: ptr.Uint(2)},
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			appCfg := &automdm.AppConfig{}
+			appCfg.ServerSettings.ServerURL = testURL
+			return appCfg, nil
+		}
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, newNotFoundError()
+		}
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return secrets, nil
+		}
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
+			// automdmd + CA profiles
+			require.Len(t, ps, len(secrets)*2)
+			var automdmd, automdmCA []*automdm.MDMAppleConfigProfile
+			for _, p := range ps {
+				switch p.Identifier {
+				case mobileconfig.AutoMDMdConfigPayloadIdentifier:
+					automdmd = append(automdmd, p)
+				case mobileconfig.AutoMDMCARootConfigPayloadIdentifier:
+					automdmCA = append(automdmCA, p)
+				}
+			}
+			require.Len(t, automdmd, 3)
+			require.Len(t, automdmCA, 3)
+
+			for i, p := range automdmd {
+				require.Contains(t, string(p.Mobileconfig), testURL)
+				require.Contains(t, string(p.Mobileconfig), secrets[i].Secret)
+			}
+			return nil
+		}
+
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.NoError(t, err)
+		require.True(t, ds.AggregateEnrollSecretPerTeamFuncInvoked)
+		require.True(t, ds.BulkUpsertMDMAppleConfigProfilesFuncInvoked)
+	})
+
+	t.Run("if the team doesn't have an enroll secret, fallback to no team", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+		secrets := []*automdm.EnrollSecret{
+			{Secret: "global", TeamID: nil},
+			{Secret: "", TeamID: ptr.Uint(1)},
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			appCfg := &automdm.AppConfig{}
+			appCfg.ServerSettings.ServerURL = testURL
+			return appCfg, nil
+		}
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, newNotFoundError()
+		}
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return secrets, nil
+		}
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
+			// automdmd + CA profiles
+			require.Len(t, ps, len(secrets)*2)
+			var automdmd, automdmCA []*automdm.MDMAppleConfigProfile
+			for _, p := range ps {
+				switch p.Identifier {
+				case mobileconfig.AutoMDMdConfigPayloadIdentifier:
+					automdmd = append(automdmd, p)
+				case mobileconfig.AutoMDMCARootConfigPayloadIdentifier:
+					automdmCA = append(automdmCA, p)
+				}
+			}
+			require.Len(t, automdmd, 2)
+			require.Len(t, automdmCA, 2)
+
+			for i, p := range automdmd {
+				require.Contains(t, string(p.Mobileconfig), testURL)
+				require.Contains(t, string(p.Mobileconfig), secrets[i].Secret)
+			}
+			return nil
+		}
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.NoError(t, err)
+		require.True(t, ds.AppConfigFuncInvoked)
+		require.True(t, ds.AggregateEnrollSecretPerTeamFuncInvoked)
+		require.True(t, ds.BulkUpsertMDMAppleConfigProfilesFuncInvoked)
+	})
+
+	t.Run("returns an error if there's a problem retrieving AppConfig", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return nil, testError
+		}
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.ErrorIs(t, err, testError)
+	})
+
+	t.Run("returns an error if there's a problem retrieving secrets", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
+		}
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, newNotFoundError()
+		}
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return nil, testError
+		}
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.ErrorIs(t, err, testError)
+	})
+
+	t.Run("returns an error if there's a problem upserting profiles", func(t *testing.T) {
+		ctx := context.Background()
+		ds := new(mock.Store)
+		secrets := []*automdm.EnrollSecret{
+			{Secret: "global", TeamID: nil},
+			{Secret: "team-1", TeamID: ptr.Uint(1)},
+		}
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return nil, newNotFoundError()
+		}
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return secrets, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
+		}
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, p []*automdm.MDMAppleConfigProfile) error {
+			return testError
+		}
+		err := ensureAutoMDMProfiles(ctx, ds, logger, signingCert.Certificate[0], false)
+		require.ErrorIs(t, err, testError)
+		require.True(t, ds.AppConfigFuncInvoked)
+		require.True(t, ds.AggregateEnrollSecretPerTeamFuncInvoked)
+		require.True(t, ds.BulkUpsertMDMAppleConfigProfilesFuncInvoked)
+	})
+}
+
+func TestMDMAppleSetupAssistant(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	ds.NewJobFunc = func(ctx context.Context, j *automdm.Job) (*automdm.Job, error) {
+		return j, nil
+	}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+	ds.GetMDMAppleSetupAssistantFunc = func(ctx context.Context, teamID *uint) (*automdm.MDMAppleSetupAssistant, error) {
+		return &automdm.MDMAppleSetupAssistant{}, nil
+	}
+	ds.SetOrUpdateMDMAppleSetupAssistantFunc = func(ctx context.Context, asst *automdm.MDMAppleSetupAssistant) (*automdm.MDMAppleSetupAssistant, error) {
+		return asst, nil
+	}
+	ds.DeleteMDMAppleSetupAssistantFunc = func(ctx context.Context, teamID *uint) error {
+		return nil
+	}
+	ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: id}, nil
+	}
+	ds.GetMDMAppleEnrollmentProfileByTypeFunc = func(ctx context.Context, typ automdm.MDMAppleEnrollmentType) (*automdm.MDMAppleEnrollmentProfile, error) {
+		return &automdm.MDMAppleEnrollmentProfile{Token: "foobar"}, nil
+	}
+	ds.CountABMTokensWithTermsExpiredFunc = func(ctx context.Context) (int, error) {
+		return 0, nil
+	}
+	ds.SetABMTokenInvalidForOrgNameFunc = func(ctx context.Context, orgName string, invalid bool) (bool, error) {
+		return false, nil
+	}
+	ds.IsABMTokenInvalidForOrgNameFunc = func(ctx context.Context, orgName string) (bool, error) {
+		return false, nil
+	}
+
+	testCases := []struct {
+		name            string
+		user            *automdm.User
+		teamID          *uint
+		shouldFailRead  bool
+		shouldFailWrite bool
+	}{
+		{"no role no team", test.UserNoRoles, nil, true, true},
+		{"no role team", test.UserNoRoles, ptr.Uint(1), true, true},
+		{"global admin no team", test.UserAdmin, nil, false, false},
+		{"global admin team", test.UserAdmin, ptr.Uint(1), false, false},
+		{"global maintainer no team", test.UserMaintainer, nil, false, false},
+		{"global maintainer team", test.UserMaintainer, ptr.Uint(1), false, false},
+		{"global observer no team", test.UserObserver, nil, true, true},
+		{"global observer team", test.UserObserver, ptr.Uint(1), true, true},
+		{"global observer+ no team", test.UserObserverPlus, nil, true, true},
+		{"global observer+ team", test.UserObserverPlus, ptr.Uint(1), true, true},
+		{"global gitops no team", test.UserGitOps, nil, true, false},
+		{"global gitops team", test.UserGitOps, ptr.Uint(1), true, false},
+		{"team admin no team", test.UserTeamAdminTeam1, nil, true, true},
+		{"team admin team", test.UserTeamAdminTeam1, ptr.Uint(1), false, false},
+		{"team admin other team", test.UserTeamAdminTeam2, ptr.Uint(1), true, true},
+		{"team maintainer no team", test.UserTeamMaintainerTeam1, nil, true, true},
+		{"team maintainer team", test.UserTeamMaintainerTeam1, ptr.Uint(1), false, false},
+		{"team maintainer other team", test.UserTeamMaintainerTeam2, ptr.Uint(1), true, true},
+		{"team observer no team", test.UserTeamObserverTeam1, nil, true, true},
+		{"team observer team", test.UserTeamObserverTeam1, ptr.Uint(1), true, true},
+		{"team observer other team", test.UserTeamObserverTeam2, ptr.Uint(1), true, true},
+		{"team observer+ no team", test.UserTeamObserverPlusTeam1, nil, true, true},
+		{"team observer+ team", test.UserTeamObserverPlusTeam1, ptr.Uint(1), true, true},
+		{"team observer+ other team", test.UserTeamObserverPlusTeam2, ptr.Uint(1), true, true},
+		{"team gitops no team", test.UserTeamGitOpsTeam1, nil, true, true},
+		{"team gitops team", test.UserTeamGitOpsTeam1, ptr.Uint(1), true, false},
+		{"team gitops other team", test.UserTeamGitOpsTeam2, ptr.Uint(1), true, true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// prepare the context with the user and license
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+
+			_, err := svc.GetMDMAppleSetupAssistant(ctx, tt.teamID)
+			checkAuthErr(t, tt.shouldFailRead, err)
+
+			_, err = svc.SetOrUpdateMDMAppleSetupAssistant(ctx, &automdm.MDMAppleSetupAssistant{
+				Name:    "test",
+				Profile: json.RawMessage("{}"),
+				TeamID:  tt.teamID,
+			})
+			checkAuthErr(t, tt.shouldFailWrite, err)
+
+			err = svc.DeleteMDMAppleSetupAssistant(ctx, tt.teamID)
+			checkAuthErr(t, tt.shouldFailWrite, err)
+		})
+	}
+}
+
+// Helper for creating scoped mobileconfigs. scope is optional and if set to nil is not included in
+// the mobileconfig so that default behavior is used. Note that because AutoMDM enforces that all
+// profiles sharing a given identifier have the same scope, it's a good idea to use a unique
+// identifier in your test or perhaps one with the scope in its name
+func scopedMobileconfigForTest(name, identifier string, scope *automdm.PayloadScope, vars ...string) []byte {
+	var varsStr strings.Builder
+	for i, v := range vars {
+		if !strings.HasPrefix(v, "AUTOMDM_VAR_") {
+			v = "AUTOMDM_VAR_" + v
+		}
+		varsStr.WriteString(fmt.Sprintf("<key>Var %d</key><string>$%s</string>", i, v))
+	}
+	scopeEntry := ""
+	if scope != nil {
+		scopeEntry = fmt.Sprintf("\n<key>PayloadScope</key>\n<string>%s</string>", string(*scope))
+	}
+
+	return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array/>
+	<key>PayloadDisplayName</key>
+	<string>%s</string>
+	<key>PayloadIdentifier</key>
+	<string>%s</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>%s</string>%s
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+	%s
+</dict>
+</plist>
+`, name, identifier, uuid.New().String(), scopeEntry, varsStr.String()))
+}
+
+func mobileconfigForTest(name, identifier string, vars ...string) []byte {
+	return scopedMobileconfigForTest(name, identifier, nil, vars...)
+}
+
+func declBytesForTest(identifier string, payloadContent string) []byte {
+	tmpl := `{
+		"Type": "com.apple.configuration.decl%s",
+		"Identifier": "com.fleet.config%s",
+		"Payload": {
+			"ServiceType": "com.apple.service%s"
+		}
+	}`
+
+	declBytes := []byte(fmt.Sprintf(tmpl, identifier, identifier, payloadContent))
+	return declBytes
+}
+
+func mobileconfigForTestWithContent(outerName, outerIdentifier, innerIdentifier, innerType, innerName string) []byte {
+	if innerName == "" {
+		innerName = outerName + ".inner"
+	}
+
+	return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+          <dict>
+            <key>PayloadDisplayName</key>
+            <string>%s</string>
+            <key>PayloadIdentifier</key>
+            <string>%s</string>
+            <key>PayloadType</key>
+            <string>%s</string>
+            <key>PayloadUUID</key>
+            <string>3548D750-6357-4910-8DEA-D80ADCE2C787</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>ShowRecoveryKey</key>
+            <false/>
+          </dict>
+	</array>
+	<key>PayloadDisplayName</key>
+	<string>%s</string>
+	<key>PayloadIdentifier</key>
+	<string>%s</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>%s</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
+`, innerName, innerIdentifier, innerType, outerName, outerIdentifier, uuid.New().String()))
+}
+
+func generateCertWithAPNsTopic() ([]byte, []byte, error) {
+	// generate a new private key
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// set up the OID for UID
+	oidUID := asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 1}
+
+	// set up a certificate template with the required UID in the Subject
+	notBefore := time.Now()
+	notAfter := notBefore.Add(365 * 24 * time.Hour)
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			ExtraNames: []pkix.AttributeTypeAndValue{
+				{
+					Type:  oidUID,
+					Value: "com.apple.mgmt.Example",
+				},
+			},
+		},
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	// create a self-signed certificate
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// encode to PEM
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+
+	return certPEM, keyPEM, nil
+}
+
+func setupTest(t *testing.T) (context.Context, *slog.Logger, *mock.Store, *config.AutoMDMConfig, *mdmmock.MDMAppleStore,
+	*apple_mdm.MDMAppleCommander,
+) {
+	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
+	cfg := config.TestConfig()
+	ds := new(mock.Store)
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		stdlogfmt.New(),
+	)
+	mdmConfig := config.MDMConfig{
+		AppleSCEPCert: "./testdata/server.pem",
+		AppleSCEPKey:  "./testdata/server.key",
+	}
+	apnsCert, apnsKey, err := mysqltest.GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
+	require.NoError(t, err)
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		appCfg := &automdm.AppConfig{}
+		appCfg.MDM.EnabledAndConfigured = true
+		return appCfg, nil
+	}
+
+	_, pemCert, pemKey, err := mdmConfig.AppleSCEP()
+	require.NoError(t, err)
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+		_ sqlx.QueryerContext,
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetCACert:   {Value: pemCert},
+			automdm.MDMAssetCAKey:    {Value: pemKey},
+			automdm.MDMAssetAPNSKey:  {Value: apnsKey},
+			automdm.MDMAssetAPNSCert: {Value: apnsCert},
+		}, nil
+	}
+	mdmStorage.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+		_ sqlx.QueryerContext,
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetCACert:   {Value: pemCert},
+			automdm.MDMAssetCAKey:    {Value: pemKey},
+			automdm.MDMAssetAPNSKey:  {Value: apnsKey},
+			automdm.MDMAssetAPNSCert: {Value: apnsCert},
+		}, nil
+	}
+
+	commander := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+
+	return ctx, logger, ds, &cfg, mdmStorage, commander
+}
+
+func TestRenewSCEPCertificatesMDMConfigNotSet(t *testing.T) {
+	ctx, logger, ds, cfg, _, commander := setupTest(t)
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		appCfg := &automdm.AppConfig{}
+		appCfg.MDM.EnabledAndConfigured = false
+		return appCfg, nil
+	}
+	err := RenewSCEPCertificates(ctx, logger, ds, cfg, commander, &mock.MockACMEService{})
+	require.NoError(t, err)
+}
+
+func TestRenewSCEPCertificatesCommanderNil(t *testing.T) {
+	ctx, logger, ds, cfg, _, _ := setupTest(t)
+	err := RenewSCEPCertificates(ctx, logger, ds, cfg, nil, &mock.MockACMEService{})
+	require.NoError(t, err)
+}
+
+func TestRenewSCEPCertificatesBranches(t *testing.T) {
+	// NOTE: These tests assume appConfig.MDM.AppleRequireHardwareAttestation is false.
+	// They do not cover ACME renewal logic.
+	tests := []struct {
+		name               string
+		customExpectations func(*testing.T, *mock.Store, *config.AutoMDMConfig, *mdmmock.MDMAppleStore, *apple_mdm.MDMAppleCommander)
+		expectedError      bool
+	}{
+		{
+			name: "No Certs to Renew",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return nil, nil
+				}
+			},
+			expectedError: false,
+		},
+		{
+			name: "GetHostCertAssociationsToExpire Errors",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name: "AppConfig Errors",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+					return nil, errors.New("app config error")
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name: "InstallProfile for hostsWithoutRefs",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				var wantCommandUUID string
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					require.Equal(t, "fl33t enrollment", cmd.Name)
+					require.Equal(t, mdm.CommandSubtypeProfileWithSecrets, cmd.Subtype)
+					require.Contains(t, string(cmd.Raw), automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge))
+					wantCommandUUID = cmd.CommandUUID
+					return map[string]error{}, nil
+				}
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					require.Len(t, assocs, 1)
+					require.Equal(t, "hostUUID1", assocs[0].HostUUID)
+					require.Equal(t, cmdUUID, wantCommandUUID)
+					return nil
+				}
+
+				t.Cleanup(func() {
+					require.True(t, appleStore.EnqueueCommandFuncInvoked)
+					require.True(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked)
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "InstallProfile for hostsWithoutRefs fails",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					return map[string]error{}, errors.New("foo")
+				}
+				t.Cleanup(func() {
+					require.False(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked)
+					require.False(t, appleStore.RetrievePushInfoFuncInvoked)
+				})
+			},
+			expectedError: true,
+		},
+		{
+			name: "push fails for one host still marks every host",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1"}, {HostUUID: "hostUUID2"}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					return map[string]error{}, nil
+				}
+				var markedHosts []string
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					for _, a := range assocs {
+						markedHosts = append(markedHosts, a.HostUUID)
+					}
+					return nil
+				}
+				// hostUUID2 has no push token, so its push fails.
+				appleStore.RetrievePushInfoFunc = func(ctx context.Context, targets []string) (map[string]*mdm.Push, error) {
+					return map[string]*mdm.Push{
+						"hostUUID1": {PushMagic: "magic", Token: []byte("token"), Topic: "topic"},
+					}, nil
+				}
+				t.Cleanup(func() {
+					require.True(t, appleStore.EnqueueCommandFuncInvoked)
+					require.True(t, appleStore.RetrievePushInfoFuncInvoked)
+					require.ElementsMatch(t, []string{"hostUUID1", "hostUUID2"}, markedHosts)
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "unusable push certificate still marks hosts in every group",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{
+						{HostUUID: "hostUUID1"},
+						{HostUUID: "hostUUID2", EnrollmentType: "User Enrollment (Device)"},
+					}, nil
+				}
+				ds.GetMDMIdPAccountsByHostUUIDsFunc = func(ctx context.Context, hostUUIDs []string) (map[string]*automdm.MDMIdPAccount, error) {
+					return map[string]*automdm.MDMIdPAccount{"hostUUID2": {Email: "user2@example.com"}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					return map[string]error{}, nil
+				}
+				var markedHosts []string
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					for _, a := range assocs {
+						markedHosts = append(markedHosts, a.HostUUID)
+					}
+					return nil
+				}
+				appleStore.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+					return nil, "", errors.New("push certificate expired")
+				}
+				t.Cleanup(func() {
+					require.ElementsMatch(t, []string{"hostUUID1", "hostUUID2"}, markedHosts)
+				})
+			},
+			expectedError: false,
+		},
+		{
+			// Hosts without an enroll reference that share the same enrollment
+			// permissions must be collapsed into a single InstallProfile command,
+			// while a host with different (BYOD) permissions gets its own command.
+			name: "InstallProfile for hostsWithoutRefs buckets by permissions",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{
+						{HostUUID: "company1", EnrollReference: ""},
+						{HostUUID: "company2", EnrollReference: ""},
+						{HostUUID: "byod1", EnrollReference: ""},
+					}, nil
+				}
+
+				ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+					if hostUUID == "byod1" {
+						return &automdm.HostMDMApplePermissions{
+							HostUUID:             hostUUID,
+							IsPersonalEnrollment: true,
+							AccessRights:         apple_mdm.AppleEnrollmentAccessRights(true),
+						}, nil
+					}
+					return nil, nil
+				}
+
+				var enqueuedHostSets [][]string
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					set := append([]string(nil), id...)
+					sort.Strings(set)
+					enqueuedHostSets = append(enqueuedHostSets, set)
+					return map[string]error{}, nil
+				}
+
+				t.Cleanup(func() {
+					// Two buckets: {company1, company2} in one command, {byod1} in the other.
+					require.Len(t, enqueuedHostSets, 2)
+					require.Contains(t, enqueuedHostSets, []string{"company1", "company2"})
+					require.Contains(t, enqueuedHostSets, []string{"byod1"})
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "InstallProfile for hostsWithRefs",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				var wantCommandUUID string
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID2", EnrollReference: "ref1"}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					require.Equal(t, "fl33t enrollment", cmd.Name)
+					require.Equal(t, mdm.CommandSubtypeProfileWithSecrets, cmd.Subtype)
+					require.Contains(t, string(cmd.Raw), automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge))
+					wantCommandUUID = cmd.CommandUUID
+					return map[string]error{}, nil
+				}
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					require.Len(t, assocs, 1)
+					require.Equal(t, "hostUUID2", assocs[0].HostUUID)
+					require.Equal(t, cmdUUID, wantCommandUUID)
+					return nil
+				}
+				t.Cleanup(func() {
+					require.True(t, appleStore.EnqueueCommandFuncInvoked)
+					require.True(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked)
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "InstallProfile for hostsWithRefs fails",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: "ref1"}}, nil
+				}
+
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					return map[string]error{}, errors.New("foo")
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name: "InstallProfile for userDeviceAssocs",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				wantCommandUUIDs := make(map[string]string)
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollmentType: "User Enrollment (Device)"}, {HostUUID: "hostUUID2", EnrollmentType: "User Enrollment (Device)"}}, nil
+				}
+				user1Email := "user1@example.com"
+				user2Email := "user2@example.com"
+				ds.GetMDMIdPAccountsByHostUUIDsFunc = func(ctx context.Context, hostUUIDs []string) (map[string]*automdm.MDMIdPAccount, error) {
+					require.Len(t, hostUUIDs, 2)
+					return map[string]*automdm.MDMIdPAccount{
+						"hostUUID2": {
+							UUID:     "userUUID2",
+							Username: "user2",
+							Email:    user2Email,
+						},
+						"hostUUID1": {
+							UUID:     "userUUID1",
+							Username: "user1",
+							Email:    user1Email,
+						},
+					}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					require.Equal(t, "fl33t account driven enrollment", cmd.Name)
+					require.Equal(t, 1, len(id))
+					_, idAlreadyExists := wantCommandUUIDs[id[0]]
+					// Should only get one for each host
+					require.False(t, idAlreadyExists, "Command UUID for host %s already exists: %s", id[0], wantCommandUUIDs[id[0]])
+					wantCommandUUIDs[id[0]] = cmd.CommandUUID
+
+					// Make sure the user's email made it into the profile
+					// renewal profiles are stored unsigned, with the SCEP challenge placeholder expanded at delivery
+					require.Equal(t, mdm.CommandSubtypeProfileWithSecrets, cmd.Subtype)
+					payload := cmd.Raw
+					switch id[0] {
+					case "hostUUID1":
+						require.True(t, bytes.Contains(payload, []byte(user1Email)), "The profile for hostUUID 1 should contain the associated user email")
+						require.Contains(t, string(payload), automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge))
+					case "hostUUID2":
+						require.True(t, bytes.Contains(payload, []byte(user2Email)), "The profile for hostUUID 2 should contain the associated user email")
+						require.Contains(t, string(payload), automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge))
+					default:
+						require.Fail(t, "Unexpected host ID for command: %s", id[0])
+					}
+					return map[string]error{}, nil
+				}
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					require.Len(t, assocs, 1)
+					require.Contains(t, []string{"hostUUID1", "hostUUID2"}, assocs[0].HostUUID)
+					require.Equal(t, cmdUUID, wantCommandUUIDs[assocs[0].HostUUID])
+					return nil
+				}
+				t.Cleanup(func() {
+					require.True(t, appleStore.EnqueueCommandFuncInvoked)
+					require.True(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked)
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "InstallProfile for userDeviceAssocs does not return email for one device",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				wantCommandUUIDs := make(map[string]string)
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollmentType: "User Enrollment (Device)"}, {HostUUID: "hostUUID2", EnrollmentType: "User Enrollment (Device)"}}, nil
+				}
+				user1Email := "user1@example.com"
+				ds.GetMDMIdPAccountsByHostUUIDsFunc = func(ctx context.Context, hostUUIDs []string) (map[string]*automdm.MDMIdPAccount, error) {
+					require.Len(t, hostUUIDs, 2)
+					return map[string]*automdm.MDMIdPAccount{
+						"hostUUID1": {
+							UUID:     "userUUID1",
+							Username: "user1",
+							Email:    user1Email,
+						},
+					}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					require.Equal(t, "fl33t account driven enrollment", cmd.Name)
+					require.Equal(t, 1, len(id))
+					_, idAlreadyExists := wantCommandUUIDs[id[0]]
+					// Should only get one for each host
+					require.False(t, idAlreadyExists, "Command UUID for host %s already exists: %s", id[0], wantCommandUUIDs[id[0]])
+					wantCommandUUIDs[id[0]] = cmd.CommandUUID
+
+					// Make sure the user's email made it into the profile if it was returned
+					// renewal profiles are stored unsigned, with the SCEP challenge placeholder expanded at delivery
+					require.Equal(t, mdm.CommandSubtypeProfileWithSecrets, cmd.Subtype)
+					payload := cmd.Raw
+					switch id[0] {
+					// Only hostUUID1 has an email associated with it
+					// so we expect it to be present in the profile
+					case "hostUUID1":
+						require.True(t, bytes.Contains(payload, []byte(user1Email)), "The profile for hostUUID 1 should contain the associated user email")
+					case "hostUUID2":
+						require.False(t, bytes.Contains(payload, []byte("@example.com")), "The profile for hostUUID 2 should not contain any user email")
+					default:
+						require.Fail(t, "Unexpected host ID for command: %s", id[0])
+					}
+					return map[string]error{}, nil
+				}
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					require.Len(t, assocs, 1)
+					require.Contains(t, []string{"hostUUID1", "hostUUID2"}, assocs[0].HostUUID)
+					require.Equal(t, cmdUUID, wantCommandUUIDs[assocs[0].HostUUID])
+					return nil
+				}
+				t.Cleanup(func() {
+					require.True(t, appleStore.EnqueueCommandFuncInvoked)
+					require.True(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked)
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "InstallProfile for userDeviceAssocs fails",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollmentType: "User Enrollment (Device)"}, {HostUUID: "hostUUID2", EnrollmentType: "User Enrollment (Device)"}}, nil
+				}
+				user1Email := "user1@example.com"
+				user2Email := "user2@example.com"
+				ds.GetMDMIdPAccountsByHostUUIDsFunc = func(ctx context.Context, hostUUIDs []string) (map[string]*automdm.MDMIdPAccount, error) {
+					require.Len(t, hostUUIDs, 2)
+					return map[string]*automdm.MDMIdPAccount{
+						"hostUUID2": {
+							UUID:     "userUUID2",
+							Username: "user2",
+							Email:    user2Email,
+						},
+						"hostUUID1": {
+							UUID:     "userUUID1",
+							Username: "user1",
+							Email:    user1Email,
+						},
+					}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error,
+					error,
+				) {
+					return map[string]error{}, errors.New("foo")
+				}
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, logger, ds, cfg, appleStorage, commander := setupTest(t)
+
+			acmeSvc := &mock.MockACMEService{}
+			acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+				return uuid.NewString(), nil
+			}
+
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				appCfg := &automdm.AppConfig{}
+				appCfg.OrgInfo.OrgName = "fl33t"
+				appCfg.ServerSettings.ServerURL = "https://foo.example.com"
+				appCfg.MDM.EnabledAndConfigured = true
+				return appCfg, nil
+			}
+
+			ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+				return []automdm.SCEPIdentityAssociation{}, nil
+			}
+
+			// Default to no stored permissions row, which renewalEnrollmentParams
+			// treats as a company-owned device with full access rights. Subtests
+			// that exercise BYOD renewal can override this.
+			ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+				return nil, nil
+			}
+
+			ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+				return nil
+			}
+
+			appleStorage.RetrievePushInfoFunc = func(ctx context.Context, targets []string) (map[string]*mdm.Push, error) {
+				pushes := make(map[string]*mdm.Push, len(targets))
+				for _, uuid := range targets {
+					pushes[uuid] = &mdm.Push{
+						PushMagic: "magic" + uuid,
+						Token:     []byte("token" + uuid),
+						Topic:     "topic" + uuid,
+					}
+				}
+
+				return pushes, nil
+			}
+
+			appleStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+				apnsCert, apnsKey, err := mysqltest.GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
+				require.NoError(t, err)
+				cert, err := tls.X509KeyPair(apnsCert, apnsKey)
+				return &cert, "", err
+			}
+
+			tc.customExpectations(t, ds, cfg, appleStorage, commander)
+
+			err := RenewSCEPCertificates(ctx, logger, ds, cfg, commander, acmeSvc)
+			if tc.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.False(t, acmeSvc.NewACMEEnrollmentFuncInvoked, "NewACMEEnrollment should not be called during SCEP cert renewal")
+		})
+	}
+}
+
+func TestRenewACMECertificatesBranches(t *testing.T) {
+	// These tests cover the ACME renewal branch in RenewSCEPCertificates, specifically when
+	// AppConfig.MDM.AppleRequireHardwareAttestation is true and eligible devices require ACME.
+	const (
+		appleSiliconModel = "Mac13,1"   // Apple Silicon (Mac Studio); satisfies IsMacAppleSilicon
+		intelMacModel     = "MacPro7,1" // Intel Mac Pro; IsMacAppleSilicon returns false
+		acmeMacOSVersion  = "14.0"
+	)
+
+	tests := []struct {
+		name               string
+		customExpectations func(*testing.T, *mock.Store, *config.AutoMDMConfig, *mdmmock.MDMAppleStore, *apple_mdm.MDMAppleCommander, *mock.MockACMEService)
+		expectedError      bool
+	}{
+		{
+			name: "AppleRequireHardwareAttestation false skips ACME check",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+					appCfg := &automdm.AppConfig{}
+					appCfg.OrgInfo.OrgName = "fl33t"
+					appCfg.ServerSettings.ServerURL = "https://foo.example.com"
+					appCfg.MDM.EnabledAndConfigured = true
+					appCfg.MDM.AppleRequireHardwareAttestation = false
+					return appCfg, nil
+				}
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					return map[string]error{}, nil
+				}
+				t.Cleanup(func() {
+					require.False(t, ds.GetDeviceInfoForACMERenewalFuncInvoked, "GetDeviceInfoForACMERenewal should not be called when AppleRequireHardwareAttestation is false")
+					require.False(t, acmeSvc.NewACMEEnrollmentFuncInvoked, "NewACMEEnrollment should not be called when AppleRequireHardwareAttestation is false")
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "GetDeviceInfoForACMERenewal errors",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+				ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name: "Non-Apple-Silicon device gets regular SCEP renewal, no ACME",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+				ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+					require.Equal(t, []string{"hostUUID1"}, hostUUIDs)
+					return []automdm.DeviceInfoForACMERenewal{{
+						HostUUID:       "hostUUID1",
+						HardwareSerial: "INTEL001",
+						HardwareModel:  intelMacModel,
+						OSVersion:      acmeMacOSVersion,
+					}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					require.Equal(t, "fl33t enrollment", cmd.Name)
+					return map[string]error{}, nil
+				}
+				t.Cleanup(func() {
+					require.True(t, ds.GetDeviceInfoForACMERenewalFuncInvoked, "GetDeviceInfoForACMERenewal should be called when AppleRequireHardwareAttestation is true")
+					require.False(t, acmeSvc.NewACMEEnrollmentFuncInvoked, "NewACMEEnrollment should not be called for non-Apple-Silicon device")
+					require.True(t, appleStore.EnqueueCommandFuncInvoked, "EnqueueCommand should be called for regular SCEP renewal")
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "Apple Silicon macOS 14+ host without enrollment reference gets ACME profile",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				const serial = "APPLESILICON001"
+				var wantCommandUUID string
+				acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+					require.Equal(t, serial, hostIdentifier)
+					require.Equal(t, automdm.AppleMDMCertPurposeACMERenewal, purpose)
+					require.Equal(t, new("hostUUID1"), enrollmentID)
+					return "acme-ident-001", nil
+				}
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+				ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+					require.Equal(t, []string{"hostUUID1"}, hostUUIDs)
+					return []automdm.DeviceInfoForACMERenewal{{
+						HostUUID:       "hostUUID1",
+						HardwareSerial: serial,
+						HardwareModel:  appleSiliconModel,
+						OSVersion:      acmeMacOSVersion,
+					}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					require.Equal(t, "fl33t ACME enrollment", cmd.Name)
+					wantCommandUUID = cmd.CommandUUID
+					// Verify the profile is an ACME profile by checking it contains the device serial
+					// renewal profiles are stored unsigned, with the SCEP challenge placeholder expanded at delivery
+					require.Equal(t, mdm.CommandSubtypeProfileWithSecrets, cmd.Subtype)
+					payload := cmd.Raw
+					require.True(t, bytes.Contains(payload, []byte(serial)), "ACME profile should contain the device serial number as ClientIdentifier")
+					require.True(t, bytes.Contains(payload, []byte("com.apple.security.acme")), "profile should be of ACME payload type")
+					return map[string]error{}, nil
+				}
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					require.Len(t, assocs, 1)
+					require.Equal(t, "hostUUID1", assocs[0].HostUUID)
+					require.Equal(t, wantCommandUUID, cmdUUID)
+					return nil
+				}
+				t.Cleanup(func() {
+					require.True(t, acmeSvc.NewACMEEnrollmentFuncInvoked, "NewACMEEnrollment should be called for Apple Silicon macOS 14+ device")
+					require.True(t, appleStore.EnqueueCommandFuncInvoked, "EnqueueCommand should be called to send the ACME profile")
+					require.True(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked, "SetCommandForPendingSCEPRenewal should be called")
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "Apple Silicon macOS 14+ host with enrollment reference gets ACME profile",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				const serial = "APPLESILICON002"
+				const enrollRef = "ref123"
+				var wantCommandUUID string
+				acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+					require.Equal(t, serial, hostIdentifier)
+					require.Equal(t, automdm.AppleMDMCertPurposeACMERenewal, purpose)
+					require.Equal(t, new("hostUUID2"), enrollmentID)
+					return "acme-ident-002", nil
+				}
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID2", EnrollReference: enrollRef}}, nil
+				}
+				ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+					require.Equal(t, []string{"hostUUID2"}, hostUUIDs)
+					return []automdm.DeviceInfoForACMERenewal{{
+						HostUUID:       "hostUUID2",
+						HardwareSerial: serial,
+						HardwareModel:  appleSiliconModel,
+						OSVersion:      acmeMacOSVersion,
+					}}, nil
+				}
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					require.Equal(t, "fl33t ACME enrollment", cmd.Name)
+					wantCommandUUID = cmd.CommandUUID
+					// renewal profiles are stored unsigned, with the SCEP challenge placeholder expanded at delivery
+					require.Equal(t, mdm.CommandSubtypeProfileWithSecrets, cmd.Subtype)
+					payload := cmd.Raw
+					require.True(t, bytes.Contains(payload, []byte(serial)), "ACME profile should contain the device serial number as ClientIdentifier")
+					require.True(t, bytes.Contains(payload, []byte("com.apple.security.acme")), "profile should be of ACME payload type")
+					return map[string]error{}, nil
+				}
+				ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+					require.Len(t, assocs, 1)
+					require.Equal(t, "hostUUID2", assocs[0].HostUUID)
+					require.Equal(t, wantCommandUUID, cmdUUID)
+					return nil
+				}
+				t.Cleanup(func() {
+					require.True(t, acmeSvc.NewACMEEnrollmentFuncInvoked, "NewACMEEnrollment should be called for Apple Silicon macOS 14+ device with enrollment reference")
+					require.True(t, appleStore.EnqueueCommandFuncInvoked, "EnqueueCommand should be called to send the ACME profile")
+					require.True(t, ds.SetCommandForPendingSCEPRenewalFuncInvoked, "SetCommandForPendingSCEPRenewal should be called")
+				})
+			},
+			expectedError: false,
+		},
+		{
+			name: "NewACMEEnrollment errors returns error",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+					return "", errors.New("ACME service unavailable")
+				}
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{{HostUUID: "hostUUID1", EnrollReference: ""}}, nil
+				}
+				ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+					return []automdm.DeviceInfoForACMERenewal{{
+						HostUUID:       "hostUUID1",
+						HardwareSerial: "SERIAL001",
+						HardwareModel:  appleSiliconModel,
+						OSVersion:      acmeMacOSVersion,
+					}}, nil
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name: "Mixed hosts: Apple Silicon gets ACME profile, Intel Mac gets regular SCEP profile",
+			customExpectations: func(t *testing.T, ds *mock.Store, cfg *config.AutoMDMConfig, appleStore *mdmmock.MDMAppleStore, commander *apple_mdm.MDMAppleCommander, acmeSvc *mock.MockACMEService) {
+				const acmeSerial = "APPLESILICON003"
+				acmeEnrollmentCallCount := 0
+				acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+					require.Equal(t, acmeSerial, hostIdentifier)
+					acmeEnrollmentCallCount++
+					return "acme-ident-003", nil
+				}
+				ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+					return []automdm.SCEPIdentityAssociation{
+						{HostUUID: "hostUUID-acme", EnrollReference: ""},
+						{HostUUID: "hostUUID-scep", EnrollReference: ""},
+					}, nil
+				}
+				ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+					require.Len(t, hostUUIDs, 2)
+					return []automdm.DeviceInfoForACMERenewal{
+						{
+							HostUUID:       "hostUUID-acme",
+							HardwareSerial: acmeSerial,
+							HardwareModel:  appleSiliconModel,
+							OSVersion:      acmeMacOSVersion,
+						},
+						{
+							HostUUID:       "hostUUID-scep",
+							HardwareSerial: "INTELMAC003",
+							HardwareModel:  intelMacModel,
+							OSVersion:      acmeMacOSVersion,
+						},
+					}, nil
+				}
+				enqueuedHostUUIDs := make(map[string]bool)
+				appleStore.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+					require.Equal(t, "InstallProfile", cmd.Command.Command.RequestType)
+					for _, hostUUID := range id {
+						switch hostUUID {
+						case "hostUUID-acme":
+							require.Equal(t, "fl33t ACME enrollment", cmd.Name)
+						case "hostUUID-scep":
+							require.Equal(t, "fl33t enrollment", cmd.Name)
+						default:
+							require.Failf(t, "Unexpected host UUID", "Unexpected host UUID: %s", hostUUID)
+						}
+						enqueuedHostUUIDs[hostUUID] = true
+					}
+					return map[string]error{}, nil
+				}
+				t.Cleanup(func() {
+					require.Equal(t, 1, acmeEnrollmentCallCount, "NewACMEEnrollment should be called exactly once for the Apple Silicon host")
+					require.True(t, enqueuedHostUUIDs["hostUUID-acme"], "ACME host should have an InstallProfile command enqueued")
+					require.True(t, enqueuedHostUUIDs["hostUUID-scep"], "SCEP host should have an InstallProfile command enqueued")
+				})
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, logger, ds, cfg, appleStorage, commander := setupTest(t)
+
+			acmeSvc := &mock.MockACMEService{}
+			acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+				return uuid.NewString(), nil
+			}
+
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				appCfg := &automdm.AppConfig{}
+				appCfg.OrgInfo.OrgName = "fl33t"
+				appCfg.ServerSettings.ServerURL = "https://foo.example.com"
+				appCfg.MDM.EnabledAndConfigured = true
+				appCfg.MDM.AppleRequireHardwareAttestation = true
+				return appCfg, nil
+			}
+
+			ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+				return []automdm.SCEPIdentityAssociation{}, nil
+			}
+
+			// Default to no stored permissions row, which renewalEnrollmentParams
+			// treats as a company-owned device with full access rights. Subtests
+			// that exercise BYOD renewal can override this.
+			ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+				return nil, nil
+			}
+
+			ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+				return nil
+			}
+
+			appleStorage.RetrievePushInfoFunc = func(ctx context.Context, targets []string) (map[string]*mdm.Push, error) {
+				pushes := make(map[string]*mdm.Push, len(targets))
+				for _, id := range targets {
+					pushes[id] = &mdm.Push{
+						PushMagic: "magic" + id,
+						Token:     []byte("token" + id),
+						Topic:     "topic" + id,
+					}
+				}
+				return pushes, nil
+			}
+
+			appleStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+				apnsCert, apnsKey, err := mysqltest.GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
+				require.NoError(t, err)
+				cert, err := tls.X509KeyPair(apnsCert, apnsKey)
+				return &cert, "", err
+			}
+
+			tc.customExpectations(t, ds, cfg, appleStorage, commander, acmeSvc)
+
+			err := RenewSCEPCertificates(ctx, logger, ds, cfg, commander, acmeSvc)
+			if tc.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestRenewSCEPCertificatesEnrollmentRestrictions covers how the Apple Business
+// enrollment restrictions gate renewals. With both restrictions on SCEP is
+// blocked outright, so every host that can't renew over ACME is excluded from
+// future runs instead. With only the Apple Business restriction on, hosts
+// assigned to AutoMDM in Apple Business Manager still renew over SCEP.
+func TestRenewSCEPCertificatesEnrollmentRestrictions(t *testing.T) {
+	const (
+		appleSiliconModel = "Mac13,1"
+		acmeMacOSVersion  = "14.0"
+	)
+
+	// acme-capable* are the only hosts GetDeviceInfoForACMERenewal reports back
+	// as attestation-capable below.
+	expiring := []automdm.SCEPIdentityAssociation{
+		{HostUUID: "acme-capable", DEPAssignedToAutoMDM: true},
+		{HostUUID: "acme-capable-with-ref", EnrollReference: "ref1", DEPAssignedToAutoMDM: true},
+		{HostUUID: "scep-only", DEPAssignedToAutoMDM: true},
+		{HostUUID: "scep-only-with-ref", EnrollReference: "ref2", DEPAssignedToAutoMDM: true},
+		{HostUUID: "not-dep-assigned"},
+		{HostUUID: "user-device", EnrollmentType: "User Enrollment (Device)", DEPAssignedToAutoMDM: true},
+		{HostUUID: "from-migration", EnrolledFromMigration: true, DEPAssignedToAutoMDM: true},
+	}
+
+	tests := []struct {
+		name                       string
+		requireHardwareAttestation bool
+		// wantCommands maps a host UUID to the name of the command it must receive.
+		wantCommands map[string]string
+		wantExcluded []string
+	}{
+		{
+			name:                       "Apple Business only and hardware attestation blocks every SCEP renewal",
+			requireHardwareAttestation: true,
+			wantCommands: map[string]string{
+				"acme-capable":          "fl33t ACME enrollment",
+				"acme-capable-with-ref": "fl33t ACME enrollment",
+			},
+			// Everything that can't do ACME is excluded rather than falling back to SCEP.
+			wantExcluded: []string{"scep-only", "scep-only-with-ref", "not-dep-assigned", "user-device", "from-migration"},
+		},
+		{
+			name:                       "Apple Business only alone still renews DEP-assigned hosts over SCEP",
+			requireHardwareAttestation: false,
+			wantCommands: map[string]string{
+				"acme-capable":          "fl33t enrollment",
+				"acme-capable-with-ref": "fl33t enrollment",
+				"scep-only":             "fl33t enrollment",
+				"scep-only-with-ref":    "fl33t enrollment",
+			},
+			// from-migration is DEP assigned, so it goes to the silent migration
+			// bucket instead of being excluded.
+			wantExcluded: []string{"not-dep-assigned", "user-device"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, logger, ds, cfg, appleStorage, commander := setupTest(t)
+
+			acmeSvc := &mock.MockACMEService{}
+			acmeSvc.NewACMEEnrollmentFunc = func(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+				return uuid.NewString(), nil
+			}
+
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				appCfg := &automdm.AppConfig{}
+				appCfg.OrgInfo.OrgName = "fl33t"
+				appCfg.ServerSettings.ServerURL = "https://foo.example.com"
+				appCfg.MDM.EnabledAndConfigured = true
+				appCfg.MDM.OnlyAllowAppleBusinessEnrollment = true
+				appCfg.MDM.AppleRequireHardwareAttestation = tc.requireHardwareAttestation
+				return appCfg, nil
+			}
+			ds.GetHostCertAssociationsToExpireFunc = func(ctx context.Context, expiryDays int, limit int) ([]automdm.SCEPIdentityAssociation, error) {
+				return expiring, nil
+			}
+			ds.GetDeviceInfoForACMERenewalFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.DeviceInfoForACMERenewal, error) {
+				var out []automdm.DeviceInfoForACMERenewal
+				for _, uuid := range hostUUIDs {
+					if !strings.HasPrefix(uuid, "acme-capable") {
+						continue
+					}
+					out = append(out, automdm.DeviceInfoForACMERenewal{
+						HostUUID:       uuid,
+						HardwareSerial: "SERIAL-" + uuid,
+						HardwareModel:  appleSiliconModel,
+						OSVersion:      acmeMacOSVersion,
+					})
+				}
+				return out, nil
+			}
+			ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+				return nil, nil
+			}
+			ds.SetCommandForPendingSCEPRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation, cmdUUID string) error {
+				return nil
+			}
+
+			var gotExcluded []string
+			ds.ExcludeHostCertAssociationsFromRenewalFunc = func(ctx context.Context, assocs []automdm.SCEPIdentityAssociation) error {
+				for _, assoc := range assocs {
+					gotExcluded = append(gotExcluded, assoc.HostUUID)
+				}
+				return nil
+			}
+
+			gotCommands := map[string]string{}
+			appleStorage.EnqueueCommandFunc = func(ctx context.Context, ids []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
+				for _, id := range ids {
+					gotCommands[id] = cmd.Name
+				}
+				return map[string]error{}, nil
+			}
+			appleStorage.RetrievePushInfoFunc = func(ctx context.Context, targets []string) (map[string]*mdm.Push, error) {
+				pushes := make(map[string]*mdm.Push, len(targets))
+				for _, id := range targets {
+					pushes[id] = &mdm.Push{PushMagic: "magic" + id, Token: []byte("token" + id), Topic: "topic" + id}
+				}
+				return pushes, nil
+			}
+			appleStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+				apnsCert, apnsKey, err := mysqltest.GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
+				require.NoError(t, err)
+				cert, err := tls.X509KeyPair(apnsCert, apnsKey)
+				return &cert, "", err
+			}
+
+			require.NoError(t, RenewSCEPCertificates(ctx, logger, ds, cfg, commander, acmeSvc))
+
+			require.Equal(t, tc.wantCommands, gotCommands)
+			require.ElementsMatch(t, tc.wantExcluded, gotExcluded)
+		})
+	}
+}
+
+func TestMDMCommandAndReportResultsIOSIPadOSRefetch(t *testing.T) {
+	ctx := context.Background()
+	hostID := uint(42)
+	hostUUID := "ABC-DEF-GHI"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "UUID"
+	lostModeCommandUUID := uuid.NewString()
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{
+			ID:   hostID,
+			UUID: hostUUID,
+			MDM: automdm.MDMHostData{
+				EnrollmentStatus: ptr.String("Pending"), // We check it in as a new device, to trigger lost mode flow
+			},
+		}, nil
+	}
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
+		require.Equal(t, "Work iPad", host.ComputerName)
+		require.Equal(t, "Work iPad", host.Hostname)
+		require.Equal(t, "iPadOS 17.5.1", host.OSVersion)
+		require.Equal(t, "ff:ff:ff:ff:ff:ff", host.PrimaryMac)
+		require.Equal(t, "iPad13,18", host.HardwareModel)
+		require.WithinDuration(t, time.Now(), host.DetailUpdatedAt, 1*time.Minute)
+		require.WithinDuration(t, time.Now(), host.LabelUpdatedAt, 1*time.Minute)
+		return nil
+	}
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		require.Equal(t, hostID, incomingHostID)
+		require.NotZero(t, 51, int64(gigsAvailable))
+		require.NotZero(t, 79, int64(percentAvailable))
+		require.NotZero(t, 64, int64(gigsTotal))
+		return nil
+	}
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		require.Equal(t, hostID, incomingHostID)
+		require.Equal(t, "iPadOS", hostOS.Name)
+		require.Equal(t, "17.5.1", hostOS.Version)
+		require.Equal(t, "ipados", hostOS.Platform)
+		return nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error {
+		assert.Equal(t, hostID, command.HostID)
+		assert.Equal(t, automdm.RefetchDeviceCommandUUIDPrefix, command.CommandType)
+		assert.Equal(t, commandUUID, command.CommandUUID, "removal must target the acked command")
+		return nil
+	}
+	ds.UpdateMDMDataFunc = func(ctx context.Context, incomingHostID uint, enrolled bool) error {
+		require.Equal(t, hostID, incomingHostID)
+		return nil
+	}
+	ds.GetLatestAppleMDMCommandOfTypeFunc = func(ctx context.Context, incomingHostUUID, commandType string) (*automdm.MDMCommand, error) {
+		require.Equal(t, hostUUID, incomingHostUUID)
+		require.Equal(t, "EnableLostMode", commandType)
+		return &automdm.MDMCommand{
+			CommandUUID: lostModeCommandUUID,
+		}, nil
+	}
+	ds.SetLockCommandForLostModeCheckinFunc = func(ctx context.Context, incomingHostUUID uint, commandUUID string) error {
+		require.Equal(t, hostID, incomingHostUUID)
+		require.Equal(t, lostModeCommandUUID, commandUUID)
+		return nil
+	}
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID string, commandUUIDPrefix string, currentCommandUUID string, _ time.Duration) error {
+		require.Equal(t, hostUUID, enrollmentID)
+		require.Equal(t, automdm.RefetchDeviceCommandUUIDPrefix, commandUUIDPrefix)
+		require.Equal(t, commandUUID, currentCommandUUID)
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		require.Equal(t, hostUUID, incomingHostUUID)
+		require.Equal(t, "Work iPad", reportedName)
+		return automdm.DeviceNameNotRetried, nil
+	}
+	var vitalsCalls int
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		require.Equal(t, hostUUID, incomingHostUUID)
+		require.NotNil(t, vitals.WiFiMAC)
+		require.Equal(t, "ff:ff:ff:ff:ff:ff", *vitals.WiFiMAC)
+		vitalsCalls++
+		if vitalsCalls == 1 {
+			require.NotNil(t, vitals.IsMDMLostModeEnabled)
+			require.True(t, *vitals.IsMDMLostModeEnabled)
+		} else {
+			require.Nil(t, vitals.IsMDMLostModeEnabled)
+		}
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Raw: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>REFETCH-fd23f8ac-1c50-41c7-a5bb-f13633c9ea97</string>
+        <key>QueryResponses</key>
+        <dict>
+                <key>AvailableDeviceCapacity</key>
+                <real>51.260395520000003</real>
+                <key>DeviceCapacity</key>
+                <real>64</real>
+                <key>DeviceName</key>
+                <string>Work iPad</string>
+                <key>OSVersion</key>
+                <string>17.5.1</string>
+                <key>ProductName</key>
+                <string>iPad13,18</string>
+                <key>WiFiMAC</key>
+                <string>ff:ff:ff:ff:ff:ff</string>
+				<key>IsMDMLostModeEnabled</key>
+				<true />
+        </dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>FFFFFFFF-FFFFFFFFFFFFFFFF</string>
+</dict>
+</plist>`),
+		},
+	)
+	require.NoError(t, err)
+
+	require.True(t, ds.UpdateHostFuncInvoked)
+	require.True(t, ds.HostByIdentifierFuncInvoked)
+	require.True(t, ds.SetOrUpdateHostDisksSpaceFuncInvoked)
+	require.True(t, ds.UpdateHostOperatingSystemFuncInvoked)
+	assert.True(t, ds.RemoveHostMDMCommandFuncInvoked)
+	require.True(t, ds.UpdateMDMDataFuncInvoked)
+	require.True(t, ds.GetLatestAppleMDMCommandOfTypeFuncInvoked)
+	require.True(t, ds.SetLockCommandForLostModeCheckinFuncInvoked)
+	require.True(t, ds.SetOrUpdateHostMDMAppleDeviceVitalsFuncInvoked)
+
+	_, err = svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Raw: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>REFETCH-fd23f8ac-1c50-41c7-a5bb-f13633c9ea97</string>
+        <key>QueryResponses</key>
+        <dict>
+                <key>AvailableDeviceCapacity</key>
+                <real>51.260395520000003</real>
+                <key>DeviceCapacity</key>
+                <real>64</real>
+                <key>DeviceName</key>
+                <string>Work iPad</string>
+                <key>OSVersion</key>
+                <string>17.5.1</string>
+                <key>ProductName</key>
+                <string>iPad13,18</string>
+                <key>WiFiMAC</key>
+                <string>ff:ff:ff:ff:ff:ff</string>
+        </dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>FFFFFFFF-FFFFFFFFFFFFFFFF</string>
+</dict>
+</plist>`),
+		},
+	)
+	require.NoError(t, err)
+}
+
+func TestMDMCommandAndReportResultsIOSRefetchSupplementalOSVersion(t *testing.T) {
+	ctx := context.Background()
+	hostID := uint(99)
+	hostUUID := "IOS-HOST-UUID"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "SUPP-UUID"
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{
+			ID:   hostID,
+			UUID: hostUUID,
+		}, nil
+	}
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
+		require.Equal(t, "My iPhone", host.ComputerName)
+		require.Equal(t, "iOS 26.3.1 (a)", host.OSVersion)
+		require.Equal(t, "iPhone14,5", host.HardwareModel)
+		return nil
+	}
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		return nil
+	}
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		require.Equal(t, hostID, incomingHostID)
+		require.Equal(t, "iOS", hostOS.Name)
+		require.Equal(t, "26.3.1 (a)", hostOS.Version)
+		require.Equal(t, "ios", hostOS.Platform)
+		return nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error {
+		return nil
+	}
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID string, commandUUIDPrefix string, currentCommandUUID string, _ time.Duration) error {
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		return automdm.DeviceNameNotRetried, nil
+	}
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		require.Equal(t, hostUUID, incomingHostUUID)
+		require.NotNil(t, vitals.SupplementalOSVersionExtra)
+		require.Equal(t, "(a)", *vitals.SupplementalOSVersionExtra)
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Raw: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>REFETCH-SUPP-UUID</string>
+        <key>QueryResponses</key>
+        <dict>
+                <key>AvailableDeviceCapacity</key>
+                <real>64</real>
+                <key>DeviceCapacity</key>
+                <real>128</real>
+                <key>DeviceName</key>
+                <string>My iPhone</string>
+                <key>OSVersion</key>
+                <string>26.3.1</string>
+                <key>SupplementalOSVersionExtra</key>
+                <string>(a)</string>
+                <key>ProductName</key>
+                <string>iPhone14,5</string>
+                <key>WiFiMAC</key>
+                <string>aa:bb:cc:dd:ee:ff</string>
+        </dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>IOS-HOST-UUID</string>
+</dict>
+</plist>`),
+		},
+	)
+	require.NoError(t, err)
+
+	require.True(t, ds.UpdateHostFuncInvoked)
+	require.True(t, ds.UpdateHostOperatingSystemFuncInvoked)
+	require.True(t, ds.SetOrUpdateHostMDMAppleDeviceVitalsFuncInvoked)
+}
+
+// TestMDMCommandAndReportResultsIOSIPadOSRefetchDefensive covers handling of
+// DeviceInformation responses where one or more of the QueryResponses fields are
+// missing or have an unexpected type. The handler must not panic, must preserve
+// previously-known host values where the new value is unavailable, and must skip
+// dependent datastore updates whose required inputs are missing.
+func TestMDMCommandAndReportResultsIOSIPadOSRefetchDefensive(t *testing.T) {
+	const (
+		hostID            = uint(42)
+		hostUUID          = "ABC-DEF-GHI"
+		existingHostname  = "Existing iPad"
+		existingModel     = "iPad12,2"       // differs from incoming ProductName so we can detect preservation
+		existingOSVersion = "iPadOS 16.7.10" // differs from incoming OSVersion so we can detect preservation
+	)
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "UUID"
+
+	rawWithFields := func(fields map[string]string) []byte {
+		var inner strings.Builder
+		for _, v := range fields {
+			inner.WriteString(v) // v is a complete <key>...</key><type>...</type> pair
+		}
+		return []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>REFETCH-fd23f8ac-1c50-41c7-a5bb-f13633c9ea97</string>
+        <key>QueryResponses</key>
+        <dict>` + inner.String() + `</dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>FFFFFFFF-FFFFFFFFFFFFFFFF</string>
+</dict>
+</plist>`)
+	}
+
+	allFields := func() map[string]string {
+		return map[string]string{
+			"DeviceName":              `<key>DeviceName</key><string>Work iPad</string>`,
+			"DeviceCapacity":          `<key>DeviceCapacity</key><real>64</real>`,
+			"AvailableDeviceCapacity": `<key>AvailableDeviceCapacity</key><real>51.26</real>`,
+			"OSVersion":               `<key>OSVersion</key><string>17.5.1</string>`,
+			"ProductName":             `<key>ProductName</key><string>iPad13,18</string>`,
+			"WiFiMAC":                 `<key>WiFiMAC</key><string>ff:ff:ff:ff:ff:ff</string>`,
+		}
+	}
+
+	type expectations struct {
+		expectComputerName  string
+		expectHostname      string
+		expectOSVersion     string
+		expectHardwareModel string
+		expectGigsTotal     float64
+		expectGigsAvailable float64
+		expectDiskUpdate    bool
+		expectOSUpdate      bool
+		expectOSName        string
+		expectOSVersionRow  string
+		expectOSPlatform    string
+	}
+
+	cases := []struct {
+		name   string
+		mutate func(map[string]string)
+		expect expectations
+	}{
+		{
+			name:   "missing DeviceName preserves existing hostname",
+			mutate: func(f map[string]string) { delete(f, "DeviceName") },
+			expect: expectations{
+				expectComputerName:  existingHostname,
+				expectHostname:      existingHostname,
+				expectOSVersion:     "iPadOS 17.5.1",
+				expectHardwareModel: "iPad13,18",
+				expectGigsTotal:     64,
+				expectGigsAvailable: 51.26,
+				expectDiskUpdate:    true,
+				expectOSUpdate:      true,
+				expectOSName:        "iPadOS",
+				expectOSVersionRow:  "17.5.1",
+				expectOSPlatform:    "ipados",
+			},
+		},
+		{
+			name:   "missing ProductName preserves hardware model but still writes OS using preserved platform",
+			mutate: func(f map[string]string) { delete(f, "ProductName") },
+			expect: expectations{
+				expectComputerName:  "Work iPad",
+				expectHostname:      "Work iPad",
+				expectOSVersion:     "iPadOS 17.5.1", // prefix from preserved host.Platform, version from new payload
+				expectHardwareModel: existingModel,   // preserved
+				expectGigsTotal:     64,
+				expectGigsAvailable: 51.26,
+				expectDiskUpdate:    true,
+				expectOSUpdate:      true,
+				expectOSName:        "iPadOS",
+				expectOSVersionRow:  "17.5.1",
+				expectOSPlatform:    "ipados",
+			},
+		},
+		{
+			name:   "missing DeviceCapacity skips disk update",
+			mutate: func(f map[string]string) { delete(f, "DeviceCapacity") },
+			expect: expectations{
+				expectComputerName:  "Work iPad",
+				expectHostname:      "Work iPad",
+				expectOSVersion:     "iPadOS 17.5.1",
+				expectHardwareModel: "iPad13,18",
+				expectGigsTotal:     0, // preserved/zero — no incoming value
+				expectGigsAvailable: 51.26,
+				expectDiskUpdate:    false,
+				expectOSUpdate:      true,
+				expectOSName:        "iPadOS",
+				expectOSVersionRow:  "17.5.1",
+				expectOSPlatform:    "ipados",
+			},
+		},
+		{
+			name:   "missing AvailableDeviceCapacity skips disk update",
+			mutate: func(f map[string]string) { delete(f, "AvailableDeviceCapacity") },
+			expect: expectations{
+				expectComputerName:  "Work iPad",
+				expectHostname:      "Work iPad",
+				expectOSVersion:     "iPadOS 17.5.1",
+				expectHardwareModel: "iPad13,18",
+				expectGigsTotal:     64,
+				expectGigsAvailable: 0,
+				expectDiskUpdate:    false,
+				expectOSUpdate:      true,
+				expectOSName:        "iPadOS",
+				expectOSVersionRow:  "17.5.1",
+				expectOSPlatform:    "ipados",
+			},
+		},
+		{
+			name: "wrong-type DeviceCapacity (string) skips disk update without panicking",
+			mutate: func(f map[string]string) {
+				f["DeviceCapacity"] = `<key>DeviceCapacity</key><string>not-a-number</string>`
+			},
+			expect: expectations{
+				expectComputerName:  "Work iPad",
+				expectHostname:      "Work iPad",
+				expectOSVersion:     "iPadOS 17.5.1",
+				expectHardwareModel: "iPad13,18",
+				expectGigsTotal:     0,
+				expectGigsAvailable: 51.26,
+				expectDiskUpdate:    false,
+				expectOSUpdate:      true,
+				expectOSName:        "iPadOS",
+				expectOSVersionRow:  "17.5.1",
+				expectOSPlatform:    "ipados",
+			},
+		},
+		{
+			name:   "missing OSVersion skips OS update",
+			mutate: func(f map[string]string) { delete(f, "OSVersion") },
+			expect: expectations{
+				expectComputerName:  "Work iPad",
+				expectHostname:      "Work iPad",
+				expectOSVersion:     existingOSVersion, // preserved
+				expectHardwareModel: "iPad13,18",
+				expectGigsTotal:     64,
+				expectGigsAvailable: 51.26,
+				expectDiskUpdate:    true,
+				expectOSUpdate:      false,
+			},
+		},
+		{
+			name: "all DeviceInformation fields missing yields no panic and no dependent updates",
+			mutate: func(f map[string]string) {
+				delete(f, "DeviceName")
+				delete(f, "DeviceCapacity")
+				delete(f, "AvailableDeviceCapacity")
+				delete(f, "OSVersion")
+				delete(f, "ProductName")
+				delete(f, "WiFiMAC")
+			},
+			expect: expectations{
+				expectComputerName:  existingHostname,
+				expectHostname:      existingHostname,
+				expectOSVersion:     existingOSVersion,
+				expectHardwareModel: existingModel,
+				expectGigsTotal:     0,
+				expectGigsAvailable: 0,
+				expectDiskUpdate:    false,
+				expectOSUpdate:      false,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			ds := new(mock.Store)
+			ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+				return true, nil
+			}
+			svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+			ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+				return &automdm.Host{
+					ID:            hostID,
+					UUID:          hostUUID,
+					Hostname:      existingHostname,
+					ComputerName:  existingHostname,
+					HardwareModel: existingModel,
+					OSVersion:     existingOSVersion,
+					Platform:      "ipados",
+					MDM: automdm.MDMHostData{
+						EnrollmentStatus: ptr.String("On (automatic)"), // not Pending; skip lost-mode flow
+					},
+				}, nil
+			}
+
+			ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error {
+				return nil
+			}
+			ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID string, commandUUIDPrefix string, currentCommandUUID string, _ time.Duration) error {
+				return nil
+			}
+			ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+				return automdm.DeviceNameNotRetried, nil
+			}
+			ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+				return nil
+			}
+
+			ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
+				assert.Equal(t, tc.expect.expectComputerName, host.ComputerName, "ComputerName")
+				assert.Equal(t, tc.expect.expectHostname, host.Hostname, "Hostname")
+				assert.Equal(t, tc.expect.expectOSVersion, host.OSVersion, "OSVersion")
+				assert.Equal(t, tc.expect.expectHardwareModel, host.HardwareModel, "HardwareModel")
+				assert.InDelta(t, tc.expect.expectGigsTotal, host.GigsTotalDiskSpace, 0.001, "GigsTotalDiskSpace")
+				assert.InDelta(t, tc.expect.expectGigsAvailable, host.GigsDiskSpaceAvailable, 0.001, "GigsDiskSpaceAvailable")
+				return nil
+			}
+
+			ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+				assert.Equal(t, hostID, incomingHostID)
+				assert.InDelta(t, tc.expect.expectGigsAvailable, gigsAvailable, 0.001)
+				assert.InDelta(t, tc.expect.expectGigsTotal, gigsTotal, 0.001)
+				assert.False(t, math.IsNaN(percentAvailable), "percentAvailable should not be NaN")
+				assert.False(t, math.IsInf(percentAvailable, 0), "percentAvailable should not be Inf")
+				return nil
+			}
+
+			ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+				assert.Equal(t, hostID, incomingHostID)
+				assert.Equal(t, tc.expect.expectOSName, hostOS.Name)
+				assert.Equal(t, tc.expect.expectOSVersionRow, hostOS.Version)
+				assert.Equal(t, tc.expect.expectOSPlatform, hostOS.Platform)
+				return nil
+			}
+
+			fields := allFields()
+			tc.mutate(fields)
+
+			require.NotPanics(t, func() {
+				_, err := svc.CommandAndReportResults(
+					&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+					&mdm.CommandResults{
+						Enrollment:  mdm.Enrollment{UDID: hostUUID},
+						CommandUUID: commandUUID,
+						Raw:         rawWithFields(fields),
+					},
+				)
+				require.NoError(t, err)
+			})
+
+			require.True(t, ds.UpdateHostFuncInvoked, "UpdateHost should always be called")
+			require.True(t, ds.RemoveHostMDMCommandFuncInvoked, "RemoveHostMDMCommand should always be called")
+			assert.Equal(t, tc.expect.expectDiskUpdate, ds.SetOrUpdateHostDisksSpaceFuncInvoked,
+				"SetOrUpdateHostDisksSpace invocation")
+			assert.Equal(t, tc.expect.expectOSUpdate, ds.UpdateHostOperatingSystemFuncInvoked,
+				"UpdateHostOperatingSystem invocation")
+		})
+	}
+}
+
+// TestMDMCommandAndReportResultsIOSRefetchMissingProductNameIPhone verifies that
+// when an iPhone's DeviceInformation response omits ProductName, the OS version
+// is still written with the "iOS" prefix derived from the host's existing platform
+// rather than defaulting to "iPadOS".
+func TestMDMCommandAndReportResultsIOSRefetchMissingProductNameIPhone(t *testing.T) {
+	ctx := context.Background()
+	hostID := uint(55)
+	hostUUID := "IPHONE-HOST-UUID"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "IPHONE-UUID"
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{
+			ID:            hostID,
+			UUID:          hostUUID,
+			Hostname:      "My iPhone",
+			ComputerName:  "My iPhone",
+			HardwareModel: "iPhone14,5",
+			OSVersion:     "iOS 17.5.1",
+			Platform:      "ios",
+			MDM: automdm.MDMHostData{
+				EnrollmentStatus: ptr.String("On (automatic)"),
+			},
+		}, nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error { return nil }
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID, commandUUIDPrefix, currentCommandUUID string, _ time.Duration) error {
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		return automdm.DeviceNameNotRetried, nil
+	}
+
+	var updatedHost *automdm.Host
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
+		updatedHost = host
+		return nil
+	}
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		return nil
+	}
+
+	var updatedOS automdm.OperatingSystem
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		updatedOS = hostOS
+		return nil
+	}
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		return nil
+	}
+
+	// Response has OSVersion but no ProductName.
+	raw := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CommandUUID</key>
+	<string>` + commandUUID + `</string>
+	<key>QueryResponses</key>
+	<dict>
+		<key>DeviceName</key>
+		<string>My iPhone</string>
+		<key>DeviceCapacity</key>
+		<real>128</real>
+		<key>AvailableDeviceCapacity</key>
+		<real>64</real>
+		<key>OSVersion</key>
+		<string>17.6</string>
+		<key>WiFiMAC</key>
+		<string>aa:bb:cc:dd:ee:ff</string>
+	</dict>
+	<key>Status</key>
+	<string>Acknowledged</string>
+	<key>UDID</key>
+	<string>` + hostUUID + `</string>
+</dict>
+</plist>`)
+
+	require.NotPanics(t, func() {
+		_, err := svc.CommandAndReportResults(
+			&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+			&mdm.CommandResults{
+				Enrollment:  mdm.Enrollment{UDID: hostUUID},
+				CommandUUID: commandUUID,
+				Raw:         raw,
+			},
+		)
+		require.NoError(t, err)
+	})
+
+	require.NotNil(t, updatedHost)
+	// OS version must use the "iOS" prefix from host.Platform, not default to "iPadOS".
+	assert.Equal(t, "iOS 17.6", updatedHost.OSVersion)
+	// Hardware model must be preserved since ProductName was absent.
+	assert.Equal(t, "iPhone14,5", updatedHost.HardwareModel)
+
+	require.True(t, ds.UpdateHostOperatingSystemFuncInvoked)
+	assert.Equal(t, "iOS", updatedOS.Name)
+	assert.Equal(t, "17.6", updatedOS.Version)
+	assert.Equal(t, "ios", updatedOS.Platform)
+}
+
+func TestHandleDeviceNameCommandResult(t *testing.T) {
+	cmdUUID := automdm.DeviceNameCommandUUIDPrefix + "cmd-1"
+
+	// settingsAck builds a Settings command acknowledgment whose single item
+	// carries the given per-item status and (optional) error chain.
+	settingsAck := func(itemStatus string, chain []mdm.ErrorChain) []byte {
+		var errChainXML string
+		for _, e := range chain {
+			errChainXML += fmt.Sprintf(`<dict>
+				<key>ErrorCode</key><integer>%d</integer>
+				<key>ErrorDomain</key><string>%s</string>
+				<key>USEnglishDescription</key><string>%s</string>
+			</dict>`, e.ErrorCode, e.ErrorDomain, e.USEnglishDescription)
+		}
+		itemErrChain := ""
+		if errChainXML != "" {
+			itemErrChain = "<key>ErrorChain</key><array>" + errChainXML + "</array>"
+		}
+		return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+	<key>CommandUUID</key><string>%s</string>
+	<key>Status</key><string>Acknowledged</string>
+	<key>Settings</key>
+	<array><dict><key>Item</key><string>DeviceName</string><key>Status</key><string>%s</string>%s</dict></array>
+</dict></plist>`, cmdUUID, itemStatus, itemErrChain))
+	}
+
+	cases := []struct {
+		name          string
+		status        string
+		raw           []byte
+		errorChain    []mdm.ErrorChain
+		notFound      bool // UpdateHostDeviceNameStatusFromCommand returns not-found (stale)
+		wantStatus    automdm.MDMDeliveryStatus
+		wantDetail    string
+		wantRetryable bool
+		wantNoUpdate  bool
+	}{
+		{
+			name:       "acknowledged clean renames and verifies",
+			status:     automdm.MDMAppleStatusAcknowledged,
+			raw:        settingsAck(automdm.MDMAppleStatusAcknowledged, nil),
+			wantStatus: automdm.MDMDeliveryVerifying,
+		},
+		{
+			name:   "acknowledged with per-item Settings error fails and is retried",
+			status: automdm.MDMAppleStatusAcknowledged,
+			raw: settingsAck("Error", []mdm.ErrorChain{
+				{ErrorCode: 99, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "boom"},
+			}),
+			wantStatus:    automdm.MDMDeliveryFailed,
+			wantDetail:    "boom",
+			wantRetryable: true,
+		},
+		{
+			name:   "per-item not-supervised error fails without retry",
+			status: automdm.MDMAppleStatusAcknowledged,
+			raw: settingsAck("Error", []mdm.ErrorChain{
+				{ErrorCode: 12026, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "The device is not supervised."},
+			}),
+			wantStatus: automdm.MDMDeliveryFailed,
+			wantDetail: "The device is not supervised.",
+		},
+		{
+			name:       "per-item CommandFormatError without an error chain fails without retry",
+			status:     automdm.MDMAppleStatusAcknowledged,
+			raw:        settingsAck(automdm.MDMAppleStatusCommandFormatError, nil),
+			wantStatus: automdm.MDMDeliveryFailed,
+			wantDetail: "The device rejected the host name. Apple only renames supervised iPhones and iPads.",
+		},
+		{
+			name:          "per-item error without an error chain reports the item status and is retried",
+			status:        automdm.MDMAppleStatusAcknowledged,
+			raw:           settingsAck(automdm.MDMAppleStatusError, nil),
+			wantStatus:    automdm.MDMDeliveryFailed,
+			wantDetail:    "Settings item returned status Error.",
+			wantRetryable: true,
+		},
+		{
+			name:          "command error fails with the apple error chain and is retried",
+			status:        automdm.MDMAppleStatusError,
+			errorChain:    []mdm.ErrorChain{{ErrorCode: 99, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "boom"}},
+			wantStatus:    automdm.MDMDeliveryFailed,
+			wantDetail:    "boom",
+			wantRetryable: true,
+		},
+		{
+			name:       "command not-supervised error fails without retry",
+			status:     automdm.MDMAppleStatusError,
+			errorChain: []mdm.ErrorChain{{ErrorCode: 12026, ErrorDomain: "MCMDMErrorDomain", USEnglishDescription: "The device is not supervised."}},
+			wantStatus: automdm.MDMDeliveryFailed,
+			wantDetail: "The device is not supervised.",
+		},
+		{
+			name:       "command format error without an error chain fails without retry",
+			status:     automdm.MDMAppleStatusCommandFormatError,
+			wantStatus: automdm.MDMDeliveryFailed,
+			wantDetail: "Settings command returned status CommandFormatError.",
+		},
+		{
+			name:         "stale result for a superseded command is ignored",
+			status:       automdm.MDMAppleStatusAcknowledged,
+			raw:          settingsAck(automdm.MDMAppleStatusAcknowledged, nil),
+			notFound:     true,
+			wantNoUpdate: true,
+		},
+		{
+			name:         "not-now is a no-op",
+			status:       automdm.MDMAppleStatusNotNow,
+			wantNoUpdate: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ds := new(mock.Store)
+			svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+			var gotAcknowledged, gotRetryable bool
+			var gotDetail string
+			ds.UpdateHostDeviceNameStatusFromCommandFunc = func(ctx context.Context, commandUUID string, acknowledged bool, detail string, retryable bool) (automdm.DeviceNameRetryOutcome, error) {
+				require.Equal(t, cmdUUID, commandUUID)
+				gotAcknowledged, gotDetail, gotRetryable = acknowledged, detail, retryable
+				if tc.notFound {
+					return automdm.DeviceNameNotRetried, &notFoundError{}
+				}
+				return automdm.DeviceNameNotRetried, nil
+			}
+
+			err := svc.handleDeviceNameCommandResult(t.Context(), &mdm.CommandResults{
+				CommandUUID: cmdUUID,
+				Status:      tc.status,
+				ErrorChain:  tc.errorChain,
+				Raw:         tc.raw,
+			})
+			require.NoError(t, err)
+
+			if tc.wantNoUpdate {
+				if tc.notFound {
+					// the update was attempted but returned not-found; no rename
+					require.True(t, ds.UpdateHostDeviceNameStatusFromCommandFuncInvoked)
+				} else {
+					require.False(t, ds.UpdateHostDeviceNameStatusFromCommandFuncInvoked)
+				}
+				return
+			}
+
+			require.True(t, ds.UpdateHostDeviceNameStatusFromCommandFuncInvoked)
+			// The datastore now receives a bool: verifying == acknowledged.
+			require.Equal(t, tc.wantStatus == automdm.MDMDeliveryVerifying, gotAcknowledged)
+			if tc.wantDetail != "" {
+				require.Contains(t, gotDetail, tc.wantDetail)
+			}
+			if !gotAcknowledged {
+				require.Equal(t, tc.wantRetryable, gotRetryable)
+			}
+		})
+	}
+}
+
+func TestMDMCommandAndReportResultsIOSRefetchSupplementalOSVersionNonString(t *testing.T) {
+	ctx := context.Background()
+	hostID := uint(99)
+	hostUUID := "IOS-HOST-UUID"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "SUPP-UUID"
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{
+			ID:   hostID,
+			UUID: hostUUID,
+		}, nil
+	}
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
+		// Non-string SupplementalOSVersionExtra must be ignored — base version only
+		require.Equal(t, "iOS 26.3.1", host.OSVersion)
+		return nil
+	}
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		return nil
+	}
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		require.Equal(t, "26.3.1", hostOS.Version)
+		return nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error {
+		return nil
+	}
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID string, commandUUIDPrefix string, currentCommandUUID string, _ time.Duration) error {
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		return automdm.DeviceNameNotRetried, nil
+	}
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Raw: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>REFETCH-SUPP-UUID</string>
+        <key>QueryResponses</key>
+        <dict>
+                <key>AvailableDeviceCapacity</key>
+                <real>64</real>
+                <key>DeviceCapacity</key>
+                <real>128</real>
+                <key>DeviceName</key>
+                <string>My iPhone</string>
+                <key>OSVersion</key>
+                <string>26.3.1</string>
+                <key>SupplementalOSVersionExtra</key>
+                <integer>1</integer>
+                <key>ProductName</key>
+                <string>iPhone14,5</string>
+                <key>WiFiMAC</key>
+                <string>aa:bb:cc:dd:ee:ff</string>
+        </dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>IOS-HOST-UUID</string>
+</dict>
+</plist>`),
+		},
+	)
+	require.NoError(t, err)
+
+	require.True(t, ds.UpdateHostFuncInvoked)
+	require.True(t, ds.UpdateHostOperatingSystemFuncInvoked)
+}
+
+func TestMDMCommandAndReportResultsIOSRefetchSupplementalOSVersionFallbackTruncation(t *testing.T) {
+	ctx := context.Background()
+	hostID := uint(99)
+	hostUUID := "IOS-HOST-UUID"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "SUPP-UUID"
+
+	// rawOSVersion longer than 150 chars with an invalid supplemental value — the
+	// fallback path must still apply the 150-char cap via buildOSVersion(rawOSVersion, "").
+	longVersion := strings.Repeat("a", 256)
+	truncated := strings.Repeat("a", 150)
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: hostUUID}, nil
+	}
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
+		require.Equal(t, "iOS "+truncated, host.OSVersion)
+		return nil
+	}
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		return nil
+	}
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		require.Equal(t, truncated, hostOS.Version)
+		return nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error {
+		return nil
+	}
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID string, commandUUIDPrefix string, currentCommandUUID string, _ time.Duration) error {
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		return automdm.DeviceNameNotRetried, nil
+	}
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Raw: fmt.Appendf(nil, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>REFETCH-SUPP-UUID</string>
+        <key>QueryResponses</key>
+        <dict>
+                <key>AvailableDeviceCapacity</key>
+                <real>64</real>
+                <key>DeviceCapacity</key>
+                <real>128</real>
+                <key>DeviceName</key>
+                <string>My iPhone</string>
+                <key>OSVersion</key>
+                <string>%s</string>
+                <key>SupplementalOSVersionExtra</key>
+                <string>&lt;script&gt;</string>
+                <key>ProductName</key>
+                <string>iPhone14,5</string>
+                <key>WiFiMAC</key>
+                <string>aa:bb:cc:dd:ee:ff</string>
+        </dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>IOS-HOST-UUID</string>
+</dict>
+</plist>`, longVersion),
+		},
+	)
+	require.NoError(t, err)
+
+	require.True(t, ds.UpdateHostFuncInvoked)
+	require.True(t, ds.UpdateHostOperatingSystemFuncInvoked)
+}
+
+// TestMDMCommandAndReportResultsIOSIPadOSRefetchDeviceVitals covers the 29
+// fields added for #49984: all present -> all persisted; a field absent (an
+// enrollment method that doesn't support it) -> left nil, no error.
+func TestMDMCommandAndReportResultsIOSIPadOSRefetchDeviceVitals(t *testing.T) {
+	ctx := t.Context()
+	hostID := uint(7)
+	hostUUID := "VITALS-HOST-UUID"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "VITALS-UUID"
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: hostUUID, Platform: "ipados"}, nil
+	}
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error { return nil }
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		return nil
+	}
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		return nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error { return nil }
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID, commandUUIDPrefix, currentCommandUUID string, _ time.Duration) error {
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		return automdm.DeviceNameNotRetried, nil
+	}
+
+	allFieldsRaw := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CommandUUID</key>
+	<string>` + commandUUID + `</string>
+	<key>QueryResponses</key>
+	<dict>
+		<key>DeviceName</key>
+		<string>Work iPad</string>
+		<key>DeviceCapacity</key>
+		<real>64</real>
+		<key>AvailableDeviceCapacity</key>
+		<real>51.26</real>
+		<key>OSVersion</key>
+		<string>17.5.1</string>
+		<key>ProductName</key>
+		<string>iPad13,18</string>
+		<key>UDID</key>
+		<string>00008030-ABCDEF012345</string>
+		<key>ModelNumber</key>
+		<string>MK1A3LL/A</string>
+		<key>ModemFirmwareVersion</key>
+		<string>1.0.0</string>
+		<key>SupplementalBuildVersion</key>
+		<string>21F79</string>
+		<key>SupplementalOSVersionExtra</key>
+		<string>(a)</string>
+		<key>BluetoothMAC</key>
+		<string>11:22:33:44:55:66</string>
+		<key>WiFiMAC</key>
+		<string>ff:ff:ff:ff:ff:ff</string>
+		<key>EASDeviceIdentifier</key>
+		<string>eas-device-id</string>
+		<key>iTunesStoreAccountHash</key>
+		<string>hash-123</string>
+		<key>PushToken</key>
+		<data>cHVzaC10b2tlbg==</data>
+		<key>BatteryLevel</key>
+		<real>0.85</real>
+		<key>CellularTechnology</key>
+		<integer>1</integer>
+		<key>AppAnalyticsEnabled</key>
+		<true/>
+		<key>AwaitingConfiguration</key>
+		<false/>
+		<key>DataRoamingEnabled</key>
+		<true/>
+		<key>DiagnosticSubmissionEnabled</key>
+		<false/>
+		<key>IsCloudBackupEnabled</key>
+		<true/>
+		<key>IsDeviceLocatorServiceEnabled</key>
+		<true/>
+		<key>IsDoNotDisturbInEffect</key>
+		<false/>
+		<key>IsMDMLostModeEnabled</key>
+		<false/>
+		<key>IsNetworkTethered</key>
+		<false/>
+		<key>iTunesStoreAccountIsActive</key>
+		<true/>
+		<key>PersonalHotspotEnabled</key>
+		<false/>
+		<key>LastCloudBackupDate</key>
+		<date>2026-07-01T00:00:00Z</date>
+		<key>AccessibilitySettings</key>
+		<dict>
+			<key>VoiceOverEnabled</key>
+			<true/>
+			<key>ZoomEnabled</key>
+			<false/>
+			<key>TextSize</key>
+			<integer>5</integer>
+		</dict>
+		<key>OrganizationInfo</key>
+		<dict>
+			<key>OrganizationName</key>
+			<string>Acme Inc.</string>
+			<key>OrganizationEmail</key>
+			<string>[email protected]</string>
+		</dict>
+		<key>MDMOptions</key>
+		<dict>
+			<key>BootstrapTokenAllowed</key>
+			<true/>
+		</dict>
+		<key>DevicePropertiesAttestation</key>
+		<array>
+			<data>bGVhZi1jZXJ0</data>
+			<data>aW50ZXJtZWRpYXRlLWNlcnQ=</data>
+		</array>
+		<key>ServiceSubscriptions</key>
+		<array>
+			<dict>
+				<key>Slot</key>
+				<string>CTSubscriptionSlotOne</string>
+				<key>ICCID</key>
+				<string>8901410321111111111</string>
+				<key>IsDataPreferred</key>
+				<true/>
+				<key>CurrentCarrierNetwork</key>
+				<string>AutoMDM Wireless</string>
+				<key>PhoneNumber</key>
+				<string>+15555550100</string>
+			</dict>
+			<dict>
+				<key>Slot</key>
+				<string>CTSubscriptionSlotTwo</string>
+				<key>EID</key>
+				<string>89049032000000000000000000000000</string>
+				<key>IMEI</key>
+				<string>35 000000 000000 0</string>
+			</dict>
+		</array>
+	</dict>
+	<key>Status</key>
+	<string>Acknowledged</string>
+	<key>UDID</key>
+	<string>` + hostUUID + `</string>
+</dict>
+</plist>`)
+
+	var gotVitals automdm.MDMAppleDeviceVitals
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		require.Equal(t, hostUUID, incomingHostUUID)
+		gotVitals = vitals
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{Enrollment: mdm.Enrollment{UDID: hostUUID}, CommandUUID: commandUUID, Raw: allFieldsRaw},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.SetOrUpdateHostMDMAppleDeviceVitalsFuncInvoked)
+
+	require.Equal(t, "00008030-ABCDEF012345", ptr.ValOrZero(gotVitals.UDID))
+	require.Equal(t, "MK1A3LL/A", ptr.ValOrZero(gotVitals.ModelNumber))
+	require.Equal(t, "1.0.0", ptr.ValOrZero(gotVitals.ModemFirmwareVersion))
+	require.Equal(t, "21F79", ptr.ValOrZero(gotVitals.SupplementalBuildVersion))
+	require.Equal(t, "(a)", ptr.ValOrZero(gotVitals.SupplementalOSVersionExtra))
+	require.Equal(t, "11:22:33:44:55:66", ptr.ValOrZero(gotVitals.BluetoothMAC))
+	require.Equal(t, "ff:ff:ff:ff:ff:ff", ptr.ValOrZero(gotVitals.WiFiMAC))
+	require.Equal(t, "eas-device-id", ptr.ValOrZero(gotVitals.EASDeviceIdentifier))
+	require.Equal(t, "hash-123", ptr.ValOrZero(gotVitals.ITunesStoreAccountHash))
+	require.Equal(t, []byte("push-token"), gotVitals.PushToken)
+	require.InDelta(t, 0.85, ptr.ValOrZero(gotVitals.BatteryLevel), 0.001)
+	require.EqualValues(t, 1, ptr.ValOrZero(gotVitals.CellularTechnology))
+	require.True(t, ptr.ValOrZero(gotVitals.AppAnalyticsEnabled))
+	require.False(t, ptr.ValOrZero(gotVitals.AwaitingConfiguration))
+	require.True(t, ptr.ValOrZero(gotVitals.DataRoamingEnabled))
+	require.False(t, ptr.ValOrZero(gotVitals.DiagnosticSubmissionEnabled))
+	require.True(t, ptr.ValOrZero(gotVitals.IsCloudBackupEnabled))
+	require.True(t, ptr.ValOrZero(gotVitals.IsDeviceLocatorServiceEnabled))
+	require.False(t, ptr.ValOrZero(gotVitals.IsDoNotDisturbInEffect))
+	require.False(t, ptr.ValOrZero(gotVitals.IsMDMLostModeEnabled))
+	require.False(t, ptr.ValOrZero(gotVitals.IsNetworkTethered))
+	require.True(t, ptr.ValOrZero(gotVitals.ITunesStoreAccountIsActive))
+	require.False(t, ptr.ValOrZero(gotVitals.PersonalHotspotEnabled))
+	require.NotNil(t, gotVitals.LastCloudBackupDate)
+	require.Equal(t, 2026, gotVitals.LastCloudBackupDate.Year())
+
+	require.NotNil(t, gotVitals.AccessibilitySettings)
+	require.True(t, ptr.ValOrZero(gotVitals.AccessibilitySettings.VoiceOverEnabled))
+	require.False(t, ptr.ValOrZero(gotVitals.AccessibilitySettings.ZoomEnabled))
+	require.EqualValues(t, 5, ptr.ValOrZero(gotVitals.AccessibilitySettings.TextSize))
+
+	require.NotNil(t, gotVitals.OrganizationInfo)
+	require.Equal(t, "Acme Inc.", ptr.ValOrZero(gotVitals.OrganizationInfo.OrganizationName))
+	require.Equal(t, "[email protected]", ptr.ValOrZero(gotVitals.OrganizationInfo.OrganizationEmail))
+
+	require.NotNil(t, gotVitals.MDMOptions)
+	require.True(t, ptr.ValOrZero(gotVitals.MDMOptions.BootstrapTokenAllowed))
+
+	// Real devices report DevicePropertiesAttestation as a 2-certificate chain
+	// (leaf + the "Apple Enterprise Attestation Sub CA" intermediate), per
+	// manual testing against a physical iPhone.
+	require.Equal(t, [][]byte{[]byte("leaf-cert"), []byte("intermediate-cert")}, gotVitals.DevicePropertiesAttestation)
+
+	// A physical+eSIM dual-SIM device, per manual testing, reports one fully
+	// populated subscription for its active line and a second, mostly-null
+	// subscription for an inactive/unprovisioned eSIM slot (only EID/IMEI
+	// set) — both must be persisted as separate rows.
+	require.Len(t, gotVitals.ServiceSubscriptions, 2)
+	require.Equal(t, "CTSubscriptionSlotOne", gotVitals.ServiceSubscriptions[0].Slot)
+	require.Equal(t, "8901410321111111111", ptr.ValOrZero(gotVitals.ServiceSubscriptions[0].ICCID))
+	require.True(t, ptr.ValOrZero(gotVitals.ServiceSubscriptions[0].IsDataPreferred))
+	require.Equal(t, "AutoMDM Wireless", ptr.ValOrZero(gotVitals.ServiceSubscriptions[0].CurrentCarrierNetwork))
+
+	require.Equal(t, "CTSubscriptionSlotTwo", gotVitals.ServiceSubscriptions[1].Slot)
+	require.Equal(t, "89049032000000000000000000000000", ptr.ValOrZero(gotVitals.ServiceSubscriptions[1].EID))
+	require.Nil(t, gotVitals.ServiceSubscriptions[1].ICCID)
+	require.Nil(t, gotVitals.ServiceSubscriptions[1].IsDataPreferred)
+
+	// A second ack with none of the new fields present must persist a
+	// zero-value vitals struct (all nils) rather than error.
+	sparseRaw := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CommandUUID</key>
+	<string>` + commandUUID + `</string>
+	<key>QueryResponses</key>
+	<dict>
+		<key>DeviceName</key>
+		<string>Work iPad</string>
+		<key>DeviceCapacity</key>
+		<real>64</real>
+		<key>AvailableDeviceCapacity</key>
+		<real>51.26</real>
+		<key>OSVersion</key>
+		<string>17.5.1</string>
+		<key>ProductName</key>
+		<string>iPad13,18</string>
+	</dict>
+	<key>Status</key>
+	<string>Acknowledged</string>
+	<key>UDID</key>
+	<string>` + hostUUID + `</string>
+</dict>
+</plist>`)
+
+	gotVitals = automdm.MDMAppleDeviceVitals{}
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFuncInvoked = false
+	_, err = svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{Enrollment: mdm.Enrollment{UDID: hostUUID}, CommandUUID: commandUUID, Raw: sparseRaw},
+	)
+	require.NoError(t, err)
+	require.True(t, ds.SetOrUpdateHostMDMAppleDeviceVitalsFuncInvoked)
+	require.Nil(t, gotVitals.UDID)
+	require.Nil(t, gotVitals.BatteryLevel)
+	require.Nil(t, gotVitals.AccessibilitySettings)
+	require.Nil(t, gotVitals.DevicePropertiesAttestation)
+	require.Empty(t, gotVitals.ServiceSubscriptions)
+}
+
+// TestMDMCommandAndReportResultsIOSIPadOSRefetchDeviceVitalsWriteFailure
+// covers that a failure persisting the new vitals doesn't abort the rest of
+// handleRefetchDeviceResults — in particular, the lost-mode lock/wipe
+// reconciliation that runs later in the same function must still happen.
+func TestMDMCommandAndReportResultsIOSIPadOSRefetchDeviceVitalsWriteFailure(t *testing.T) {
+	ctx := t.Context()
+	hostID := uint(8)
+	hostUUID := "VITALS-FAIL-HOST-UUID"
+	commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + "VITALS-FAIL-UUID"
+	lostModeCommandUUID := uuid.NewString()
+
+	ds := new(mock.Store)
+	ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+		return true, nil
+	}
+	svc := MDMAppleCheckinAndCommandService{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: &mock.MockNotificationsService{}}
+
+	ds.HostByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.Host, error) {
+		return &automdm.Host{
+			ID:   hostID,
+			UUID: hostUUID,
+			MDM:  automdm.MDMHostData{EnrollmentStatus: new("Pending")},
+		}, nil
+	}
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error { return nil }
+	ds.SetOrUpdateHostDisksSpaceFunc = func(ctx context.Context, incomingHostID uint, gigsAvailable, percentAvailable, gigsTotal float64, gigsAll *float64) error {
+		return nil
+	}
+	ds.UpdateHostOperatingSystemFunc = func(ctx context.Context, incomingHostID uint, hostOS automdm.OperatingSystem) error {
+		return nil
+	}
+	ds.RemoveHostMDMCommandFunc = func(ctx context.Context, command automdm.HostMDMCommand) error { return nil }
+	ds.CleanupStaleNanoRefetchCommandsFunc = func(ctx context.Context, enrollmentID, commandUUIDPrefix, currentCommandUUID string, _ time.Duration) error {
+		return nil
+	}
+	ds.UpdateHostDeviceNameStatusFromReportFunc = func(ctx context.Context, incomingHostUUID, reportedName string) (automdm.DeviceNameRetryOutcome, error) {
+		return automdm.DeviceNameNotRetried, nil
+	}
+	ds.SetOrUpdateHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, incomingHostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
+		return errors.New("boom: vitals write failed")
+	}
+	ds.UpdateMDMDataFunc = func(ctx context.Context, incomingHostID uint, enrolled bool) error { return nil }
+	ds.GetLatestAppleMDMCommandOfTypeFunc = func(ctx context.Context, incomingHostUUID, commandType string) (*automdm.MDMCommand, error) {
+		return &automdm.MDMCommand{CommandUUID: lostModeCommandUUID}, nil
+	}
+	ds.SetLockCommandForLostModeCheckinFunc = func(ctx context.Context, incomingHostUUID uint, commandUUID string) error {
+		return nil
+	}
+
+	_, err := svc.CommandAndReportResults(
+		&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{}},
+		&mdm.CommandResults{
+			Enrollment:  mdm.Enrollment{UDID: hostUUID},
+			CommandUUID: commandUUID,
+			Raw: []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CommandUUID</key>
+        <string>` + commandUUID + `</string>
+        <key>QueryResponses</key>
+        <dict>
+                <key>DeviceName</key>
+                <string>Work iPad</string>
+                <key>DeviceCapacity</key>
+                <real>64</real>
+                <key>AvailableDeviceCapacity</key>
+                <real>51.26</real>
+                <key>OSVersion</key>
+                <string>17.5.1</string>
+                <key>ProductName</key>
+                <string>iPad13,18</string>
+                <key>WiFiMAC</key>
+                <string>ff:ff:ff:ff:ff:ff</string>
+                <key>IsMDMLostModeEnabled</key>
+                <true/>
+        </dict>
+        <key>Status</key>
+        <string>Acknowledged</string>
+        <key>UDID</key>
+        <string>` + hostUUID + `</string>
+</dict>
+</plist>`),
+		},
+	)
+
+	require.NoError(t, err, "a vitals persistence failure must not abort the check-in")
+	require.True(t, ds.SetOrUpdateHostMDMAppleDeviceVitalsFuncInvoked)
+	require.True(t, ds.UpdateHostFuncInvoked)
+	require.True(t, ds.UpdateMDMDataFuncInvoked)
+	require.True(t, ds.SetLockCommandForLostModeCheckinFuncInvoked, "lost-mode reconciliation must still run despite the vitals write failure")
+}
+
+func TestUnmarshalAppList(t *testing.T) {
+	ctx := context.Background()
+	noApps := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CommandUUID</key>
+	<string>c05c1a68-4127-4fde-b0da-965cbd63f88f</string>
+	<key>InstalledApplicationList</key>
+	<array/>
+	<key>Status</key>
+	<string>Acknowledged</string>
+	<key>UDID</key>
+	<string>00008030-000E6D623CD2202E</string>
+</dict>
+</plist>`)
+	software, err := unmarshalAppList(ctx, noApps, "ipados_apps")
+	require.NoError(t, err)
+	assert.Empty(t, software)
+
+	apps := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CommandUUID</key>
+	<string>21ed54fc-0e6d-4fe3-8c4f-feca0c548ce1</string>
+	<key>InstalledApplicationList</key>
+	<array>
+		<dict>
+			<key>Identifier</key>
+			<string>com.google.ios.youtube</string>
+			<key>Name</key>
+			<string>YouTube</string>
+			<key>ShortVersion</key>
+			<string>19.29.1</string>
+		</dict>
+		<dict>
+			<key>Identifier</key>
+			<string>com.evernote.iPhone.Evernote</string>
+			<key>Name</key>
+			<string>Evernote</string>
+			<key>Installing</key>
+			<false/>
+			<key>ShortVersion</key>
+			<string>10.98.0</string>
+		</dict>
+		<dict>
+			<key>Identifier</key>
+			<string>com.netflix.Netflix</string>
+			<key>Name</key>
+			<string>Netflix</string>
+			<key>ShortVersion</key>
+			<string>16.41.0</string>
+		</dict>
+	</array>
+	<key>Status</key>
+	<string>Acknowledged</string>
+	<key>UDID</key>
+	<string>00008101-001514810EA3A01E</string>
+</dict>
+</plist>`)
+	expectedSoftware := []automdm.Software{
+		{
+			Name:             "YouTube",
+			Version:          "19.29.1",
+			Source:           "ios_apps",
+			BundleIdentifier: "com.google.ios.youtube",
+		},
+		{
+			Name:             "Evernote",
+			Version:          "10.98.0",
+			Source:           "ios_apps",
+			BundleIdentifier: "com.evernote.iPhone.Evernote",
+			Installed:        true,
+		},
+		{
+			Name:             "Netflix",
+			Version:          "16.41.0",
+			Source:           "ios_apps",
+			BundleIdentifier: "com.netflix.Netflix",
+		},
+	}
+	software, err = unmarshalAppList(ctx, apps, "ios_apps")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSoftware, software)
+}
+
+func TestShouldOSUpdateForDEPEnrollment(t *testing.T) {
+	testCases := []struct {
+		name                  string
+		platform              string
+		appleMachineInfo      automdm.MDMAppleMachineInfo
+		appleOSUpdateSettings automdm.AppleOSUpdateSettings
+		returnedErr           error
+
+		expectedResult bool
+		expectedErr    error
+	}{
+		{
+			name:           "when settings not found",
+			returnedErr:    newNotFoundError(),
+			expectedResult: false,
+		},
+		{
+			name:        "error getting settings",
+			returnedErr: errors.New("Whoops"),
+			expectedErr: errors.New("Whoops"),
+		},
+		{
+			name:     "if platform is macOS and update_new_hosts not set",
+			platform: string(automdm.MacOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				UpdateNewHosts: optjson.SetBool(false),
+				MinimumVersion: optjson.SetString("16.0.2"),
+			},
+			expectedResult: false,
+		},
+		{
+			name:     "if platform is macOS and both update_new_hosts and minimum_version are set and host is below the minimum version",
+			platform: string(automdm.MacOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString("16.0.2"),
+				UpdateNewHosts: optjson.SetBool(true),
+			},
+			expectedResult: true,
+		},
+		{
+			name:     "if platform is macOS and both update_new_hosts and minimum_version are set and host is at the minimum version",
+			platform: string(automdm.MacOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.2",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString("16.0.2"),
+				UpdateNewHosts: optjson.SetBool(true),
+			},
+			expectedResult: false,
+		},
+		{
+			name:     "if platform is macOS and update_new_hosts is set but minimum_version is not set",
+			platform: string(automdm.MacOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				UpdateNewHosts: optjson.SetBool(true),
+			},
+			expectedResult: true,
+		},
+		{
+			name:     "if platform is macOS and min_version is set to latest",
+			platform: string(automdm.MacOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
+				UpdateNewHosts: optjson.SetBool(false), // this state is not possible, but for test we do it to verify "latest" takes precedence
+			},
+			expectedResult: true,
+		},
+		{
+			name:     "if platform is not macOS and min_version is not set",
+			platform: string(automdm.IPadOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			expectedResult: false,
+		},
+		{
+			name:     "if platform is not macOS and min_version is set and host's version is greater than min required",
+			platform: string(automdm.IPadOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.3",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString("16.0.2"),
+				UpdateNewHosts: optjson.SetBool(false),
+			},
+			expectedResult: false,
+		},
+		{
+			name:     "if platform is not macOS and min_version is set and host's version is less than min required",
+			platform: string(automdm.IPadOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString("16.0.2"),
+				UpdateNewHosts: optjson.SetBool(false),
+			},
+			expectedResult: true,
+		},
+		{
+			name:     "if platform is not macOS and min_version is set to latest",
+			platform: string(automdm.IPadOSPlatform),
+			appleMachineInfo: automdm.MDMAppleMachineInfo{
+				OSVersion: "16.0.1",
+			},
+			appleOSUpdateSettings: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
+				UpdateNewHosts: optjson.SetBool(false),
+			},
+			expectedResult: true,
+		},
+	}
+
+	ctx := context.Background()
+	ds := new(mock.Store)
+	for _, tt := range testCases {
+		ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, hostSerial string) (string, *automdm.AppleOSUpdateSettings, error) {
+			return tt.platform, &tt.appleOSUpdateSettings, tt.returnedErr
+		}
+
+		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
+
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := svc.shouldOSUpdateForDEPEnrollment(ctx, tt.appleMachineInfo)
+			require.Equal(t, tt.expectedResult, result)
+			require.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+// testAppleOSUpdateAssets loads the GDMF fixture and converts it to the platform-keyed map of
+// cached assets returned by Datastore.ListAppleOSUpdateAssets. In production the same shape is
+// produced by the OS updates cron: it fetches the public asset sets from GDMF and upserts them
+// into apple_software_update_assets.
+func testAppleOSUpdateAssets(t *testing.T) map[string][]automdm.AppleSoftwareUpdateAsset {
+	t.Helper()
+
+	b, err := os.ReadFile("../mdm/apple/gdmf/testdata/gdmf.json")
+	require.NoError(t, err)
+
+	var am gdmf.AssetMetadata
+	require.NoError(t, json.Unmarshal(b, &am))
+
+	convert := func(assets []automdm.OSUpdateAsset) []automdm.AppleSoftwareUpdateAsset {
+		out := make([]automdm.AppleSoftwareUpdateAsset, 0, len(assets))
+		for _, a := range assets {
+			// the dates are stored in DATE columns, so they come back as time.Time
+			postingDate, err := time.Parse(time.DateOnly, a.PostingDate)
+			require.NoError(t, err)
+			expirationDate, err := time.Parse(time.DateOnly, a.ExpirationDate)
+			require.NoError(t, err)
+			out = append(out, automdm.AppleSoftwareUpdateAsset{
+				ProductVersion:   a.ProductVersion,
+				Build:            a.Build,
+				PostingDate:      postingDate,
+				ExpirationDate:   expirationDate,
+				SupportedDevices: a.SupportedDevices,
+			})
+		}
+		return out
+	}
+
+	return map[string][]automdm.AppleSoftwareUpdateAsset{
+		"macos": convert(am.PublicAssetSets.MacOS),
+		"ios":   convert(am.PublicAssetSets.IOS),
+	}
+}
+
+func TestCheckMDMAppleEnrollmentWithMinimumOSVersion(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	// the update assets come from the apple_software_update_assets cache, which the OS updates
+	// cron populates from GDMF; here we seed the cache with the GDMF fixture
+	ds.ListAppleOSUpdateAssetsFunc = func(ctx context.Context) (map[string][]automdm.AppleSoftwareUpdateAsset, error) {
+		return testAppleOSUpdateAssets(t), nil
+	}
+
+	latestMacOSVersion := "14.6.1"
+	latestIOSVersion := "17.6.1"
+
+	testCases := []struct {
+		name           string
+		machineInfo    *automdm.MDMAppleMachineInfo
+		updateRequired *automdm.MDMAppleSoftwareUpdateRequiredDetails
+		err            string
+	}{
+		{
+			name: "OS version is greater than latest",
+			machineInfo: &automdm.MDMAppleMachineInfo{
+				MDMCanRequestSoftwareUpdate: true,
+				Product:                     "Mac15,7",
+				OSVersion:                   "14.6.2",
+				SupplementalBuildVersion:    "IRRELEVANT",
+				SoftwareUpdateDeviceID:      "J516sAP",
+			},
+			updateRequired: nil,
+		},
+		{
+			name: "OS version is equal to latest",
+			machineInfo: &automdm.MDMAppleMachineInfo{
+				MDMCanRequestSoftwareUpdate: true,
+				Product:                     "Mac15,7",
+				OSVersion:                   latestMacOSVersion,
+				SupplementalBuildVersion:    "IRRELEVANT",
+				SoftwareUpdateDeviceID:      "J516sAP",
+			},
+			updateRequired: nil,
+		},
+		{
+			name: "OS version is less than latest",
+			machineInfo: &automdm.MDMAppleMachineInfo{
+				MDMCanRequestSoftwareUpdate: true,
+				Product:                     "Mac15,7",
+				OSVersion:                   "14.4",
+				SupplementalBuildVersion:    "IRRELEVANT",
+				SoftwareUpdateDeviceID:      "J516sAP",
+			},
+			updateRequired: &automdm.MDMAppleSoftwareUpdateRequiredDetails{
+				OSVersion: latestMacOSVersion,
+			},
+		},
+		{
+			name: "OS version is less than latest but MDM cannot request software update",
+			machineInfo: &automdm.MDMAppleMachineInfo{
+				MDMCanRequestSoftwareUpdate: false,
+				Product:                     "Mac15,7",
+				OSVersion:                   "14.4",
+				SupplementalBuildVersion:    "IRRELEVANT",
+				SoftwareUpdateDeviceID:      "J516sAP",
+			},
+			updateRequired: nil,
+		},
+		{
+			name: "no match for software update device ID",
+			machineInfo: &automdm.MDMAppleMachineInfo{
+				MDMCanRequestSoftwareUpdate: true,
+				Product:                     "Mac15,7",
+				OSVersion:                   "14.4",
+				SupplementalBuildVersion:    "IRRELEVANT",
+				SoftwareUpdateDeviceID:      "INVALID",
+			},
+			updateRequired: nil,
+			err:            "", // no error, allow enrollment to proceed without software update
+		},
+		{
+			name:           "no machine info",
+			machineInfo:    nil,
+			updateRequired: nil,
+			err:            "", // no error, allow enrollment to proceed without software update
+		},
+		{
+			name: "cannot parse OS version",
+			machineInfo: &automdm.MDMAppleMachineInfo{
+				MDMCanRequestSoftwareUpdate: true,
+				Product:                     "Mac15,7",
+				OSVersion:                   "INVALID",
+				SupplementalBuildVersion:    "IRRELEVANT",
+				SoftwareUpdateDeviceID:      "J516sAP",
+			},
+			updateRequired: nil,
+			err:            "", // no error, allow enrollment to proceed without software update
+		},
+	}
+
+	// FIXME: When we have more time, this whole test is overdue for a refactor because a bunch of jank
+	// came with the update new hosts settings for macOS that made the test cases more dependent on
+	// subtle differences in the machine info for macOS vs non-macOS platforms and made the setup
+	// more complex and harder to reason about. For now, we can get away with some nested subtests
+	// to reuse the test cases for both macOS and non-macOS platforms, but ideally we would refactor
+	// the function under test to separate out the platform-specific logic so that we can have
+	// clearer and more focused tests for each platform without needing to have a bunch of
+	// conditional logic in the test itself.
+	for _, tt := range testCases {
+		// Non-macOS platforms
+		for _, platform := range []string{"ios", "ipados"} {
+
+			if tt.name == "no match for software update device ID" {
+				// skip this test case for non-macOS platforms since SUDeviceID is really only relevant for macOS updates
+				continue
+			}
+
+			t.Run(fmt.Sprintf("%s: %s", platform, tt.name), func(t *testing.T) {
+				// switch up the machine info to match the platform because test cases were
+				// originally written with macOS in mind
+				var product, osVersion, suDeviceID string
+				var mi *automdm.MDMAppleMachineInfo
+				if tt.machineInfo != nil {
+					osVersion = strings.Replace(tt.machineInfo.OSVersion, "14", "17", 1)
+					if platform == "ios" {
+						product = "iPhone16,2"
+						suDeviceID = strings.Replace(tt.machineInfo.SoftwareUpdateDeviceID, "J516sAP", "iPhone", 1)
+					} else {
+						product = "iPad14,11"
+						suDeviceID = strings.Replace(tt.machineInfo.SoftwareUpdateDeviceID, "J516sAP", "iPad", 1)
+					}
+
+					mi = &automdm.MDMAppleMachineInfo{
+						MDMCanRequestSoftwareUpdate: tt.machineInfo.MDMCanRequestSoftwareUpdate,
+						Product:                     product,
+						OSVersion:                   osVersion,
+						SupplementalBuildVersion:    tt.machineInfo.SupplementalBuildVersion,
+						SoftwareUpdateDeviceID:      suDeviceID,
+					}
+				}
+				// same for update required details
+				var details *automdm.MDMAppleSoftwareUpdateRequiredDetails
+				if tt.updateRequired != nil {
+					details = &automdm.MDMAppleSoftwareUpdateRequiredDetails{
+						OSVersion: latestIOSVersion,
+					}
+				}
+
+				t.Run("settings minimum equal to latest", func(t *testing.T) {
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, &automdm.AppleOSUpdateSettings{
+							MinimumVersion: optjson.SetString(latestIOSVersion),
+						}, nil
+					}
+					sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					if tt.err != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.err)
+					} else {
+						require.NoError(t, err)
+					}
+					if tt.updateRequired != nil {
+						require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+							Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+							Details: *details,
+						}, sur)
+					} else {
+						require.Nil(t, sur)
+					}
+				})
+
+				t.Run("settings minimum below latest", func(t *testing.T) {
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, &automdm.AppleOSUpdateSettings{
+							MinimumVersion: optjson.SetString("17.5"),
+						}, nil
+					}
+					sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					if tt.err != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.err)
+					} else {
+						require.NoError(t, err)
+					}
+					if tt.updateRequired != nil {
+						require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+							Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+							Details: *details,
+						}, sur)
+					} else {
+						require.Nil(t, sur)
+					}
+				})
+
+				t.Run("settings minimum above latest", func(t *testing.T) {
+					// edge case, but in practice it would get treated as if minimum was equal to latest
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, &automdm.AppleOSUpdateSettings{
+							MinimumVersion: optjson.SetString("17.7"),
+						}, nil
+					}
+					sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					if tt.err != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.err)
+					} else {
+						require.NoError(t, err)
+					}
+					if tt.updateRequired != nil {
+						require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+							Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+							Details: *details,
+						}, sur)
+					} else {
+						require.Nil(t, sur)
+					}
+				})
+
+				t.Run("device above settings minimum", func(t *testing.T) {
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, &automdm.AppleOSUpdateSettings{
+							MinimumVersion: optjson.SetString("17.1"),
+						}, nil
+					}
+					sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					if tt.err != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.err)
+					} else {
+						require.NoError(t, err)
+					}
+
+					require.Nil(t, sur)
+				})
+
+				t.Run("minimum not set", func(t *testing.T) {
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, &automdm.AppleOSUpdateSettings{}, nil
+					}
+					sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					require.NoError(t, err)
+					require.Nil(t, sur)
+
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, &automdm.AppleOSUpdateSettings{
+							MinimumVersion: optjson.SetString(""),
+						}, nil
+					}
+					sur, err = svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					require.NoError(t, err)
+					require.Nil(t, sur)
+				})
+
+				t.Run("minimum not found", func(t *testing.T) {
+					ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+						return platform, nil, &notFoundError{}
+					}
+					sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, mi)
+					require.NoError(t, err)
+					require.Nil(t, sur)
+				})
+			})
+		}
+	}
+
+	for _, tt := range testCases {
+		t.Run(fmt.Sprintf("%s for macOS", tt.name), func(t *testing.T) {
+			t.Run("when UpdateNewHosts is not set should never update", func(t *testing.T) {
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "darwin", &automdm.AppleOSUpdateSettings{
+						UpdateNewHosts: optjson.SetBool(false),
+						MinimumVersion: optjson.SetString(latestMacOSVersion),
+					}, nil
+				}
+				sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				require.NoError(t, err)
+				require.Nil(t, sur)
+			})
+
+			t.Run("when UpdateNewHosts is set and minimum is not set", func(t *testing.T) {
+				// test with min version not present
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "darwin", &automdm.AppleOSUpdateSettings{
+						UpdateNewHosts: optjson.SetBool(true),
+					}, nil
+				}
+				sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				require.NoError(t, err)
+
+				// min version is not important for determining whether an update is required so the logic is based on
+				// the installed version only
+				if tt.updateRequired != nil {
+					require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+						Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+						Details: *tt.updateRequired,
+					}, sur)
+				} else {
+					require.Nil(t, sur)
+				}
+
+				// test again with min version explicitly set to empty string
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "darwin", &automdm.AppleOSUpdateSettings{
+						UpdateNewHosts: optjson.SetBool(true),
+						MinimumVersion: optjson.SetString(""),
+					}, nil
+				}
+				sur, err = svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				require.NoError(t, err)
+
+				// Ditto previous comment
+				if tt.updateRequired != nil {
+					require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+						Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+						Details: *tt.updateRequired,
+					}, sur)
+				} else {
+					require.Nil(t, sur)
+				}
+			})
+
+			t.Run("when apple OS settings not found", func(t *testing.T) {
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "darwin", nil, &notFoundError{}
+				}
+				// never block enrollment when settings are not found
+				sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				require.NoError(t, err)
+				require.Nil(t, sur)
+			})
+
+			t.Run("when UpdateNewHosts is set and required minimum is equal to latest", func(t *testing.T) {
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "darwin", &automdm.AppleOSUpdateSettings{
+						UpdateNewHosts: optjson.SetBool(true),
+						MinimumVersion: optjson.SetString(latestMacOSVersion),
+					}, nil
+				}
+				sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				if tt.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tt.err)
+				} else {
+					require.NoError(t, err)
+				}
+				if tt.updateRequired != nil {
+					require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+						Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+						Details: *tt.updateRequired,
+					}, sur)
+				} else {
+					require.Nil(t, sur)
+				}
+			})
+
+			t.Run("when UpdateNewHosts is set and required minimum is less than latest", func(t *testing.T) {
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "darwin", &automdm.AppleOSUpdateSettings{
+						UpdateNewHosts: optjson.SetBool(true),
+						MinimumVersion: optjson.SetString("14.5"),
+					}, nil
+				}
+				sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				if tt.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tt.err)
+				} else {
+					require.NoError(t, err)
+				}
+				if tt.updateRequired != nil {
+					require.Equal(t, &automdm.MDMAppleSoftwareUpdateRequired{
+						Code:    automdm.MDMAppleSoftwareUpdateRequiredCode,
+						Details: *tt.updateRequired,
+					}, sur)
+				} else {
+					require.Nil(t, sur)
+				}
+			})
+		})
+	}
+
+	t.Run("no cached update assets", func(t *testing.T) {
+		ds.ListAppleOSUpdateAssetsFunc = func(ctx context.Context) (map[string][]automdm.AppleSoftwareUpdateAsset, error) {
+			return nil, nil
+		}
+
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				ds.GetMDMAppleOSUpdatesSettingsByHostSerialFunc = func(ctx context.Context, serial string) (string, *automdm.AppleOSUpdateSettings, error) {
+					return "macos", &automdm.AppleOSUpdateSettings{MinimumVersion: optjson.SetString(latestMacOSVersion), UpdateNewHosts: optjson.SetBool(true)}, nil
+				}
+
+				sur, err := svc.CheckMDMAppleEnrollmentWithMinimumOSVersion(ctx, tt.machineInfo)
+				if tt.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tt.err) // still can get errors parsing the versions from the device info header or config settings
+				} else {
+					require.NoError(t, err)
+				}
+
+				require.Nil(t, sur) // without cached assets, we don't enforce os updates for DEP
+			})
+		}
+	})
+}
+
+func TestValidateConfigProfileAutoMDMVariablesLicense(t *testing.T) {
+	t.Parallel()
+	profileWithVars := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadDescription</key>
+	<string>Test profile with AutoMDM variable</string>
+	<key>PayloadDisplayName</key>
+	<string>Test Profile</string>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>ComputerName</key>
+			<string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>
+		</dict>
+	</array>
+</dict>
+</plist>`
+
+	// Test with free license
+	freeLic := &automdm.LicenseInfo{Tier: automdm.TierFree}
+	_, err := validateConfigProfileAutoMDMVariables(profileWithVars, freeLic, nil)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
+
+	// Test with premium license
+	premiumLic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+	vars, err := validateConfigProfileAutoMDMVariables(profileWithVars, premiumLic, &automdm.GroupedCertificateAuthorities{})
+	require.NoError(t, err)
+	require.Contains(t, vars, "HOST_END_USER_IDP_USERNAME")
+
+	// A removed variable gets its AutoMDM 5 error whatever the license.
+	profileWithRemovedVar := strings.ReplaceAll(profileWithVars, "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME", "${AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP}")
+	for _, lic := range []*automdm.LicenseInfo{freeLic, premiumLic} {
+		_, err = validateConfigProfileAutoMDMVariables(profileWithRemovedVar, lic, &automdm.GroupedCertificateAuthorities{})
+		var removedErr *automdm.RemovedAutoMDMVariableError
+		require.ErrorAs(t, err, &removedErr, lic.Tier)
+		require.ErrorContains(t, err, `The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore.`)
+	}
+
+	// Test profile without variables (should work with free license)
+	profileNoVars := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadDescription</key>
+	<string>Test profile without AutoMDM variables</string>
+	<key>PayloadDisplayName</key>
+	<string>Test Profile</string>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>ComputerName</key>
+			<string>StaticValue</string>
+		</dict>
+	</array>
+</dict>
+</plist>`
+	vars, err = validateConfigProfileAutoMDMVariables(profileNoVars, freeLic, &automdm.GroupedCertificateAuthorities{})
+	require.NoError(t, err)
+	require.Empty(t, vars)
+}
+
+// pssoProfileForValidation builds a com.apple.extensiblesso profile for the
+// PSSO device-registration-token placement tests. extraPayload, when non-empty,
+// is inserted as a second payload dict in PayloadContent (used to test the
+// variable leaking outside the SSO payload).
+func pssoProfileForValidation(extensionID, registrationToken string, useSharedDeviceKeys bool, extraPayload string) string {
+	usdk := "<false/>"
+	if useSharedDeviceKeys {
+		usdk = "<true/>"
+	}
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>ExtensionIdentifier</key>
+			<string>%s</string>
+			<key>PayloadType</key>
+			<string>com.apple.extensiblesso</string>
+			<key>RegistrationToken</key>
+			<string>%s</string>
+			<key>PlatformSSO</key>
+			<dict>
+				<key>AuthenticationMethod</key>
+				<string>Password</string>
+				<key>UseSharedDeviceKeys</key>
+				%s
+			</dict>
+			<key>Type</key>
+			<string>Redirect</string>
+		</dict>%s
+	</array>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+</dict>
+</plist>`, extensionID, registrationToken, usdk, extraPayload)
+}
+
+func TestValidatePSSORegistrationTokenVariable(t *testing.T) {
+	t.Parallel()
+
+	const automdmExt = "com.fleetdm.fleet-desktop.pssoextension"
+	premiumLic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+
+	cases := []struct {
+		name    string
+		profile string
+		errMsg  string
+	}{
+		{
+			name:    "happy path with prefix form",
+			profile: pssoProfileForValidation(automdmExt, "$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN", true, ""),
+		},
+		{
+			name:    "happy path with braces form",
+			profile: pssoProfileForValidation(automdmExt, "${AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN}", true, ""),
+		},
+		{
+			name:    "non-automdm extension identifier",
+			profile: pssoProfileForValidation("com.okta.mobile.auth-service-extension", "$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN", true, ""),
+			errMsg:  "must start with \"com.fleetdm\"",
+		},
+		{
+			name:    "UseSharedDeviceKeys not set",
+			profile: pssoProfileForValidation(automdmExt, "$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN", false, ""),
+			errMsg:  "UseSharedDeviceKeys to true",
+		},
+		{
+			name: "variable also leaks into another payload",
+			profile: pssoProfileForValidation(automdmExt, "$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN", true, `
+		<dict>
+			<key>PayloadType</key>
+			<string>com.apple.dock</string>
+			<key>SomeField</key>
+			<string>$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN</string>
+		</dict>`),
+			errMsg: "only allowed in the RegistrationToken of an AutoMDM Platform SSO payload",
+		},
+		{
+			name: "variable only outside the registration token field",
+			profile: pssoProfileForValidation(automdmExt, "static-token", true, `
+		<dict>
+			<key>PayloadType</key>
+			<string>com.apple.dock</string>
+			<key>SomeField</key>
+			<string>$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN</string>
+		</dict>`),
+			errMsg: "only allowed in the RegistrationToken of an AutoMDM Platform SSO payload",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vars, err := validateConfigProfileAutoMDMVariables(tc.profile, premiumLic, &automdm.GroupedCertificateAuthorities{})
+			if tc.errMsg != "" {
+				require.ErrorContains(t, err, tc.errMsg)
+				assert.Empty(t, vars)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
+	t.Run("requires premium license", func(t *testing.T) {
+		freeLic := &automdm.LicenseInfo{Tier: automdm.TierFree}
+		_, err := validateConfigProfileAutoMDMVariables(
+			pssoProfileForValidation(automdmExt, "$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN", true, ""),
+			freeLic, &automdm.GroupedCertificateAuthorities{},
+		)
+		assert.ErrorContains(t, err, "requires an AutoMDM Premium license")
+	})
+}
+
+func TestValidateConfigProfileAutoMDMVariables(t *testing.T) {
+	t.Parallel()
+	groupedCAs := &automdm.GroupedCertificateAuthorities{
+		DigiCert: []automdm.DigiCertCA{
+			newMockDigicertCA("https://example.com", "caName"),
+			newMockDigicertCA("https://example.com", "caName2"),
+		},
+		EJBCA: []automdm.EJBCA{{Name: "ejbcaName"}, {Name: "ejbcaName2"}},
+		CustomScepProxy: []automdm.CustomSCEPProxyCA{
+			newMockCustomSCEPProxyCA("https://example.com", "scepName"),
+			newMockCustomSCEPProxyCA("https://example.com", "scepName2"),
+		},
+		Smallstep: []automdm.SmallstepSCEPProxyCA{
+			newMockSmallstepSCEPProxyCA("https://example.com", "https://example.com/challenge", "smallstepName"),
+			newMockSmallstepSCEPProxyCA("https://example.com", "https://example.com/challenge", "smallstepName2"),
+		},
+	}
+
+	cases := []struct {
+		name    string
+		profile string
+		errMsg  string
+		vars    []string
+	}{
+		{
+			name: "EJBCA badCA",
+			profile: digiCertForValidation("$AUTOMDM_VAR_EJBCA_PASSWORD_bad", "$AUTOMDM_VAR_EJBCA_DATA_bad", "Name",
+				"com.apple.security.pkcs12"),
+			errMsg: "_bad does not exist",
+		},
+		{
+			name:    "EJBCA password missing",
+			profile: digiCertForValidation("password", "$AUTOMDM_VAR_EJBCA_DATA_ejbcaName", "Name", "com.apple.security.pkcs12"),
+			errMsg:  "Missing $AUTOMDM_VAR_EJBCA_PASSWORD_ejbcaName",
+		},
+		{
+			name:    "EJBCA data missing",
+			profile: digiCertForValidation("$AUTOMDM_VAR_EJBCA_PASSWORD_ejbcaName", "data", "Name", "com.apple.security.pkcs12"),
+			errMsg:  "Missing $AUTOMDM_VAR_EJBCA_DATA_ejbcaName",
+		},
+		{
+			name: "EJBCA profile is not pkcs12",
+			profile: digiCertForValidation("$AUTOMDM_VAR_EJBCA_PASSWORD_ejbcaName", "$AUTOMDM_VAR_EJBCA_DATA_ejbcaName", "Name",
+				"com.apple.security.pkcs13"),
+			errMsg: "Variables $AUTOMDM_VAR_EJBCA_PASSWORD_ejbcaName and $AUTOMDM_VAR_EJBCA_DATA_ejbcaName can only be included in the 'com.apple.security.pkcs12' payload",
+		},
+		{
+			name: "EJBCA happy path",
+			profile: digiCertForValidation("${AUTOMDM_VAR_EJBCA_PASSWORD_ejbcaName}", "${AUTOMDM_VAR_EJBCA_DATA_ejbcaName}", "Name",
+				"com.apple.security.pkcs12"),
+			vars: []string{"EJBCA_PASSWORD_ejbcaName", "EJBCA_DATA_ejbcaName"},
+		},
+		{
+			name: "EJBCA and DigiCert in the same profile",
+			profile: digiCertForValidation2("${AUTOMDM_VAR_EJBCA_PASSWORD_ejbcaName}", "${AUTOMDM_VAR_EJBCA_DATA_ejbcaName}",
+				"$AUTOMDM_VAR_DIGICERT_PASSWORD_caName", "$AUTOMDM_VAR_DIGICERT_DATA_caName"),
+			vars: []string{"EJBCA_PASSWORD_ejbcaName", "EJBCA_DATA_ejbcaName", "DIGICERT_PASSWORD_caName", "DIGICERT_DATA_caName"},
+		},
+		{
+			name: "DigiCert profile is not pkcs12",
+			profile: digiCertForValidation("$AUTOMDM_VAR_DIGICERT_PASSWORD_caName", "$AUTOMDM_VAR_DIGICERT_DATA_caName", "Name",
+				"com.apple.security.pkcs13"),
+			errMsg: "Variables $AUTOMDM_VAR_DIGICERT_PASSWORD_caName and $AUTOMDM_VAR_DIGICERT_DATA_caName can only be included in the 'com.apple.security.pkcs12' payload",
+		},
+		{
+			name: "DigiCert password is not an automdm variable",
+			profile: digiCertForValidation("x$AUTOMDM_VAR_DIGICERT_PASSWORD_caName", "${AUTOMDM_VAR_DIGICERT_DATA_caName}", "Name",
+				"com.apple.security.pkcs12"),
+			errMsg: "included in the 'com.apple.security.pkcs12' payload under Password and PayloadContent, respectively",
+		},
+		{
+			name: "DigiCert data is not an automdm variable",
+			profile: digiCertForValidation("${AUTOMDM_VAR_DIGICERT_PASSWORD_caName}", "x${AUTOMDM_VAR_DIGICERT_DATA_caName}", "Name",
+				"com.apple.security.pkcs12"),
+			errMsg: "Failed to parse PKCS12 payload with AutoMDM variables",
+		},
+		{
+			name: "DigiCert happy path",
+			profile: digiCertForValidation("${AUTOMDM_VAR_DIGICERT_PASSWORD_caName}", "${AUTOMDM_VAR_DIGICERT_DATA_caName}", "Name",
+				"com.apple.security.pkcs12"),
+			errMsg: "",
+			vars:   []string{"DIGICERT_PASSWORD_caName", "DIGICERT_DATA_caName"},
+		},
+		{
+			name: "DigiCert 2 profiles with swapped variables",
+			profile: digiCertForValidation2("${AUTOMDM_VAR_DIGICERT_PASSWORD_caName}", "${AUTOMDM_VAR_DIGICERT_DATA_caName2}",
+				"$AUTOMDM_VAR_DIGICERT_PASSWORD_caName2", "$AUTOMDM_VAR_DIGICERT_DATA_caName"),
+			errMsg: "CA name mismatch between $AUTOMDM_VAR_DIGICERT_PASSWORD_caName",
+		},
+		{
+			name: "DigiCert 2 profiles happy path",
+			profile: digiCertForValidation2("${AUTOMDM_VAR_DIGICERT_PASSWORD_caName}", "${AUTOMDM_VAR_DIGICERT_DATA_caName}",
+				"$AUTOMDM_VAR_DIGICERT_PASSWORD_caName2", "$AUTOMDM_VAR_DIGICERT_DATA_caName2"),
+			errMsg: "",
+			vars:   []string{"DIGICERT_PASSWORD_caName", "DIGICERT_DATA_caName", "DIGICERT_PASSWORD_caName2", "DIGICERT_DATA_caName2"},
+		},
+		{
+			name: "Custom SCEP renewal ID shows up in the wrong place",
+			profile: customSCEPForValidationWithoutRenewalID("$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName", "$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName",
+				"$AUTOMDM_VAR_SCEP_RENEWAL_ID",
+				"com.apple.security.scep"),
+			errMsg: renewalIDNotInSubjectMsg,
+		},
+		{
+			name: "Custom SCEP profile is not scep",
+			profile: customSCEPForValidation("$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName", "$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName",
+				"Name", "com.apple.security.SCEP"),
+			errMsg: automdm.SCEPVariablesNotInSCEPPayloadErrMsg,
+		},
+		{
+			name: "Custom SCEP challenge is not an automdm variable",
+			profile: customSCEPForValidation("x$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "must be in the SCEP certificate's \"Challenge\" field",
+		},
+		{
+			name: "Custom SCEP url is not an automdm variable",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName}", "x${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "must be in the SCEP certificate's \"URL\" field",
+		},
+		{
+			name: "Custom SCEP happy path",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName}", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"CUSTOM_SCEP_CHALLENGE_scepName", "CUSTOM_SCEP_PROXY_URL_scepName", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Custom SCEP happy path with OU renewal ID",
+			profile: customSCEPWithOURenewalIDForValidation("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName}", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"CUSTOM_SCEP_CHALLENGE_scepName", "CUSTOM_SCEP_PROXY_URL_scepName", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Custom SCEP 2 profiles with swapped variables",
+			profile: customSCEPForValidation2("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName2}", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName", "$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName2"),
+			errMsg: automdm.MultipleSCEPPayloadsErrMsg,
+		},
+		{
+			name: "Custom SCEP 2 valid profiles should error",
+			profile: customSCEPForValidation2("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName}", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"challenge", "http://example2.com"),
+			errMsg: automdm.MultipleSCEPPayloadsErrMsg,
+		},
+		{
+			name:    "Custom SCEP and DigiCert profiles happy path",
+			profile: customSCEPDigiCertForValidation("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName}", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}"),
+			errMsg:  "",
+			vars:    []string{"DIGICERT_PASSWORD_caName", "DIGICERT_DATA_caName", "CUSTOM_SCEP_CHALLENGE_scepName", "CUSTOM_SCEP_PROXY_URL_scepName", "SCEP_RENEWAL_ID"},
+		},
+		{
+			// Supported, but only alongside the renewal ID in a SCEP payload.
+			name:    "conditional access SCEP URL variable outside a SCEP profile",
+			profile: customProfileForValidation(automdm.AutoMDMVarConditionalAccessSCEPURL.WithPrefix()),
+			errMsg:  automdm.ConditionalAccessSCEPVariablesMissingErrMsg,
+		},
+		{
+			name: "Conditional access happy path",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE}", "$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL",
+				"Name", "com.apple.security.scep"),
+			vars: []string{"CONDITIONAL_ACCESS_SCEP_CHALLENGE", "CONDITIONAL_ACCESS_SCEP_URL", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Conditional access profile written before the variables, with the secret and URL in it",
+			profile: customSCEPForValidation("global-secret", "https://automdm.example.com/api/automdm/conditional_access/scep",
+				"Name", "com.apple.security.scep"),
+			vars: []string{"SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Conditional access literal challenge with the url variable",
+			profile: customSCEPForValidation("global-secret", "$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL",
+				"Name", "com.apple.security.scep"),
+			vars: []string{"CONDITIONAL_ACCESS_SCEP_URL", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Conditional access challenge is not an automdm variable",
+			profile: customSCEPForValidation("x$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE", "$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL",
+				"Name", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE\" must be in the SCEP certificate's \"Challenge\" field.",
+		},
+		{
+			name: "Conditional access challenge outside the Challenge field",
+			profile: customSCEPForValidation("global-secret", "$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL",
+				"$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE\" must be in the SCEP certificate's \"Challenge\" field.",
+		},
+		{
+			name: "Conditional access url outside the URL field",
+			profile: customSCEPForValidation("global-secret", "https://automdm.example.com/api/automdm/conditional_access/scep",
+				"$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL\" must be in the SCEP certificate's \"URL\" field.",
+		},
+		{
+			name: "Conditional access renewal ID shows up in the wrong place",
+			profile: customSCEPForValidationWithoutRenewalID("$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE", "$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL",
+				"$AUTOMDM_VAR_SCEP_RENEWAL_ID", "com.apple.security.scep"),
+			errMsg: renewalIDNotInSubjectMsg,
+		},
+		{
+			name:    "silent migration SCEP challenge variable",
+			profile: customProfileForValidation(automdm.AutoMDMVarSilentMigrationSCEPChallenge.WithPrefix()),
+			errMsg:  "AutoMDM variable " + automdm.AutoMDMVarSilentMigrationSCEPChallenge.WithPrefix() + " is not supported in configuration profiles.",
+		},
+		{
+			name:    "SCEP challenge host secret",
+			profile: customProfileForValidation(automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge)),
+			errMsg:  "is reserved for profiles managed by AutoMDM",
+		},
+		{
+			name:    "Custom profile with IdP variables and unknown variable",
+			profile: customProfileForValidation("$AUTOMDM_VAR_HOST_END_USER_IDP_NO_SUCH_VAR"),
+			errMsg:  "AutoMDM variable $AUTOMDM_VAR_HOST_END_USER_IDP_NO_SUCH_VAR is not supported in configuration profiles.",
+		},
+		{
+			name:    "Custom profile with IdP variables happy path",
+			profile: customProfileForValidation("value"),
+			errMsg:  "",
+			vars: []string{
+				"HOST_END_USER_IDP_USERNAME",
+				"HOST_END_USER_IDP_USERNAME_LOCAL_PART",
+				"HOST_END_USER_IDP_GROUPS",
+				"HOST_END_USER_IDP_DEPARTMENT",
+			},
+		},
+		{
+			name: "Custom SCEP and NDES 2 valid profiles should error",
+			profile: customSCEPForValidation2("${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_scepName}", "${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_scepName}",
+				"$AUTOMDM_VAR_NDES_SCEP_CHALLENGE", "$AUTOMDM_VAR_NDES_SCEP_PROXY_URL"),
+			errMsg: automdm.MultipleSCEPPayloadsErrMsg,
+		},
+		{
+			name: "NDES renewal ID shows up in the wrong place",
+			profile: customSCEPForValidationWithoutRenewalID("$AUTOMDM_VAR_NDES_SCEP_CHALLENGE", "$AUTOMDM_VAR_NDES_SCEP_PROXY_URL",
+				"$AUTOMDM_VAR_SCEP_RENEWAL_ID",
+				"com.apple.security.scep"),
+			errMsg: renewalIDNotInSubjectMsg,
+		},
+		{
+			name: "NDES profile is not scep",
+			profile: customSCEPForValidation("$AUTOMDM_VAR_NDES_SCEP_CHALLENGE", "$AUTOMDM_VAR_NDES_SCEP_PROXY_URL",
+				"Name", "com.apple.security.SCEP"),
+			errMsg: automdm.SCEPVariablesNotInSCEPPayloadErrMsg,
+		},
+		{
+			name: "NDES challenge is not an automdm variable",
+			profile: customSCEPForValidation("x$AUTOMDM_VAR_NDES_SCEP_CHALLENGE", "${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_NDES_SCEP_CHALLENGE\" must be in the SCEP certificate's \"Challenge\" field.",
+		},
+		{
+			name: "NDES url is not an automdm variable",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_NDES_SCEP_CHALLENGE}", "x${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_NDES_SCEP_PROXY_URL\" must be in the SCEP certificate's \"URL\" field.",
+		},
+		{
+			// Non-proxied SCEP: marker in CN won't trigger auto-renewal
+			// but upload is not blocked.
+			name: "raw SCEP with renewal-ID variable in CN uploads cleanly",
+			profile: customSCEPForValidation("challenge", "url",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "NDES happy path",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_NDES_SCEP_CHALLENGE}", "${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"NDES_SCEP_CHALLENGE", "NDES_SCEP_PROXY_URL", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "NDES happy path with OU renewal ID",
+			profile: customSCEPWithOURenewalIDForValidation("${AUTOMDM_VAR_NDES_SCEP_CHALLENGE}", "${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"NDES_SCEP_CHALLENGE", "NDES_SCEP_PROXY_URL", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "NDES 2 valid profiles should error",
+			profile: customSCEPForValidation2("${AUTOMDM_VAR_NDES_SCEP_CHALLENGE}", "${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}",
+				"challenge", "http://example2.com"),
+			errMsg: automdm.MultipleSCEPPayloadsErrMsg,
+		},
+		{
+			name:    "NDES and DigiCert profiles happy path",
+			profile: customSCEPDigiCertForValidation("${AUTOMDM_VAR_NDES_SCEP_CHALLENGE}", "${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}"),
+			errMsg:  "",
+			vars: []string{
+				"DIGICERT_PASSWORD_caName", "DIGICERT_DATA_caName", "NDES_SCEP_CHALLENGE", "NDES_SCEP_PROXY_URL",
+				"SCEP_RENEWAL_ID",
+			},
+		},
+		{
+			name: "Smallstep profile is not scep",
+			profile: customSCEPForValidation("$AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName", "$AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName",
+				"Name", "com.apple.security.SCEP"),
+			errMsg: automdm.SCEPVariablesNotInSCEPPayloadErrMsg,
+		},
+		{
+			name: "Smallstep happy path",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName}", "${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"SMALLSTEP_SCEP_CHALLENGE_smallstepName", "SMALLSTEP_SCEP_PROXY_URL_smallstepName", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Smallstep happy path with OU renewal ID",
+			profile: customSCEPWithOURenewalIDForValidation("${AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName}", "${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "",
+			vars:   []string{"SMALLSTEP_SCEP_CHALLENGE_smallstepName", "SMALLSTEP_SCEP_PROXY_URL_smallstepName", "SCEP_RENEWAL_ID"},
+		},
+		{
+			name: "Smallstep 2 profiles with swapped variables",
+			profile: customSCEPForValidation2("${AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName2}", "${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"$AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName", "$AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName2"),
+			errMsg: automdm.MultipleSCEPPayloadsErrMsg,
+		},
+		{
+			name: "Smallstep 2 valid profiles should error",
+			profile: customSCEPForValidation2("${AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName}", "${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"challenge", "http://example2.com"),
+			errMsg: automdm.MultipleSCEPPayloadsErrMsg,
+		},
+		{
+			name: "Smallstep renewal ID shows up in the wrong place",
+			profile: customSCEPForValidationWithoutRenewalID("$AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName", "$AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName",
+				"$AUTOMDM_VAR_SCEP_RENEWAL_ID",
+				"com.apple.security.scep"),
+			errMsg: renewalIDNotInSubjectMsg,
+		},
+		{
+			name: "Smallstep renewal ID in both CN and OU",
+			profile: customSCEPWithOURenewalIDForValidation("${AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName}", "${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"Name $AUTOMDM_VAR_SCEP_RENEWAL_ID", "com.apple.security.scep"),
+			errMsg: renewalIDDuplicateMsg,
+		},
+		{
+			name: "Smallstep challenge is not an automdm variable",
+			profile: customSCEPForValidation("x$AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName", "${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName\" must be in the SCEP certificate's \"Challenge\" field.",
+		},
+		{
+			name: "Smallstep url is not an automdm variable",
+			profile: customSCEPForValidation("${AUTOMDM_VAR_SMALLSTEP_SCEP_CHALLENGE_smallstepName}", "x${AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName}",
+				"Name", "com.apple.security.scep"),
+			errMsg: "Variable \"$AUTOMDM_VAR_SMALLSTEP_SCEP_PROXY_URL_smallstepName\" must be in the SCEP certificate's \"URL\" field.",
+		},
+		{
+			name: "Custom profile with IdP full name var",
+			profile: string(scopedMobileconfigForTest(
+				"FullName Var",
+				"com.example.fullname",
+				nil,
+				"HOST_END_USER_IDP_FULL_NAME", // will be prefixed to $AUTOMDM_VAR_ by helper
+			)),
+			errMsg: "",
+			vars:   []string{"HOST_END_USER_IDP_FULL_NAME"},
+		},
+		{
+			name: "Custom profile with IdP external ID var",
+			profile: string(scopedMobileconfigForTest(
+				"ExternalID Var",
+				"com.example.externalid",
+				nil,
+				"HOST_END_USER_IDP_EXTERNAL_ID", // will be prefixed to $AUTOMDM_VAR_ by helper
+			)),
+			errMsg: "",
+			vars:   []string{"HOST_END_USER_IDP_EXTERNAL_ID"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Pass a premium license for testing (we're not testing license validation here)
+			premiumLic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+			vars, err := validateConfigProfileAutoMDMVariables(tc.profile, premiumLic, groupedCAs)
+			if tc.errMsg != "" {
+				assert.ErrorContains(t, err, tc.errMsg)
+				assert.Empty(t, vars)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, tc.vars, vars)
+			}
+		})
+	}
+}
+
+// ACME and non-proxied SCEP profiles upload regardless of marker presence
+// or placement; the renewal-ID variable is opt-in only.
+func TestApplePayloadValidatorsAreOptional(t *testing.T) {
+	t.Parallel()
+	premiumLic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+	groupedCAs := &automdm.GroupedCertificateAuthorities{}
+
+	const acmeProfile = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadType</key><string>com.apple.security.acme</string>
+			<key>PayloadIdentifier</key><string>com.test.acme</string>
+			<key>PayloadUUID</key><string>11111111-2222-3333-4444-555555555555</string>
+			<key>DirectoryURL</key><string>https://acme.example.com/directory</string>
+			<key>Subject</key>
+			<array>
+				<array><array><string>CN</string><string>device-cn</string></array></array>
+				<array><array><string>OU</string><string>%s</string></array></array>
+			</array>
+		</dict>
+	</array>
+	<key>PayloadIdentifier</key><string>com.test.profile.acme</string>
+	<key>PayloadType</key><string>Configuration</string>
+	<key>PayloadUUID</key><string>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</string>
+	<key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>`
+
+	const rawSCEPProfile = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadType</key><string>com.apple.security.scep</string>
+			<key>PayloadIdentifier</key><string>com.test.scep</string>
+			<key>PayloadUUID</key><string>22222222-3333-4444-5555-666666666666</string>
+			<key>PayloadContent</key>
+			<dict>
+				<key>Challenge</key><string>static-challenge-value</string>
+				<key>URL</key><string>https://scep.example.com/scep</string>
+				<key>Subject</key>
+				<array>
+					<array><array><string>CN</string><string>device-cn</string></array></array>
+					<array><array><string>OU</string><string>%s</string></array></array>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>PayloadIdentifier</key><string>com.test.profile.rawscep</string>
+	<key>PayloadType</key><string>Configuration</string>
+	<key>PayloadUUID</key><string>bbbbbbbb-cccc-dddd-eeee-ffffffffffff</string>
+	<key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>`
+
+	// Marker in CN, literal OU — confirms upload acceptance is independent
+	// of marker placement.
+	const acmeProfileCNMarker = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadType</key><string>com.apple.security.acme</string>
+			<key>PayloadIdentifier</key><string>com.test.acme.cn</string>
+			<key>PayloadUUID</key><string>33333333-4444-5555-6666-777777777777</string>
+			<key>DirectoryURL</key><string>https://acme.example.com/directory</string>
+			<key>Subject</key>
+			<array>
+				<array><array><string>CN</string><string>%s</string></array></array>
+				<array><array><string>OU</string><string>static-ou-value</string></array></array>
+			</array>
+		</dict>
+	</array>
+	<key>PayloadIdentifier</key><string>com.test.profile.acme.cn</string>
+	<key>PayloadType</key><string>Configuration</string>
+	<key>PayloadUUID</key><string>cccccccc-dddd-eeee-ffff-aaaaaaaaaaaa</string>
+	<key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>`
+
+	const rawSCEPProfileCNMarker = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadType</key><string>com.apple.security.scep</string>
+			<key>PayloadIdentifier</key><string>com.test.scep.cn</string>
+			<key>PayloadUUID</key><string>44444444-5555-6666-7777-888888888888</string>
+			<key>PayloadContent</key>
+			<dict>
+				<key>Challenge</key><string>static-challenge-value</string>
+				<key>URL</key><string>https://scep.example.com/scep</string>
+				<key>Subject</key>
+				<array>
+					<array><array><string>CN</string><string>%s</string></array></array>
+					<array><array><string>OU</string><string>static-ou-value</string></array></array>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>PayloadIdentifier</key><string>com.test.profile.rawscep.cn</string>
+	<key>PayloadType</key><string>Configuration</string>
+	<key>PayloadUUID</key><string>dddddddd-eeee-ffff-aaaa-bbbbbbbbbbbb</string>
+	<key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>`
+
+	cases := []struct {
+		name    string
+		profile string
+	}{
+		{"ACME with preferred marker in OU", fmt.Sprintf(acmeProfile, "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")},
+		{"ACME with legacy marker in OU", fmt.Sprintf(acmeProfile, "$AUTOMDM_VAR_SCEP_RENEWAL_ID")},
+		{"ACME with no marker", fmt.Sprintf(acmeProfile, "static-ou-value")},
+		{"ACME with preferred marker in CN", fmt.Sprintf(acmeProfileCNMarker, "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")},
+		{"ACME with legacy marker in CN", fmt.Sprintf(acmeProfileCNMarker, "$AUTOMDM_VAR_SCEP_RENEWAL_ID")},
+		{"raw SCEP with preferred marker in OU", fmt.Sprintf(rawSCEPProfile, "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")},
+		{"raw SCEP with legacy marker in OU", fmt.Sprintf(rawSCEPProfile, "$AUTOMDM_VAR_SCEP_RENEWAL_ID")},
+		{"raw SCEP with no marker", fmt.Sprintf(rawSCEPProfile, "static-ou-value")},
+		{"raw SCEP with preferred marker in CN", fmt.Sprintf(rawSCEPProfileCNMarker, "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")},
+		{"raw SCEP with legacy marker in CN", fmt.Sprintf(rawSCEPProfileCNMarker, "$AUTOMDM_VAR_SCEP_RENEWAL_ID")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := validateConfigProfileAutoMDMVariables(tc.profile, premiumLic, groupedCAs)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateDeclarationAutoMDMVariables(t *testing.T) {
+	t.Parallel()
+
+	premiumLic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+	freeLic := &automdm.LicenseInfo{Tier: automdm.TierFree}
+
+	// helper to create a simple DDM declaration JSON with a value field
+	makeDecl := func(value string) string {
+		return fmt.Sprintf(`{"Type": "com.apple.configuration.management.test", "Identifier": "com.example.test", "Payload": {"Value": %q}}`, value)
+	}
+
+	t.Run("no variables, free license", func(t *testing.T) {
+		vars, err := validateDeclarationAutoMDMVariables(makeDecl("static-value"), freeLic)
+		require.NoError(t, err)
+		require.Nil(t, vars)
+	})
+
+	t.Run("supported variable with premium license", func(t *testing.T) {
+		vars, err := validateDeclarationAutoMDMVariables(makeDecl("$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"), premiumLic)
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST_HARDWARE_SERIAL"}, vars)
+	})
+
+	t.Run("supported variable with braces", func(t *testing.T) {
+		vars, err := validateDeclarationAutoMDMVariables(makeDecl("${AUTOMDM_VAR_HOST_UUID}"), premiumLic)
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST_UUID"}, vars)
+	})
+
+	t.Run("multiple supported variables", func(t *testing.T) {
+		vars, err := validateDeclarationAutoMDMVariables(
+			makeDecl(`["$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"]`), premiumLic,
+		)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"HOST_HARDWARE_SERIAL", "HOST_END_USER_IDP_USERNAME"}, vars)
+	})
+
+	t.Run("all supported variables", func(t *testing.T) {
+		// Build the declaration content and expected results from the allowed list
+		var jsonVars, expectedVars []string
+		for _, v := range automdmVarsSupportedInDDMDeclarations {
+			jsonVars = append(jsonVars, fmt.Sprintf(`"$AUTOMDM_VAR_%s"`, v))
+			expectedVars = append(expectedVars, string(v))
+		}
+		vars, err := validateDeclarationAutoMDMVariables(
+			makeDecl("["+strings.Join(jsonVars, ", ")+"]"), premiumLic,
+		)
+		require.NoError(t, err)
+		require.ElementsMatch(t, expectedVars, vars)
+	})
+
+	t.Run("supported variable without premium license", func(t *testing.T) {
+		_, err := validateDeclarationAutoMDMVariables(makeDecl("$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"), freeLic)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	})
+
+	t.Run("supported variable with nil license", func(t *testing.T) {
+		_, err := validateDeclarationAutoMDMVariables(makeDecl("$AUTOMDM_VAR_HOST_UUID"), nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+	})
+
+	t.Run("unsupported variable", func(t *testing.T) {
+		_, err := validateDeclarationAutoMDMVariables(makeDecl("$AUTOMDM_VAR_NDES_SCEP_CHALLENGE"), premiumLic)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_NDES_SCEP_CHALLENGE is not supported in DDM profiles")
+	})
+
+	t.Run("supported and unsupported variables", func(t *testing.T) {
+		_, err := validateDeclarationAutoMDMVariables(
+			makeDecl(`["$AUTOMDM_VAR_HOST_UUID", "$AUTOMDM_VAR_DIGICERT_DATA_myCA"]`), premiumLic,
+		)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_DIGICERT_DATA_myCA is not supported in DDM profiles")
+	})
+
+	// The OS update target variables are AutoMDM-internal: they are placed only in
+	// AutoMDM's own OS update declaration and resolved per host. An admin must not
+	// be able to reference them in a declaration of their own, so they are
+	// deliberately absent from automdmVarsSupportedInDDMDeclarations. Adding them
+	// there would silently break that.
+	t.Run("AutoMDM-internal OS update variables are rejected", func(t *testing.T) {
+		for _, v := range []automdm.AutoMDMVarName{
+			automdm.AutoMDMVarHostTargetOSVersion,
+			automdm.AutoMDMVarHostTargetOSDeadline,
+		} {
+			// Both reference forms, since AutoMDM's own declaration uses each of them.
+			for form, value := range map[string]string{
+				"bare":   fmt.Sprintf("$AUTOMDM_VAR_%s", v),
+				"braces": fmt.Sprintf("${AUTOMDM_VAR_%s}", v),
+			} {
+				t.Run(string(v)+"/"+form, func(t *testing.T) {
+					_, err := validateDeclarationAutoMDMVariables(makeDecl(value), premiumLic)
+					require.Error(t, err)
+					require.ErrorContains(t, err,
+						fmt.Sprintf("AutoMDM variable $AUTOMDM_VAR_%s is not supported in DDM profiles", v))
+				})
+			}
+		}
+	})
+}
+
+func TestJSONEscapeString(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain string", "hello", "hello"},
+		{"with double quotes", `say "hi"`, `say \"hi\"`},
+		{"with backslash", `path\to\file`, `path\\to\\file`},
+		{"with newline", "line1\nline2", `line1\nline2`},
+		{"with tab", "col1\tcol2", `col1\tcol2`},
+		{"empty string", "", ""},
+		{"unicode", "café ☕", "café ☕"},
+		{"control chars", "a\x00b", `a\u0000b`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, jsonEscapeString(tc.input))
+		})
+	}
+}
+
+//go:embed testdata/profiles/digicert-validation.mobileconfig
+var digiCertValidationMobileconfig string
+
+func digiCertForValidation(password, data, name, payloadType string) string {
+	return fmt.Sprintf(digiCertValidationMobileconfig, password, data, name, payloadType)
+}
+
+//go:embed testdata/profiles/digicert-validation2.mobileconfig
+var digiCertValidation2Mobileconfig string
+
+func digiCertForValidation2(password1, data1, password2, data2 string) string {
+	return fmt.Sprintf(digiCertValidation2Mobileconfig, password1, data1, password2, data2)
+}
+
+//go:embed testdata/profiles/custom-scep-validation.mobileconfig
+var customSCEPValidationMobileconfig string
+
+func customSCEPForValidation(challenge, url, name, payloadType string) string {
+	return fmt.Sprintf(customSCEPValidationMobileconfig, challenge, url, name, payloadType)
+}
+
+func customSCEPForValidationWithoutRenewalID(challenge, url, name, payloadType string) string {
+	configProfile := strings.ReplaceAll(customSCEPValidationMobileconfig, "$AUTOMDM_VAR_SCEP_RENEWAL_ID", "")
+	return fmt.Sprintf(configProfile, challenge, url, name, payloadType)
+}
+
+//go:embed testdata/profiles/custom-scep-validation2.mobileconfig
+var customSCEPValidation2Mobileconfig string
+
+func customSCEPForValidation2(challenge1, url1, challenge2, url2 string) string {
+	return fmt.Sprintf(customSCEPValidation2Mobileconfig, challenge1, url1, challenge2, url2)
+}
+
+//go:embed testdata/profiles/custom-scep-validation-ourenewal.mobileconfig
+var customSCEPValidationWithOURenewalIDMobileconfig string
+
+func customSCEPWithOURenewalIDForValidation(challenge, url, name, payloadType string) string {
+	return fmt.Sprintf(customSCEPValidationWithOURenewalIDMobileconfig, challenge, url, name, payloadType)
+}
+
+//go:embed testdata/profiles/custom-scep-digicert-validation.mobileconfig
+var customSCEPDigiCertValidationMobileconfig string
+
+func customSCEPDigiCertForValidation(challenge, url string) string {
+	return fmt.Sprintf(customSCEPDigiCertValidationMobileconfig, challenge, url)
+}
+
+//go:embed testdata/profiles/custom-profile-validation.mobileconfig
+var customProfileValidationMobileconfig string
+
+func customProfileForValidation(value string) string {
+	return fmt.Sprintf(customProfileValidationMobileconfig, value)
+}
+
+func TestParseHHMM(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantHour int
+		wantMin  int
+		wantErr  bool
+	}{
+		{"00:00", 0, 0, false},
+		{"09:30", 9, 30, false},
+		{"23:59", 23, 59, false},
+		{"12:05", 12, 5, false},
+		{"invalid", 0, 0, true},
+		{"12", 0, 0, true},
+		{"12:60", 0, 0, true},
+		{"24:00", 0, 0, true},
+		{"-01:00", 0, 0, true},
+		{"12:xx", 0, 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			h, m, err := parseHHMM(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseHHMM(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if err == nil && (h != tt.wantHour || m != tt.wantMin) {
+				t.Fatalf("parseHHMM(%q) = %d:%d, want %02d:%02d", tt.input, h, m, tt.wantHour, tt.wantMin)
+			}
+		})
+	}
+}
+
+func TestGetCurrentLocalTimeInHostTimeZone(t *testing.T) {
+	// Save original and restore after test
+	originalMock := nowFunc
+	defer func() { nowFunc = originalMock }()
+
+	// Fix "now" to a known UTC time: 2026-01-02 14:30:00 UTC
+	fixedNow := time.Date(2026, 1, 2, 14, 30, 0, 0, time.UTC)
+	nowFunc = func() time.Time {
+		return fixedNow
+	}
+
+	tests := []struct {
+		name     string
+		timezone string
+		wantHour int
+		wantMin  int
+		wantErr  bool
+	}{
+		{"UTC", "UTC", 14, 30, false},
+		{"New York", "America/New_York", 9, 30, false},       // EST = UTC-5
+		{"Los Angeles", "America/Los_Angeles", 6, 30, false}, // PST = UTC-8
+		{"London", "Europe/London", 14, 30, false},           // GMT in winter
+		{"Tokyo", "Asia/Tokyo", 23, 30, false},               // JST = UTC+9
+		{"Invalid TZ", "Invalid/Timezone", 0, 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getCurrentLocalTimeInHostTimeZone(context.Background(), tt.timezone)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("getCurrentLocalTimeInHostTimeZone(%q) error = %v, wantErr %v", tt.timezone, err, tt.wantErr)
+			}
+			if err == nil {
+				if got.Hour() != tt.wantHour || got.Minute() != tt.wantMin {
+					t.Fatalf("getCurrentLocalTimeInHostTimeZone(%q) = %02d:%02d, want %02d:%02d",
+						tt.timezone, got.Hour(), got.Minute(), tt.wantHour, tt.wantMin)
+				}
+			}
+		})
+	}
+}
+
+func TestIsTimezoneInWindow(t *testing.T) {
+	// Save original and restore after test
+	originalMock := nowFunc
+	defer func() { nowFunc = originalMock }()
+
+	// Helper to set a fixed UTC time, which will be converted to local time
+	setMockUTCNow := func(year, month, day, hour, min_ int) {
+		nowFunc = func() time.Time {
+			return time.Date(year, time.Month(month), day, hour, min_, 0, 0, time.UTC)
+		}
+	}
+
+	tests := []struct {
+		name         string
+		mockUTCHour  int
+		mockUTCMin   int
+		timezone     string
+		start        string
+		end          string
+		wantInWindow bool
+		wantErr      bool
+	}{
+		// Normal window (no midnight cross)
+		{name: "normal inside", mockUTCHour: 14, mockUTCMin: 0, timezone: "America/New_York", start: "08:00", end: "17:00", wantInWindow: true, wantErr: false},  // 09:00 EST
+		{name: "normal before", mockUTCHour: 12, mockUTCMin: 0, timezone: "America/New_York", start: "09:00", end: "17:00", wantInWindow: false, wantErr: false}, // 07:00 EST
+		{name: "normal at start", mockUTCHour: 14, mockUTCMin: 0, timezone: "America/New_York", start: "09:00", end: "17:00", wantInWindow: true, wantErr: false},
+		{name: "normal at end", mockUTCHour: 22, mockUTCMin: 0, timezone: "America/New_York", start: "09:00", end: "17:00", wantInWindow: true, wantErr: false}, // 17:00 EST
+
+		// Midnight-crossing window
+		{name: "too early", mockUTCHour: 4, mockUTCMin: 0, timezone: "America/Los_Angeles", start: "22:00", end: "06:00", wantInWindow: false, wantErr: false},              // 20:00 PST
+		{name: "crossing late night", mockUTCHour: 7, mockUTCMin: 0, timezone: "America/Los_Angeles", start: "22:00", end: "06:00", wantInWindow: true, wantErr: false},     // 23:00 PST
+		{name: "crossing early morning", mockUTCHour: 12, mockUTCMin: 0, timezone: "America/Los_Angeles", start: "22:00", end: "06:00", wantInWindow: true, wantErr: false}, // 04:00 PST
+		{name: "crossing outside", mockUTCHour: 16, mockUTCMin: 0, timezone: "America/Los_Angeles", start: "22:00", end: "06:00", wantInWindow: false, wantErr: false},      // 08:00 PST
+
+		// Edge cases
+		{name: "full day", mockUTCHour: 12, mockUTCMin: 0, timezone: "UTC", start: "00:00", end: "23:59", wantInWindow: true, wantErr: false},
+		{name: "single minute", mockUTCHour: 10, mockUTCMin: 5, timezone: "UTC", start: "10:05", end: "10:05", wantInWindow: true, wantErr: false},
+		{name: "invalid start", mockUTCHour: 12, mockUTCMin: 0, timezone: "UTC", start: "25:00", end: "17:00", wantInWindow: false, wantErr: true},
+		{name: "invalid timezone", mockUTCHour: 12, mockUTCMin: 0, timezone: "Invalid/TZ", start: "09:00", end: "17:00", wantInWindow: false, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setMockUTCNow(2026, 1, 2, tt.mockUTCHour, tt.mockUTCMin)
+
+			got, err := isTimezoneInWindow(context.Background(), tt.timezone, tt.start, tt.end)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("isTimezoneInWindow(%q, %s-%s) error = %v, wantErr %v", tt.timezone, tt.start, tt.end, err, tt.wantErr)
+			}
+			if got != tt.wantInWindow {
+				t.Fatalf("isTimezoneInWindow(%q, %s-%s) = %v, want %v", tt.timezone, tt.start, tt.end, got, tt.wantInWindow)
+			}
+		})
+	}
+}
+
+func TestToValidSemVer(t *testing.T) {
+	testVersions := []struct {
+		rawVersion                           string
+		expectedVersion                      string
+		versionToSemverVersionExpectedToFail bool
+	}{
+		{
+			"25.48.0",
+			"25.48.0",
+			false,
+		},
+		{
+			" 353.0 ", // Meta Horizon like version.
+			"353.0",
+			false,
+		},
+		{
+			"18.14.0",
+			"18.14.0",
+			false,
+		},
+		{
+			"412.0.0",
+			"412.0.0",
+			false,
+		},
+		{
+			"00.001010.01",
+			"0.1010.1",
+			false,
+		},
+		{
+			"6.0.251229",
+			"6.0.251229",
+			false,
+		},
+		{
+			"4.2602.11600",
+			"4.2602.11600",
+			false,
+		},
+		{
+			"144.0.7559.53", // Google Chrome like version.
+			"144.0.7559-53",
+			false,
+		},
+		{
+			"144.0.7559.03", // Google Chrome like version, leading zeros.
+			"144.0.7559-3",
+			false,
+		},
+		{
+			"4.9999999999999999999999999.11600", // Not a valid semantic version, so we leave unchanged.
+			"4.9999999999999999999999999.11600",
+			true,
+		},
+		{
+			"04.0000099999999999999999999999990.011600", // Not a valid semantic version, but we clean it anyway.
+			"4.99999999999999999999999990.11600",
+			true,
+		},
+		{
+			"21.02.3", // YouTube like version.
+			"21.2.3",
+			false,
+		},
+		{
+			"21", // Just major version.
+			"21",
+			false,
+		},
+		{
+			"v2.3.4", // Remove leading v.
+			"2.3.4",
+			false,
+		},
+		{
+			"02.03.04-01",
+			"2.3.4-1",
+			false,
+		},
+	}
+	for _, tc := range testVersions {
+		cleanedVersion := toValidSemVer(tc.rawVersion)
+		require.Equal(t, tc.expectedVersion, cleanedVersion)
+		_, err := automdm.VersionToSemverVersion(cleanedVersion)
+		if !tc.versionToSemverVersionExpectedToFail {
+			require.NoError(t, err, tc.rawVersion)
+		} else {
+			require.Error(t, err, tc.rawVersion)
+		}
+	}
+}
+
+func TestBuildOSVersion(t *testing.T) {
+	tests := []struct {
+		name           string
+		osVersion      string
+		supplemental   string
+		expectedResult string
+		expectErr      bool
+	}{
+		{
+			name:           "no supplemental",
+			osVersion:      "17.5.1",
+			supplemental:   "",
+			expectedResult: "17.5.1",
+		},
+		{
+			name:           "valid supplemental appended",
+			osVersion:      "17.5.1",
+			supplemental:   "(a)",
+			expectedResult: "17.5.1 (a)",
+		},
+		{
+			name:           "valid supplemental with mixed chars",
+			osVersion:      "26.3.1",
+			supplemental:   "(b)",
+			expectedResult: "26.3.1 (b)",
+		},
+		{
+			name:         "supplemental too long",
+			osVersion:    "17.5.1",
+			supplemental: strings.Repeat("a", 33),
+			expectErr:    true,
+		},
+		{
+			name:         "supplemental with invalid chars",
+			osVersion:    "17.5.1",
+			supplemental: "<script>",
+			expectErr:    true,
+		},
+		{
+			name:         "supplemental with newline",
+			osVersion:    "17.5.1",
+			supplemental: "(a)\n",
+			expectErr:    true,
+		},
+		{
+			name:           "osVersion truncated at 150 chars",
+			osVersion:      strings.Repeat("a", 151),
+			supplemental:   "",
+			expectedResult: strings.Repeat("a", 150),
+		},
+		{
+			name:           "combined result truncated at 150 chars",
+			osVersion:      strings.Repeat("a", 148),
+			supplemental:   "(a)",
+			expectedResult: strings.Repeat("a", 148) + " (", // 148 + " (a)" = 152, truncated to 150
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := buildOSVersion(tt.osVersion, tt.supplemental)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestMDMTokenUpdateSCEPRenewal(t *testing.T) {
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ds := new(mock.Store)
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(logger),
+	)
+	cmdr := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	uuid, serial, model, wantTeamID := "ABC-DEF-GHI", "XYZABC", "MacBookPro 16,1", uint(12)
+
+	t.Run("awaiting configuration continues enrollment", func(t *testing.T) {
+		// When a host re-enrolls via DEP (AwaitingConfiguration=true) while a
+		// SCEP renewal is pending, the handler should clear SCEP refs and
+		// continue with the normal enrollment flow (not short-circuit).
+
+		var newActivityFuncInvoked bool
+		mdmLifecycle := mdmlifecycle.New(ds, logger, func(_ context.Context, _ *automdm.User, activity automdm.ActivityDetails) error {
+			newActivityFuncInvoked = true
+			_, ok := activity.(*automdm.ActivityTypeMDMEnrolled)
+			require.True(t, ok)
+			return nil
+		})
+		svc := MDMAppleCheckinAndCommandService{
+			notificationsSvc: &mock.MockNotificationsService{},
+			ds:               ds,
+			mdmLifecycle:     mdmLifecycle,
+			commander:        cmdr,
+			logger:           logger,
+		}
+		scepRenewalInProgress := true
+		ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+			return &automdm.HostMDMCheckinInfo{
+				HostID:                1337,
+				HardwareSerial:        serial,
+				DisplayName:           model,
+				InstalledFromDEP:      true,
+				TeamID:                wantTeamID,
+				DEPAssignedToAutoMDM:  true,
+				SCEPRenewalInProgress: scepRenewalInProgress,
+				Platform:              "darwin",
+			}, nil
+		}
+		ds.CleanSCEPRenewRefsFunc = func(ctx context.Context, hostUUID string) error {
+			require.Equal(t, uuid, hostUUID)
+			scepRenewalInProgress = false
+			return nil
+		}
+		ds.EnqueueSetupExperienceItemsFunc = func(ctx context.Context, hostPlatform, hostPlatformLike string, hostUUID string, teamID uint) (bool, error) {
+			require.Equal(t, "darwin", hostPlatformLike)
+			require.Equal(t, uuid, hostUUID)
+			require.Equal(t, wantTeamID, teamID)
+			return true, nil
+		}
+		ds.ReconcileHostDeviceNamesForHostsFunc = func(context.Context, []uint) error { return nil }
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+		}
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
+		}
+		ds.GetMDMIdPAccountByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.MDMIdPAccount, error) {
+			return nil, nil
+		}
+		ds.NewJobFunc = func(ctx context.Context, j *automdm.Job) (*automdm.Job, error) {
+			return j, nil
+		}
+		ds.MDMResetEnrollmentFunc = func(ctx context.Context, hostUUID string, scepRenewalInProgress bool) error {
+			return nil
+		}
+		ds.ClearHostEnrolledFromMigrationFunc = func(ctx context.Context, hostUUID string) error {
+			require.Equal(t, uuid, hostUUID)
+			return nil
+		}
+		ds.MDMAppleResetOnReenrollmentFunc = func(ctx context.Context, hostUUID string, preserveHostActivities bool) error {
+			return nil
+		}
+
+		err := svc.TokenUpdate(
+			&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: uuid}},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					AwaitingConfiguration: true,
+					Enrollment: mdm.Enrollment{
+						UDID: uuid,
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.True(t, ds.CleanSCEPRenewRefsFuncInvoked)
+		require.True(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+		require.True(t, ds.NewJobFuncInvoked)
+		require.True(t, newActivityFuncInvoked)
+		require.True(t, ds.MDMResetEnrollmentFuncInvoked)
+		require.True(t, ds.ClearHostEnrolledFromMigrationFuncInvoked)
+	})
+
+	t.Run("not awaiting configuration short-circuits", func(t *testing.T) {
+		// When a SCEP renewal is in progress but the host is NOT awaiting
+		// configuration (normal renewal), the handler should clean SCEP refs
+		// and return early without enqueueing setup experience or lifecycle.
+		var newActivityFuncInvoked bool
+		mdmLifecycle := mdmlifecycle.New(ds, logger, func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
+			newActivityFuncInvoked = true
+			return nil
+		})
+		svc := MDMAppleCheckinAndCommandService{
+			notificationsSvc: &mock.MockNotificationsService{},
+			ds:               ds,
+			mdmLifecycle:     mdmLifecycle,
+			commander:        cmdr,
+			logger:           logger,
+		}
+
+		ds.GetHostMDMCheckinInfoFunc = func(ct context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
+			return &automdm.HostMDMCheckinInfo{
+				HostID:                1337,
+				HardwareSerial:        serial,
+				DisplayName:           model,
+				InstalledFromDEP:      true,
+				TeamID:                wantTeamID,
+				DEPAssignedToAutoMDM:  true,
+				SCEPRenewalInProgress: true,
+				Platform:              "darwin",
+			}, nil
+		}
+		ds.CleanSCEPRenewRefsFunc = func(ctx context.Context, hostUUID string) error {
+			require.Equal(t, uuid, hostUUID)
+			return nil
+		}
+		ds.CleanSCEPRenewRefsFuncInvoked = false
+		ds.EnqueueSetupExperienceItemsFuncInvoked = false
+		ds.NewJobFuncInvoked = false
+
+		err := svc.TokenUpdate(
+			&mdm.Request{Context: ctx, EnrollID: &mdm.EnrollID{ID: uuid}},
+			&mdm.TokenUpdate{
+				TokenUpdateEnrollment: mdm.TokenUpdateEnrollment{
+					Enrollment: mdm.Enrollment{UDID: uuid},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.True(t, ds.CleanSCEPRenewRefsFuncInvoked)
+		require.False(t, ds.EnqueueSetupExperienceItemsFuncInvoked)
+		require.False(t, ds.NewJobFuncInvoked)
+		require.False(t, newActivityFuncInvoked)
+	})
+}
+
+// decodeSignedEnrollmentProfile parses a PKCS7-signed enrollment profile and
+// returns the inner raw mobileconfig bytes for content assertions.
+func decodeSignedEnrollmentProfile(t *testing.T, signed []byte) []byte {
+	t.Helper()
+	p7, err := pkcs7.Parse(signed)
+	require.NoError(t, err, "parsing PKCS7 signed profile")
+	require.NoError(t, p7.Verify(), "verifying PKCS7 signature")
+	require.NotEmpty(t, p7.Content, "PKCS7 content should not be empty")
+	return p7.Content
+}
+
+// assertSCEPProfile checks that the decoded mobileconfig XML contains a SCEP
+// payload (com.apple.security.scep) and does not contain an ACME payload.
+func assertSCEPProfile(t *testing.T, content []byte) {
+	t.Helper()
+	require.Contains(t, string(content), "com.apple.security.scep", "expected SCEP payload type in profile")
+	require.NotContains(t, string(content), "com.apple.security.acme", "SCEP profile must not contain an ACME payload")
+}
+
+// assertACMEProfile checks that the decoded mobileconfig XML contains an ACME
+// payload (com.apple.security.acme) and does not contain a SCEP payload.
+func assertACMEProfile(t *testing.T, content []byte, deviceSerial string) {
+	t.Helper()
+	require.Contains(t, string(content), "com.apple.security.acme", "expected ACME payload type in profile")
+	require.NotContains(t, string(content), "com.apple.security.scep", "ACME profile must not contain a SCEP payload")
+	require.Contains(t, string(content), deviceSerial, "ACME profile should embed the device serial as ClientIdentifier")
+}
+
+func TestAuthenticateMDMAppleDEPEnrollment(t *testing.T) {
+	svc, ctx, ds, opts := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	machineInfo := &automdm.MDMAppleMachineInfo{Serial: "DEPSERIAL", UDID: "dep-udid", Product: "Mac15,7"}
+	const idpAccountUUID = "idp-account-uuid"
+
+	validToken := func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+		if token != "valid-token" {
+			return nil, newNotFoundError()
+		}
+		return &automdm.MDMAppleEnrollmentProfile{ID: 1, Token: token, Type: automdm.MDMAppleEnrollmentTypeAutomatic}, nil
+	}
+	validChallenge := func(ctx context.Context, challenge string) (*automdm.MDMAppleDEPEnrollmentChallenge, error) {
+		if challenge != "valid-challenge" {
+			return nil, newNotFoundError()
+		}
+		return &automdm.MDMAppleDEPEnrollmentChallenge{
+			ID:             1,
+			IdPAccountUUID: idpAccountUUID,
+			HardwareSerial: machineInfo.Serial,
+			HostUUID:       machineInfo.UDID,
+		}, nil
+	}
+	const abmTokenID, euaTeamID, otherTeamID = uint(5), uint(10), uint(20)
+	assigned := func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+		return []*automdm.HostDEPAssignment{{HostID: 1, ABMTokenID: new(abmTokenID)}}, nil
+	}
+	var hostTeamID *uint
+	var rejections []automdm.ActivityTypeHostEnrollmentRejected
+	resetMocks := func() {
+		ds.GetMDMAppleEnrollmentProfileByTokenFunc = validToken
+		ds.GetMDMAppleEnrollmentProfileByTokenFuncInvoked = false
+		ds.ConsumeMDMAppleDEPEnrollmentChallengeFunc = validChallenge
+		ds.ConsumeMDMAppleDEPEnrollmentChallengeFuncInvoked = false
+		ds.GetHostDEPAssignmentsBySerialFunc = assigned
+		ds.GetHostDEPAssignmentsBySerialFuncInvoked = false
+		hostTeamID = new(otherTeamID)
+		ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: id, TeamID: hostTeamID, Platform: "darwin"}, nil
+		}
+		ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) {
+			return []uint{0, euaTeamID}, nil
+		}
+		ds.TeamIDsWithSetupExperienceIdPEnabledFuncInvoked = false
+		rejections = nil
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, a activity_api.ActivityDetails) error {
+			if act, ok := a.(automdm.ActivityTypeHostEnrollmentRejected); ok {
+				rejections = append(rejections, act)
+			}
+			return nil
+		}
+	}
+	requireAuthFailed := func(t *testing.T, err error) {
+		t.Helper()
+		var refusedErr *automdm.AutomaticEnrollmentRefusedError
+		require.ErrorAs(t, err, &refusedErr)
+		require.Equal(t, http.StatusForbidden, refusedErr.StatusCode())
+		require.NotEmpty(t, refusedErr.Internal())
+	}
+
+	t.Run("unknown token fails before any serial lookup", func(t *testing.T) {
+		resetMocks()
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "unknown-token", machineInfo)
+		requireAuthFailed(t, err)
+		require.True(t, ds.ConsumeMDMAppleDEPEnrollmentChallengeFuncInvoked)
+		require.False(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+	})
+
+	t.Run("manual enrollment profile token fails", func(t *testing.T) {
+		resetMocks()
+		ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+			return &automdm.MDMAppleEnrollmentProfile{ID: 2, Token: token, Type: automdm.MDMAppleEnrollmentTypeManual}, nil
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "manual-token", machineInfo)
+		requireAuthFailed(t, err)
+		require.False(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+	})
+
+	t.Run("datastore error looking up the token is returned", func(t *testing.T) {
+		resetMocks()
+		ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+			return nil, errors.New("boom")
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		require.ErrorContains(t, err, "get enrollment profile")
+		require.False(t, ds.ConsumeMDMAppleDEPEnrollmentChallengeFuncInvoked)
+		require.False(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+	})
+
+	t.Run("missing machine info is a bad request before any lookup", func(t *testing.T) {
+		resetMocks()
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", nil)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		require.False(t, ds.GetMDMAppleEnrollmentProfileByTokenFuncInvoked)
+		require.False(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+	})
+
+	t.Run("serial without a live DEP assignment fails", func(t *testing.T) {
+		for _, token := range []string{"valid-token", "valid-challenge"} {
+			resetMocks()
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+				require.Equal(t, machineInfo.Serial, serial)
+				return nil, nil
+			}
+			_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, token, machineInfo)
+			requireAuthFailed(t, err)
+			require.True(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+		}
+	})
+
+	t.Run("datastore error looking up the DEP assignment is returned", func(t *testing.T) {
+		resetMocks()
+		ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+			return nil, errors.New("boom")
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		require.ErrorContains(t, err, "get host dep assignments")
+	})
+
+	t.Run("valid token and DEP-assigned serial succeeds", func(t *testing.T) {
+		resetMocks()
+		gotIdPAccount, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		require.NoError(t, err)
+		require.Empty(t, gotIdPAccount)
+		require.True(t, ds.GetMDMAppleEnrollmentProfileByTokenFuncInvoked)
+		require.False(t, ds.ConsumeMDMAppleDEPEnrollmentChallengeFuncInvoked)
+		require.True(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+	})
+
+	t.Run("valid challenge returns its IdP account", func(t *testing.T) {
+		resetMocks()
+		gotIdPAccount, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-challenge", machineInfo)
+		require.NoError(t, err)
+		require.Equal(t, idpAccountUUID, gotIdPAccount)
+		require.True(t, ds.ConsumeMDMAppleDEPEnrollmentChallengeFuncInvoked)
+		require.True(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+	})
+
+	t.Run("challenge issued to a different device fails", func(t *testing.T) {
+		for _, other := range []*automdm.MDMAppleMachineInfo{
+			{Serial: "OTHERSERIAL", UDID: machineInfo.UDID},
+			{Serial: machineInfo.Serial, UDID: "other-udid"},
+		} {
+			resetMocks()
+			_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-challenge", other)
+			requireAuthFailed(t, err)
+			require.True(t, ds.ConsumeMDMAppleDEPEnrollmentChallengeFuncInvoked)
+			require.False(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+		}
+	})
+
+	t.Run("static token refused for a host in a team with end user authentication", func(t *testing.T) {
+		for _, teamID := range []*uint{new(euaTeamID), nil} {
+			resetMocks()
+			hostTeamID = teamID
+			_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+			requireAuthFailed(t, err)
+			require.Equal(t, []automdm.ActivityTypeHostEnrollmentRejected{{
+				HostID:          new(uint(1)),
+				HostSerial:      machineInfo.Serial,
+				HostUUID:        machineInfo.UDID,
+				Platform:        "darwin",
+				EnrollmentPlane: "apple_mdm",
+				Reason:          "end_user_authentication_required",
+			}}, rejections)
+		}
+	})
+
+	t.Run("one-time challenge accepted for a host in a team with end user authentication", func(t *testing.T) {
+		resetMocks()
+		hostTeamID = new(euaTeamID)
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-challenge", machineInfo)
+		require.NoError(t, err)
+		require.False(t, ds.TeamIDsWithSetupExperienceIdPEnabledFuncInvoked)
+		require.Empty(t, rejections)
+	})
+
+	t.Run("refusals before the team check record no activity", func(t *testing.T) {
+		resetMocks()
+		hostTeamID = new(euaTeamID)
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "unknown-token", machineInfo)
+		requireAuthFailed(t, err)
+		ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+			return nil, nil
+		}
+		_, err = svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		requireAuthFailed(t, err)
+		require.False(t, ds.TeamIDsWithSetupExperienceIdPEnabledFuncInvoked)
+		require.Empty(t, rejections)
+	})
+
+	t.Run("without a host, the AB token's default team for the platform decides", func(t *testing.T) {
+		for _, tc := range []struct {
+			product string
+			tok     automdm.ABMToken
+		}{
+			{"Mac15,7", automdm.ABMToken{MacOSDefaultTeamID: new(euaTeamID), IOSDefaultTeamID: new(otherTeamID), IPadOSDefaultTeamID: new(otherTeamID)}},
+			{"iPhone15,2", automdm.ABMToken{MacOSDefaultTeamID: new(otherTeamID), IOSDefaultTeamID: new(euaTeamID), IPadOSDefaultTeamID: new(otherTeamID)}},
+			{"iPad13,1", automdm.ABMToken{MacOSDefaultTeamID: new(otherTeamID), IOSDefaultTeamID: new(otherTeamID), IPadOSDefaultTeamID: new(euaTeamID)}},
+			{"iPad13,1", automdm.ABMToken{MacOSDefaultTeamID: new(otherTeamID), IOSDefaultTeamID: new(otherTeamID)}}, // "No team"
+		} {
+			resetMocks()
+			ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return nil, newNotFoundError()
+			}
+			ds.GetABMTokenByIDFunc = func(ctx context.Context, id uint) (*automdm.ABMToken, error) {
+				require.Equal(t, abmTokenID, id)
+				return &tc.tok, nil
+			}
+			mi := *machineInfo
+			mi.Product = tc.product
+			_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", &mi)
+			requireAuthFailed(t, err)
+			require.Len(t, rejections, 1, tc.product)
+			require.Nil(t, rejections[0].HostID)
+			require.Equal(t, platformFromAppleProduct(tc.product), rejections[0].Platform)
+		}
+
+		resetMocks()
+		ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return nil, newNotFoundError()
+		}
+		ds.GetABMTokenByIDFunc = func(ctx context.Context, id uint) (*automdm.ABMToken, error) {
+			return &automdm.ABMToken{MacOSDefaultTeamID: new(otherTeamID)}, nil
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		require.NoError(t, err)
+		require.Empty(t, rejections)
+	})
+
+	t.Run("duplicate hosts refuse the static token if any of their teams requires end user authentication", func(t *testing.T) {
+		hostTeams := map[uint]*uint{1: new(otherTeamID), 2: new(euaTeamID), 3: new(euaTeamID), 4: new(euaTeamID)}
+		hostUUIDs := map[uint]string{1: machineInfo.UDID, 2: "other-udid", 3: machineInfo.UDID, 4: "another-udid"}
+		for _, tc := range []struct {
+			name       string
+			hostIDs    []uint
+			wantHostID uint
+		}{
+			{"EUA host listed second", []uint{1, 2}, 2},
+			{"EUA host listed first", []uint{2, 1}, 2},
+			{"host matching the device's UDID wins", []uint{2, 3}, 3},
+			{"host matching the device's UDID wins in any order", []uint{3, 2}, 3},
+			{"lowest host ID wins without a UDID match", []uint{4, 2}, 2},
+		} {
+			resetMocks()
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+				var res []*automdm.HostDEPAssignment
+				for _, id := range tc.hostIDs {
+					res = append(res, &automdm.HostDEPAssignment{HostID: id, ABMTokenID: new(abmTokenID)})
+				}
+				return res, nil
+			}
+			ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{ID: id, UUID: hostUUIDs[id], TeamID: hostTeams[id], Platform: "darwin"}, nil
+			}
+			_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+			requireAuthFailed(t, err)
+			require.Len(t, rejections, 1, tc.name)
+			require.Equal(t, tc.wantHostID, *rejections[0].HostID, tc.name)
+		}
+	})
+
+	t.Run("without a host, any AB token's default team requiring end user authentication refuses the static token", func(t *testing.T) {
+		resetMocks()
+		ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+			return []*automdm.HostDEPAssignment{{HostID: 1, ABMTokenID: new(uint(1))}, {HostID: 2, ABMTokenID: new(uint(2))}}, nil
+		}
+		ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return nil, newNotFoundError()
+		}
+		ds.GetABMTokenByIDFunc = func(ctx context.Context, id uint) (*automdm.ABMToken, error) {
+			if id == 1 {
+				return &automdm.ABMToken{MacOSDefaultTeamID: new(otherTeamID)}, nil
+			}
+			return &automdm.ABMToken{MacOSDefaultTeamID: new(euaTeamID)}, nil
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		requireAuthFailed(t, err)
+		require.Len(t, rejections, 1)
+		require.Nil(t, rejections[0].HostID)
+	})
+
+	t.Run("no team requiring end user authentication skips the host lookup", func(t *testing.T) {
+		resetMocks()
+		ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) {
+			return nil, nil
+		}
+		ds.HostLiteFuncInvoked = false
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		require.NoError(t, err)
+		require.False(t, ds.HostLiteFuncInvoked)
+		require.Empty(t, rejections)
+	})
+
+	t.Run("datastore error reading teams with end user authentication is returned", func(t *testing.T) {
+		resetMocks()
+		ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) {
+			return nil, errors.New("boom")
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-token", machineInfo)
+		require.ErrorContains(t, err, "get teams that require end user authentication")
+		var authErr *automdm.AuthFailedError
+		require.NotErrorAs(t, err, &authErr)
+	})
+
+	t.Run("datastore error consuming the challenge is returned", func(t *testing.T) {
+		resetMocks()
+		ds.ConsumeMDMAppleDEPEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*automdm.MDMAppleDEPEnrollmentChallenge, error) {
+			return nil, errors.New("boom")
+		}
+		_, err := svc.AuthenticateMDMAppleDEPEnrollment(ctx, "valid-challenge", machineInfo)
+		require.ErrorContains(t, err, "consume automatic enrollment challenge")
+		var authErr *automdm.AuthFailedError
+		require.NotErrorAs(t, err, &authErr)
+	})
+}
+
+func TestMDMAppleEnrollEndpointAuthenticatesBeforeProcessing(t *testing.T) {
+	ctx := t.Context()
+	machineInfo := &automdm.MDMAppleMachineInfo{Serial: "DEPSERIAL", UDID: "dep-udid"}
+
+	newSvc := func(idpAccountUUID string, authErr error) *svcmock.Service {
+		svc := &svcmock.Service{}
+		svc.AuthenticateMDMAppleDEPEnrollmentFunc = func(ctx context.Context, token string, mi *automdm.MDMAppleMachineInfo) (string, error) {
+			require.True(t, ctxdb.IsPrimaryRequired(ctx))
+			return idpAccountUUID, authErr
+		}
+		svc.CheckMDMAppleEnrollmentWithMinimumOSVersionFunc = func(ctx context.Context, m *automdm.MDMAppleMachineInfo) (*automdm.MDMAppleSoftwareUpdateRequired, error) {
+			return nil, nil
+		}
+		svc.ReconcileMDMAppleEnrollRefFunc = func(ctx context.Context, enrollRef string, mi *automdm.MDMAppleMachineInfo) (string, error) {
+			require.Equal(t, idpAccountUUID, enrollRef)
+			return "", nil
+		}
+		svc.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string, ref string, mi *automdm.MDMAppleMachineInfo) ([]byte, error) {
+			return []byte("profile"), nil
+		}
+		return svc
+	}
+
+	t.Run("authentication failure stops all further processing", func(t *testing.T) {
+		authErr := automdm.NewAuthFailedError("nope")
+		svc := newSvc("", authErr)
+		resp, err := mdmAppleEnrollEndpoint(ctx, &mdmAppleEnrollRequest{Token: "bad", MachineInfo: machineInfo}, svc)
+		require.NoError(t, err)
+		require.ErrorIs(t, resp.Error(), authErr)
+		require.True(t, svc.AuthenticateMDMAppleDEPEnrollmentFuncInvoked)
+		require.False(t, svc.CheckMDMAppleEnrollmentWithMinimumOSVersionFuncInvoked)
+		require.False(t, svc.ReconcileMDMAppleEnrollRefFuncInvoked)
+		require.False(t, svc.GetMDMAppleEnrollmentProfileByTokenFuncInvoked)
+	})
+
+	t.Run("authenticated request is fully processed", func(t *testing.T) {
+		svc := newSvc("", nil)
+		resp, err := mdmAppleEnrollEndpoint(ctx, &mdmAppleEnrollRequest{Token: "good", MachineInfo: machineInfo}, svc)
+		require.NoError(t, err)
+		require.NoError(t, resp.Error())
+		require.True(t, svc.CheckMDMAppleEnrollmentWithMinimumOSVersionFuncInvoked)
+		require.True(t, svc.ReconcileMDMAppleEnrollRefFuncInvoked)
+		require.True(t, svc.GetMDMAppleEnrollmentProfileByTokenFuncInvoked)
+		require.Equal(t, []byte("profile"), resp.(mdmAppleEnrollResponse).Profile)
+	})
+
+	t.Run("device is linked to the IdP account the challenge was issued for", func(t *testing.T) {
+		svc := newSvc("authenticated-account", nil)
+		resp, err := mdmAppleEnrollEndpoint(ctx, &mdmAppleEnrollRequest{
+			Token:       "challenge",
+			DeviceInfo:  "di",
+			MachineInfo: machineInfo,
+		}, svc)
+		require.NoError(t, err)
+		require.NoError(t, resp.Error())
+		require.True(t, svc.ReconcileMDMAppleEnrollRefFuncInvoked)
+	})
+}
+
+func TestRotateMDMAppleAutomaticEnrollmentToken(t *testing.T) {
+	adminCtx := func(ctx context.Context) context.Context {
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+	}
+
+	t.Run("free license", func(t *testing.T) {
+		svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+		_, err := svc.RotateMDMAppleAutomaticEnrollmentToken(adminCtx(ctx), nil)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+		require.False(t, ds.RotateMDMAppleAutomaticEnrollmentTokenFuncInvoked)
+	})
+
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ctx = adminCtx(ctx)
+	expiresAt := time.Now().Add(time.Hour)
+	var gotGracePeriod time.Duration
+	var gotToken, gotJobName, gotJobTask string
+	ds.RotateMDMAppleAutomaticEnrollmentTokenFunc = func(ctx context.Context, newToken string, gracePeriod time.Duration, job *automdm.Job) (*time.Time, error) {
+		gotToken, gotGracePeriod = newToken, gracePeriod
+		var args struct {
+			Task string `json:"task"`
+		}
+		require.NoError(t, json.Unmarshal(*job.Args, &args))
+		gotJobName, gotJobTask = job.Name, args.Task
+		return &expiresAt, nil
+	}
+
+	t.Run("grace period out of range", func(t *testing.T) {
+		for _, hours := range []int{-1, automdm.MaxAutomaticEnrollmentTokenGracePeriodHours + 1} {
+			ds.RotateMDMAppleAutomaticEnrollmentTokenFuncInvoked = false
+			_, err := svc.RotateMDMAppleAutomaticEnrollmentToken(ctx, &hours)
+			var invalid *automdm.InvalidArgumentError
+			require.ErrorAs(t, err, &invalid)
+			require.False(t, ds.RotateMDMAppleAutomaticEnrollmentTokenFuncInvoked)
+		}
+	})
+
+	t.Run("defaults to 24 hours and re-registers the profiles in the same transaction", func(t *testing.T) {
+		got, err := svc.RotateMDMAppleAutomaticEnrollmentToken(ctx, nil)
+		require.NoError(t, err)
+		require.Equal(t, &expiresAt, got)
+		require.Equal(t, 24*time.Hour, gotGracePeriod)
+		require.NotEmpty(t, gotToken)
+		require.Equal(t, "macos_setup_assistant", gotJobName)
+		require.Equal(t, "update_all_profiles", gotJobTask)
+		require.False(t, ds.NewJobFuncInvoked, "the job must not be queued outside the rotation transaction")
+	})
+
+	t.Run("explicit grace period", func(t *testing.T) {
+		firstToken := gotToken
+		_, err := svc.RotateMDMAppleAutomaticEnrollmentToken(ctx, new(0))
+		require.NoError(t, err)
+		require.Zero(t, gotGracePeriod)
+		require.NotEqual(t, firstToken, gotToken)
+	})
+
+	t.Run("no automatic enrollment profile", func(t *testing.T) {
+		ds.RotateMDMAppleAutomaticEnrollmentTokenFunc = func(ctx context.Context, newToken string, gracePeriod time.Duration, job *automdm.Job) (*time.Time, error) {
+			return nil, newNotFoundError()
+		}
+		_, err := svc.RotateMDMAppleAutomaticEnrollmentToken(ctx, nil)
+		require.True(t, automdm.IsNotFound(err))
+		require.False(t, ds.NewJobFuncInvoked)
+	})
+}
+
+func TestInitiateMDMSSOEndpointDeviceInfo(t *testing.T) {
+	ctx := t.Context()
+
+	newSvc := func(t *testing.T, wantDeviceInfo *automdm.MDMAppleMachineInfo) *svcmock.Service {
+		svc := &svcmock.Service{}
+		svc.InitiateMDMSSOFunc = func(ctx context.Context, initiator, customOriginalURL, hostUUID string, deviceInfo *automdm.MDMAppleMachineInfo) (string, int, string, error) {
+			if wantDeviceInfo == nil {
+				require.Nil(t, deviceInfo)
+			} else {
+				require.NotNil(t, deviceInfo)
+				require.Equal(t, wantDeviceInfo.Serial, deviceInfo.Serial)
+				require.Equal(t, wantDeviceInfo.UDID, deviceInfo.UDID)
+			}
+			return "session", 60, "https://idp.example.com", nil
+		}
+		svc.SkipAuthFunc = func(ctx context.Context) {}
+		return svc
+	}
+
+	mi := automdm.MDMAppleMachineInfo{Serial: "SERIAL1", UDID: "udid-1"}
+	di, err := mdmtest.EncodeDeviceInfo(mi)
+	require.NoError(t, err)
+
+	t.Run("mdm_sso requires deviceinfo", func(t *testing.T) {
+		svc := newSvc(t, nil)
+		for _, badDI := range []string{"", "not-deviceinfo"} {
+			resp, err := initiateMDMSSOEndpoint(ctx, &initiateMDMSSORequest{Initiator: automdm.SSOInitiatorAppleMDMSSO, DeviceInfo: badDI}, svc)
+			require.NoError(t, err)
+			var badReq *automdm.BadRequestError
+			require.ErrorAs(t, resp.Error(), &badReq)
+		}
+		require.False(t, svc.InitiateMDMSSOFuncInvoked)
+		require.True(t, svc.SkipAuthFuncInvoked)
+	})
+
+	t.Run("mdm_sso rejects unverifiable deviceinfo when verification is enforced", func(t *testing.T) {
+		apple_mdm.SetMachineInfoVerificationForTest(t, true)
+		svc := newSvc(t, nil)
+		resp, err := initiateMDMSSOEndpoint(ctx, &initiateMDMSSORequest{Initiator: automdm.SSOInitiatorAppleMDMSSO, DeviceInfo: di}, svc)
+		require.NoError(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, resp.Error(), &badReq)
+		require.False(t, svc.InitiateMDMSSOFuncInvoked)
+	})
+
+	t.Run("mdm_sso passes the parsed deviceinfo", func(t *testing.T) {
+		apple_mdm.SetMachineInfoVerificationForTest(t, false)
+		svc := newSvc(t, &mi)
+		resp, err := initiateMDMSSOEndpoint(ctx, &initiateMDMSSORequest{Initiator: automdm.SSOInitiatorAppleMDMSSO, DeviceInfo: di}, svc)
+		require.NoError(t, err)
+		require.NoError(t, resp.Error())
+		require.True(t, svc.InitiateMDMSSOFuncInvoked)
+	})
+
+	t.Run("other initiators ignore deviceinfo", func(t *testing.T) {
+		for _, initiator := range []string{"", automdm.SSOInitiatorOrbitSetupExperience, automdm.SSOInitiatorAccountDrivenEnroll} {
+			svc := newSvc(t, nil)
+			resp, err := initiateMDMSSOEndpoint(ctx, &initiateMDMSSORequest{Initiator: initiator, DeviceInfo: "not-deviceinfo"}, svc)
+			require.NoError(t, err)
+			require.NoError(t, resp.Error())
+			require.True(t, svc.InitiateMDMSSOFuncInvoked)
+		}
+	})
+}
+
+func TestGetMDMAppleEnrollmentProfileByToken(t *testing.T) {
+	svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+
+	// Extend the existing asset mock to also include the SCEP challenge needed
+	// by generateMDMAppleSCEPEnrollProfile.
+	apnsCert, apnsKey, err := mysqltest.GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
+	require.NoError(t, err)
+	crt, key, err := apple_mdm.NewSCEPCACertKey()
+	require.NoError(t, err)
+	certPEM := tokenpki.PEMCertificate(crt.Raw)
+	keyPEM := tokenpki.PEMRSAPrivateKey(key)
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetAPNSCert:      {Value: apnsCert},
+			automdm.MDMAssetAPNSKey:       {Value: apnsKey},
+			automdm.MDMAssetCACert:        {Value: certPEM},
+			automdm.MDMAssetCAKey:         {Value: keyPEM},
+			automdm.MDMAssetSCEPChallenge: {Value: []byte("test-scep-challenge")},
+		}, nil
+	}
+
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+			MDM:            automdm.MDM{EnabledAndConfigured: true, AppleRequireHardwareAttestation: true},
+		}, nil
+	}
+
+	foundProfileFunc := func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+		require.Equal(t, "valid-token", token)
+		return &automdm.MDMAppleEnrollmentProfile{
+			ID:    1,
+			Token: "valid-token",
+			Type:  automdm.MDMAppleEnrollmentTypeAutomatic,
+			// other fields are not relevant for this test
+		}, nil
+	}
+	ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+
+	t.Run("happy path", func(t *testing.T) {
+		ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+
+		testDevices := []struct {
+			name       string
+			mi         automdm.MDMAppleMachineInfo
+			expectACME bool // if true, the profile should contain an ACME payload when hardware attestation is required; if false, it should contain a SCEP payload
+		}{
+			{
+				name: "Apple Silicon Mac", mi: automdm.MDMAppleMachineInfo{
+					Product:   "MacBookPro18,3", // major 18 >= threshold of 17 → Apple Silicon
+					Serial:    "MACSILSERIAL",
+					UDID:      "mac-sil-udid",
+					OSVersion: "15.0", // macOS 15 >= 14 → eligible for ACME
+				},
+				expectACME: true,
+			},
+			{
+				// macOS < 14 disqualifies ACME even for Apple Silicon with DEP enrollment
+				name: "Apple Silicon Mac macOS 13", mi: automdm.MDMAppleMachineInfo{
+					Product:   "MacBookPro18,3", // Apple Silicon
+					Serial:    "MACSILSERIAL13",
+					UDID:      "mac-sil-13-udid",
+					OSVersion: "13.6.0", // macOS 13 < 14 → SCEP regardless of DEP assignment
+				},
+				expectACME: false,
+			},
+			{
+				// missing serial (account-driven user enrollment) disqualifies ACME regardless of device or DEP assignment
+				name: "Apple Silicon Mac without serial", mi: automdm.MDMAppleMachineInfo{
+					Product:   "MacBookPro18,3", // Apple Silicon
+					Serial:    "",               // no serial → SCEP without error
+					UDID:      "mac-sil-noserial-udid",
+					OSVersion: "15.0",
+				},
+				expectACME: false,
+			},
+			{
+				name: "Intel Mac",
+				mi: automdm.MDMAppleMachineInfo{
+					Product: "MacBookPro16,1", // major 16 < threshold of 17 → Intel
+					Serial:  "INTELSERIAL",
+					UDID:    "intel-udid",
+				},
+				expectACME: false,
+			},
+			{
+				name: "iPhone 16.0",
+				mi: automdm.MDMAppleMachineInfo{
+					Product:   "iPhone14,3",
+					Serial:    "IPHONESERIAL",
+					UDID:      "iphone-udid",
+					OSVersion: "16.0",
+				},
+				expectACME: true,
+			},
+			{
+				name: "iPhone < 16.0 does not require ACME",
+				mi: automdm.MDMAppleMachineInfo{
+					Product:   "iPhone14,3",
+					Serial:    "IPHONESERIAL",
+					UDID:      "iphone-udid",
+					OSVersion: "15.0",
+				},
+				expectACME: false,
+			},
+			{
+				name: "iPad 16.1",
+				mi: automdm.MDMAppleMachineInfo{
+					Product:   "iPad10,1",
+					Serial:    "IPADSERIAL",
+					UDID:      "ipad-udid",
+					OSVersion: "16.1",
+				},
+				expectACME: true,
+			},
+			{
+				name: "iPad < 16.1 does not require ACME",
+				mi: automdm.MDMAppleMachineInfo{
+					Product:   "iPad10,1",
+					Serial:    "IPADSERIAL",
+					UDID:      "ipad-udid",
+					OSVersion: "16.0",
+				},
+				expectACME: false,
+			},
+		}
+
+		t.Run("hardware attestation enabled", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+					MDM:            automdm.MDM{EnabledAndConfigured: true, AppleRequireHardwareAttestation: true},
+				}, nil
+			}
+			for _, device := range testDevices {
+				t.Run(device.name, func(t *testing.T) {
+					t.Run(fmt.Sprintf("not DEP assigned requires ACME %t", device.expectACME), func(t *testing.T) {
+						ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+							return []*automdm.HostDEPAssignment{}, nil
+						}
+						profile, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &device.mi)
+						require.NoError(t, err)
+						// always expect SCEP if not DEP assigned, even for Apple Silicon, since we currently limit ACME to DEP enrollment
+						assertSCEPProfile(t, decodeSignedEnrollmentProfile(t, profile))
+					})
+					t.Run(fmt.Sprintf("DEP assigned requires ACME %t", device.expectACME), func(t *testing.T) {
+						ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+							return []*automdm.HostDEPAssignment{{HostID: 1}}, nil
+						}
+						profile, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &device.mi)
+						require.NoError(t, err)
+						if device.expectACME {
+							assertACMEProfile(t, decodeSignedEnrollmentProfile(t, profile), device.mi.Serial)
+						} else {
+							assertSCEPProfile(t, decodeSignedEnrollmentProfile(t, profile))
+						}
+					})
+				})
+			}
+		})
+
+		t.Run("hardware attestation disabled", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+					MDM:            automdm.MDM{EnabledAndConfigured: true},
+				}, nil
+			}
+			for _, device := range testDevices {
+				t.Run(device.name, func(t *testing.T) {
+					profile, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &device.mi)
+					require.NoError(t, err)
+					// always expect SCEP if hardware attestation is disabled; DEP assignment and Apple Silicon do not matter in this case
+					assertSCEPProfile(t, decodeSignedEnrollmentProfile(t, profile))
+				})
+			}
+		})
+	})
+
+	t.Run("AB only enrollment", func(t *testing.T) {
+		depAssignedMI := automdm.MDMAppleMachineInfo{
+			Product:   "MacBookPro18,3", // Apple Silicon
+			Serial:    "ABONLYSERIAL",
+			UDID:      "ab-only-udid",
+			OSVersion: "13.6.0", // < 14 so ACME is never required, isolating the AB-only/SCEP-block behavior
+		}
+
+		t.Run("device without a serial is forbidden", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+					MDM:            automdm.MDM{EnabledAndConfigured: true, OnlyAllowAppleBusinessEnrollment: true},
+				}, nil
+			}
+			// DEP assignments are always fetched regardless of AB-only, so return none for
+			// the empty serial -- the missing serial alone must still be forbidden.
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+				return []*automdm.HostDEPAssignment{}, nil
+			}
+			noSerialMI := depAssignedMI
+			noSerialMI.Serial = ""
+
+			_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &noSerialMI)
+			var abErr *automdm.ABOnlyEnrollmentForbiddenError
+			require.ErrorAs(t, err, &abErr)
+		})
+
+		t.Run("device not DEP assigned is forbidden", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+					MDM:            automdm.MDM{EnabledAndConfigured: true, OnlyAllowAppleBusinessEnrollment: true},
+				}, nil
+			}
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+				return []*automdm.HostDEPAssignment{}, nil
+			}
+
+			_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &depAssignedMI)
+			var abErr *automdm.ABOnlyEnrollmentForbiddenError
+			require.ErrorAs(t, err, &abErr)
+		})
+
+		t.Run("DEP assigned device without hardware attestation gets SCEP", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+					MDM:            automdm.MDM{EnabledAndConfigured: true, OnlyAllowAppleBusinessEnrollment: true},
+				}, nil
+			}
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+				return []*automdm.HostDEPAssignment{{HostID: 1}}, nil
+			}
+
+			profile, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &depAssignedMI)
+			require.NoError(t, err)
+			assertSCEPProfile(t, decodeSignedEnrollmentProfile(t, profile))
+		})
+
+		t.Run("DEP assigned device that falls through to SCEP is blocked when hardware attestation is also required", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+					MDM: automdm.MDM{
+						EnabledAndConfigured:             true,
+						OnlyAllowAppleBusinessEnrollment: true,
+						AppleRequireHardwareAttestation:  true,
+					},
+				}, nil
+			}
+			ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+				return []*automdm.HostDEPAssignment{{HostID: 1}}, nil
+			}
+
+			// depAssignedMI is on macOS 13, so isMDMAppleACMERequired returns false and the
+			// code falls through to the SCEP branch -- with both AB-only and hardware
+			// attestation configured, that fallback must be blocked rather than silently
+			// issuing a SCEP profile.
+			_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &depAssignedMI)
+			var abErr *automdm.ABOnlyEnrollmentForbiddenError
+			require.ErrorAs(t, err, &abErr)
+		})
+	})
+
+	t.Run("miscellaneous error handling", func(t *testing.T) {
+		// For these tests we can just use a single device type since we're not asserting on the
+		// profile content, just that errors are handled and returned properly.
+		machineInfo := automdm.MDMAppleMachineInfo{
+			Product:   "MacBookPro18,3",
+			Serial:    "MACSILSERIAL",
+			UDID:      "mac-sil-udid",
+			OSVersion: "15.0", // macOS 15 >= 14 so that the OSVersion check in isMDMAppleACMERequired passes through to the DEP check
+		}
+
+		t.Run("AppConfig error returns error", func(t *testing.T) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return nil, errors.New("some unexpected error")
+			}
+			_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &machineInfo)
+			require.Error(t, err)
+		})
+
+		// now test the various error cases for both hardware attestation enabled and disabled, since that changes the logic flow and we want to ensure all cases are covered
+		for _, hardwareAttestationRequired := range []bool{true, false} {
+			t.Run(fmt.Sprintf("hardware attestation required %t", hardwareAttestationRequired), func(t *testing.T) {
+				ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						OrgInfo:        automdm.OrgInfo{OrgName: "Foo Inc."},
+						ServerSettings: automdm.ServerSettings{ServerURL: "https://foo.example.com"},
+						MDM:            automdm.MDM{EnabledAndConfigured: true, AppleRequireHardwareAttestation: hardwareAttestationRequired},
+					}, nil
+				}
+				t.Run("nil machineInfo returns error", func(t *testing.T) {
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "some-token", "", nil)
+					require.Error(t, err)
+					require.Contains(t, err.Error(), "missing machine info")
+				})
+				t.Run("token not found returns auth failed error", func(t *testing.T) {
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+						return nil, newNotFoundError()
+					}
+					ds.GetMDMAppleDEPEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*automdm.MDMAppleDEPEnrollmentChallenge, error) {
+						return nil, newNotFoundError()
+					}
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "unknown-token", "", &machineInfo)
+					require.Error(t, err)
+					var authErr *automdm.AuthFailedError
+					require.ErrorAs(t, err, &authErr)
+					// restore the happy path for subsequent tests
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+				})
+				t.Run("one-time challenge must have been issued to the device", func(t *testing.T) {
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+						return nil, newNotFoundError()
+					}
+					usedAt := time.Now()
+					expiresAt := time.Now().Add(time.Hour)
+					for _, chal := range []automdm.MDMAppleDEPEnrollmentChallenge{
+						{HardwareSerial: "OTHERSERIAL", HostUUID: machineInfo.UDID, UsedAt: &usedAt, ExpiresAt: expiresAt},
+						{HardwareSerial: machineInfo.Serial, HostUUID: machineInfo.UDID, ExpiresAt: expiresAt},
+						{HardwareSerial: machineInfo.Serial, HostUUID: machineInfo.UDID, UsedAt: &usedAt, ExpiresAt: time.Now().Add(-time.Second)},
+					} {
+						ds.GetMDMAppleDEPEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*automdm.MDMAppleDEPEnrollmentChallenge, error) {
+							return &chal, nil
+						}
+						_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "challenge", "", &machineInfo)
+						var authErr *automdm.AuthFailedError
+						require.ErrorAs(t, err, &authErr)
+					}
+
+					ds.GetMDMAppleDEPEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*automdm.MDMAppleDEPEnrollmentChallenge, error) {
+						return &automdm.MDMAppleDEPEnrollmentChallenge{HardwareSerial: machineInfo.Serial, HostUUID: machineInfo.UDID, UsedAt: &usedAt, ExpiresAt: expiresAt}, nil
+					}
+					ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+						return nil, nil
+					}
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "challenge", "", &machineInfo)
+					require.NoError(t, err)
+					// restore the happy path for subsequent tests
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+				})
+				t.Run("manual enrollment profile token returns auth failed error", func(t *testing.T) {
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+						return &automdm.MDMAppleEnrollmentProfile{ID: 2, Token: token, Type: automdm.MDMAppleEnrollmentTypeManual}, nil
+					}
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "manual-token", "", &machineInfo)
+					var authErr *automdm.AuthFailedError
+					require.ErrorAs(t, err, &authErr)
+					// restore the happy path for subsequent tests
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+				})
+				t.Run("datastore error returns wrapped error", func(t *testing.T) {
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = func(ctx context.Context, token string) (*automdm.MDMAppleEnrollmentProfile, error) {
+						return nil, errors.New("some unexpected error")
+					}
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &machineInfo)
+					require.Error(t, err)
+					require.Contains(t, err.Error(), "get enrollment profile")
+					// restore the happy path for subsequent tests
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+				})
+
+				t.Run("error fetching DEP assignments returns error", func(t *testing.T) {
+					ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+						return nil, errors.New("some unexpected error")
+					}
+					ds.GetHostDEPAssignmentsBySerialFuncInvoked = false // reset invocation flag
+
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &machineInfo)
+
+					// DEP assignment is always fetched.
+					require.True(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+					require.Error(t, err)
+					require.Contains(t, err.Error(), "getting DEP assignments by serial")
+				})
+
+				t.Run("invalid OS version for Apple Silicon Mac returns error", func(t *testing.T) {
+					// restore foundProfileFunc in case a previous sub-test left a different func
+					ds.GetMDMAppleEnrollmentProfileByTokenFunc = foundProfileFunc
+					ds.GetHostDEPAssignmentsBySerialFuncInvoked = false // reset invocation flag
+					ds.GetHostDEPAssignmentsBySerialFunc = func(ctx context.Context, serial string) ([]*automdm.HostDEPAssignment, error) {
+						return nil, nil
+					}
+					invalidOSMI := automdm.MDMAppleMachineInfo{
+						Product:   "MacBookPro18,3", // Apple Silicon — reaches the OSVersion check
+						Serial:    "MACSILSERIAL",
+						UDID:      "mac-sil-udid",
+						OSVersion: "not-a-valid-version",
+					}
+					_, err := svc.GetMDMAppleEnrollmentProfileByToken(ctx, "valid-token", "", &invalidOSMI)
+					if hardwareAttestationRequired {
+						// isMDMAppleACMERequired is called and fails at the OSVersion check — DEP check is always reached as it is outside and also used for AB only.
+						require.True(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+						require.Error(t, err)
+						require.Contains(t, err.Error(), "checking if device is less than macOS 14")
+					} else {
+						// isMDMAppleACMERequired is never called, so OSVersion is irrelevant — SCEP is always returned
+						require.True(t, ds.GetHostDEPAssignmentsBySerialFuncInvoked)
+						require.NoError(t, err)
+					}
+				})
+			})
+		}
+	})
+}
+
+func TestGetDefaultMDMAppleSetupAssistantProfileFreeLicense(t *testing.T) {
+	svc, ctx, _, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierFree})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+	_, _, err := svc.GetDefaultMDMAppleSetupAssistantProfile(ctx)
+	assert.ErrorIs(t, err, automdm.ErrMissingLicense)
+}
+
+func activationBytesForTest(identifier, standardConfiguration string) []byte {
+	return []byte(fmt.Sprintf(`{
+		"Type": "com.apple.activation.simple",
+		"Identifier": %q,
+		"Payload": {
+			"StandardConfigurations": [%q],
+			"Predicate": "@status(os.version.major) >= 15"
+		}
+	}`, identifier, standardConfiguration))
+}
+
+func TestNewMDMAppleDeclarationWithActivation(t *testing.T) {
+	setup := func(t *testing.T, tier string) (automdm.Service, context.Context) {
+		svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: tier})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+		ds.NewMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleDeclaration, error) {
+			return d, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+		return svc, ctx
+	}
+
+	decl := declBytesForTest("D1", "d1content")
+	const declIdentifier = "com.fleet.configD1"
+
+	t.Run("valid activation is accepted", func(t *testing.T) {
+		svc, ctx := setup(t, automdm.TierPremium)
+		activation := activationBytesForTest("com.fleet.actD1", declIdentifier)
+
+		d, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, activation, "", false, false)
+		require.NoError(t, err)
+		require.NotNil(t, d)
+
+		require.NotNil(t, d.Activation)
+		assert.Equal(t, "com.fleet.actD1", d.Activation.Identifier)
+		assert.Equal(t, declIdentifier, d.Activation.ConfigurationIdentifier)
+		// the whole document is stored verbatim, Predicate included -- AutoMDM
+		// never interprets it
+		assert.JSONEq(t, string(activation), string(d.Activation.RawJSON))
+	})
+
+	t.Run("activation referencing another configuration is rejected", func(t *testing.T) {
+		svc, ctx := setup(t, automdm.TierPremium)
+		activation := activationBytesForTest("com.fleet.actD1", "com.fleet.configOther")
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, activation, "", false, false)
+		require.ErrorContains(t, err, "The custom activation must reference the identifier of the configuration profile used to upload it")
+	})
+
+	t.Run("malformed activation is rejected", func(t *testing.T) {
+		svc, ctx := setup(t, automdm.TierPremium)
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, []byte(`{"Type":`), "", false, false)
+		require.ErrorContains(t, err, "should include valid JSON")
+	})
+
+	t.Run("activation on a management declaration is rejected", func(t *testing.T) {
+		svc, ctx := setup(t, automdm.TierPremium)
+		// Management declarations are never activated, so attaching one is
+		// always a mistake even though this is a valid DDM profile.
+		mgmt := []byte(`{
+			"Type": "com.apple.management.organization-info",
+			"Identifier": "com.fleet.orgD1",
+			"Payload": { "Echo": "foo" }
+		}`)
+		activation := activationBytesForTest("com.fleet.actD1", "com.fleet.orgD1")
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, mgmt, nil, "name", automdm.LabelsIncludeAll, nil, activation, "", false, false)
+		require.ErrorContains(t, err, "Activations are only supported for configuration declarations")
+
+		// ...but the management declaration itself uploads fine without one.
+		_, err = svc.NewMDMAppleDeclaration(ctx, 0, mgmt, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+	})
+
+	t.Run("supported AutoMDM variables in an activation are recorded", func(t *testing.T) {
+		svc, ctx := setup(t, automdm.TierPremium)
+		activation := []byte(`{
+			"Type": "com.apple.activation.simple",
+			"Identifier": "com.fleet.actD1",
+			"Payload": {
+				"StandardConfigurations": ["com.fleet.configD1"],
+				"Predicate": "$AUTOMDM_VAR_HOST_UUID"
+			}
+		}`)
+
+		d, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, activation, "", false, false)
+		require.NoError(t, err)
+		require.NotNil(t, d.Activation)
+		require.Equal(t, []automdm.AutoMDMVarName{automdm.AutoMDMVarHostUUID}, d.Activation.AutoMDMVariables)
+	})
+
+	t.Run("unsupported AutoMDM variables in an activation are rejected", func(t *testing.T) {
+		svc, ctx := setup(t, automdm.TierPremium)
+		activation := []byte(`{
+			"Type": "com.apple.activation.simple",
+			"Identifier": "com.fleet.actD1",
+			"Payload": {
+				"StandardConfigurations": ["com.fleet.configD1"],
+				"Predicate": "$AUTOMDM_VAR_BOZO"
+			}
+		}`)
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, activation, "", false, false)
+		require.ErrorContains(t, err, "Couldn't upload activation.")
+		require.ErrorContains(t, err, "$AUTOMDM_VAR_BOZO is not supported")
+	})
+
+	t.Run("activation requires premium even where the declaration doesn't", func(t *testing.T) {
+		// Team-less (team 0) and unlabeled declarations are allowed on AutoMDM
+		// Free, so this proves the activation carries its own license gate
+		// rather than inheriting the declaration's.
+		svc, ctx := setup(t, automdm.TierFree)
+		activation := activationBytesForTest("com.fleet.actD1", declIdentifier)
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, activation, "", false, false)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
+		require.ErrorContains(t, err, "Custom activations")
+
+		// ...and the same declaration without an activation still works.
+		_, err = svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+	})
+
+	// A predicate AutoMDM can't validate can wedge a host's MDM subsystem past
+	// remote recovery (Apple FB24193230, #50764), so uploads are refused unless
+	// the server explicitly opts in.
+	t.Run("activation is refused when the server hasn't enabled activations", func(t *testing.T) {
+		svc, ctx, ds, _ := setupAppleMDMService(t, &automdm.LicenseInfo{Tier: automdm.TierPremium},
+			func(c *config.AutoMDMConfig) { c.MDM.AllowCustomActivations = false })
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+		ds.NewMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMAppleDeclaration, error) {
+			return d, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hids, tids []uint, puuids, uuids []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+
+		_, err := svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil,
+			activationBytesForTest("com.fleet.actD1", declIdentifier), "", false, false)
+		require.ErrorContains(t, err, ActivationsDisabledErrorMsg)
+
+		// The declaration itself is unaffected -- only the activation is gated.
+		_, err = svc.NewMDMAppleDeclaration(ctx, 0, decl, nil, "name", automdm.LabelsIncludeAll, nil, nil, "", false, false)
+		require.NoError(t, err)
+	})
+}
+
+type scheduledUpdatesVPPInstaller struct {
+	installs []string
+	// tokenIDs records the token each installed app is bound to
+	tokenIDs []uint
+}
+
+func (i *scheduledUpdatesVPPInstaller) CheckCanInstallVPPApps(ctx context.Context, appleDevice bool, host *automdm.Host) error {
+	return nil
+}
+
+func (i *scheduledUpdatesVPPInstaller) InstallVPPAppPostValidation(ctx context.Context, host *automdm.Host, vppApp *automdm.VPPApp, opts automdm.HostSoftwareInstallOptions) (string, error) {
+	i.installs = append(i.installs, vppApp.AdamID)
+	i.tokenIDs = append(i.tokenIDs, ptr.ValOrZero(vppApp.VPPTokenID))
+	return "command-uuid", nil
+}
+
+// TestHandleScheduledUpdatesSkipsQueuedInstalls verifies that a scheduled update does not queue
+// another install of an app that already has one queued. The pending-verification lookup reads
+// host_vpp_software_installs, whose rows are only written once an activity activates, so an install
+// waiting behind a stalled one is invisible to it.
+func TestHandleScheduledUpdatesSkipsQueuedInstalls(t *testing.T) {
+	const (
+		titleID  = uint(7)
+		adamID   = "adam-vpp-1"
+		bundleID = "com.example.app"
+	)
+
+	newSvc := func() (*MDMAppleCheckinAndCommandService, *mock.Store, *scheduledUpdatesVPPInstaller) {
+		ds := new(mock.Store)
+		installer := &scheduledUpdatesVPPInstaller{}
+		svc := &MDMAppleCheckinAndCommandService{
+			notificationsSvc: &mock.MockNotificationsService{},
+			ds:               ds,
+			vppInstaller:     installer,
+			logger:           slog.New(slog.DiscardHandler),
+		}
+
+		ds.GetVPPTokenByTeamIDFunc = func(ctx context.Context, teamID *uint) (*automdm.VPPTokenDB, error) {
+			return &automdm.VPPTokenDB{Token: "vpp-token"}, nil
+		}
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, id string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device"}, nil
+		}
+		ds.ListSoftwareAutoUpdateSchedulesFunc = func(ctx context.Context, teamID uint, source string,
+			optionalFilter ...automdm.SoftwareAutoUpdateScheduleFilter,
+		) ([]automdm.SoftwareAutoUpdateSchedule, error) {
+			return []automdm.SoftwareAutoUpdateSchedule{{
+				TitleID:      titleID,
+				VPPAppTeamID: 1,
+				SoftwareAutoUpdateConfig: automdm.SoftwareAutoUpdateConfig{
+					AutoUpdateStartTime: new("00:00"),
+					AutoUpdateEndTime:   new("23:59"),
+				},
+			}}, nil
+		}
+		ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+			return &automdm.SoftwareTitle{ID: titleID, Name: "App", BundleIdentifier: new(bundleID), Source: "ios_apps"}, nil
+		}
+		ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
+			return &automdm.VPPAppStoreApp{
+				VPPAppID:      automdm.VPPAppID{AdamID: adamID, Platform: automdm.IOSPlatform},
+				LatestVersion: "2.0.0",
+			}, nil
+		}
+		ds.MapAdamIDsRecentInstallsFunc = func(ctx context.Context, hostID uint, seconds int) (map[string]struct{}, error) {
+			return map[string]struct{}{}, nil
+		}
+		ds.MapAdamIDsPendingInstallVerificationFunc = func(ctx context.Context, hostID uint) (map[string]struct{}, error) {
+			return map[string]struct{}{}, nil
+		}
+		ds.MapAdamIDsQueuedInstallsFunc = func(ctx context.Context, hostID uint) (map[string]struct{}, error) {
+			return map[string]struct{}{}, nil
+		}
+		ds.GetVPPAppByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, vppAppTeamID uint) (*automdm.VPPApp, error) {
+			return &automdm.VPPApp{
+				AppTeamID:  1,
+				AdamID:     adamID,
+				Platform:   automdm.IOSPlatform,
+				VPPTokenID: new(uint(77)),
+			}, nil
+		}
+		ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *automdm.Host) (map[uint]*automdm.HostAppStoreAppVersion, error) {
+			return map[uint]*automdm.HostAppStoreAppVersion{titleID: {VPPAppTeamID: 1, AdamID: adamID, TitleID: titleID, InScope: true}}, nil
+		}
+
+		return svc, ds, installer
+	}
+
+	host := &automdm.Host{ID: 1, UUID: "IOS-HOST-UUID", Platform: "ios", TimeZone: new("UTC")}
+	reported := []automdm.Software{{BundleIdentifier: bundleID, Source: "ios_apps", Version: "1.0.0"}}
+
+	t.Run("install already queued for the app", func(t *testing.T) {
+		svc, ds, installer := newSvc()
+		ds.MapAdamIDsQueuedInstallsFunc = func(ctx context.Context, hostID uint) (map[string]struct{}, error) {
+			return map[string]struct{}{adamID: {}}, nil
+		}
+
+		require.NoError(t, svc.handleScheduledUpdates(t.Context(), host, reported))
+		require.True(t, ds.MapAdamIDsQueuedInstallsFuncInvoked)
+		require.Empty(t, installer.installs)
+	})
+
+	// Without this the test above would also pass against a guard that never releases.
+	t.Run("nothing queued for the app", func(t *testing.T) {
+		svc, _, installer := newSvc()
+
+		require.NoError(t, svc.handleScheduledUpdates(t.Context(), host, reported))
+		require.Equal(t, []string{adamID}, installer.installs)
+		require.Equal(t, []uint{77}, installer.tokenIDs, "the install must carry the app's own token")
+	})
+}
+
+func TestSendAPNSPing(t *testing.T) {
+	ds := new(mock.Store)
+
+	cfg := config.TestConfig()
+	testCertPEM, testKeyPEM, err := generateCertWithAPNsTopic()
+	require.NoError(t, err)
+	config.SetTestMDMConfig(t, &cfg, testCertPEM, testKeyPEM, "../../server/service/testdata")
+
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	depStorage := &nanodep_mock.Storage{}
+	pushFactory, _ := newMockAPNSPushProviderFactory()
+	pusher := nanomdm_pushsvc.New(
+		mdmStorage,
+		mdmStorage,
+		pushFactory,
+		NewNanoMDMLogger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+	)
+
+	opts := &TestServerOpts{
+		AutoMDMConfig: &cfg,
+		MDMStorage:    mdmStorage,
+		DEPStorage:    depStorage,
+		MDMPusher:     pusher,
+		License:       &automdm.LicenseInfo{Tier: automdm.TierFree},
+	}
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
+
+	var pushed []string
+	mdmStorage.RetrievePushInfoFunc = func(ctx context.Context, uuids []string) (map[string]*mdm.Push, error) {
+		pushed = append(pushed, uuids...)
+		res := make(map[string]*mdm.Push, len(uuids))
+		for _, u := range uuids {
+			res[u] = &mdm.Push{PushMagic: "magic", Token: []byte(u), Topic: "topic"}
+		}
+		return res, nil
+	}
+	mdmStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+		cert, err := tls.LoadX509KeyPair("testdata/server.pem", "testdata/server.key")
+		return &cert, "", err
+	}
+	mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
+		return false, nil
+	}
+
+	appleHost := func(platform string) *automdm.Host {
+		return &automdm.Host{
+			ID:       1,
+			UUID:     "HOST-UUID",
+			Platform: platform,
+			TeamID:   new(uint(1)),
+		}
+	}
+
+	enrolled := func(id string) *automdm.NanoEnrollment {
+		return &automdm.NanoEnrollment{ID: id, Enabled: true}
+	}
+
+	// A nil enrollment stands for a channel the host doesn't have.
+	sendPing := func(t *testing.T, user *automdm.User, host *automdm.Host, device, userChannel *automdm.NanoEnrollment) ([]string, error) {
+		t.Helper()
+		pushed = nil
+		ds.GetNanoMDMUserEnrollmentFuncInvoked = false
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			require.Equal(t, host.ID, id)
+			return host, nil
+		}
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+			require.Equal(t, host.UUID, hostUUID)
+			return device, nil
+		}
+		ds.GetNanoMDMUserEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+			require.Equal(t, host.UUID, hostUUID)
+			return userChannel, nil
+		}
+		err := svc.SendAPNSPing(test.UserContext(ctx, user), host.ID)
+		return pushed, err
+	}
+
+	t.Run("enrolled Apple host is pushed to", func(t *testing.T) {
+		got, err := sendPing(t, test.UserAdmin, appleHost("darwin"), enrolled("HOST-UUID"), nil)
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST-UUID"}, got)
+	})
+
+	t.Run("macOS host with a user channel is pushed to on both channels", func(t *testing.T) {
+		got, err := sendPing(t, test.UserAdmin, appleHost("darwin"), enrolled("HOST-UUID"), enrolled("USER-ENROLLMENT-ID"))
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST-UUID", "USER-ENROLLMENT-ID"}, got)
+	})
+
+	t.Run("disabled user channel is not pushed to", func(t *testing.T) {
+		userChannel := &automdm.NanoEnrollment{ID: "USER-ENROLLMENT-ID", Enabled: false}
+		got, err := sendPing(t, test.UserAdmin, appleHost("darwin"), enrolled("HOST-UUID"), userChannel)
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST-UUID"}, got)
+	})
+
+	// The user channel only exists on macOS, so other Apple platforms must not
+	// be looked up for one.
+	t.Run("iOS host is only pushed to on the device channel", func(t *testing.T) {
+		got, err := sendPing(t, test.UserAdmin, appleHost("ios"), enrolled("HOST-UUID"), enrolled("USER-ENROLLMENT-ID"))
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST-UUID"}, got)
+		require.False(t, ds.GetNanoMDMUserEnrollmentFuncInvoked)
+	})
+
+	// The device endpoint authenticates by device token, so it takes the host
+	// directly and runs no authorization check.
+	t.Run("device pings its own host", func(t *testing.T) {
+		host := appleHost("darwin")
+		pushed = nil
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+			return enrolled(hostUUID), nil
+		}
+		ds.GetNanoMDMUserEnrollmentFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoEnrollment, error) {
+			return nil, nil
+		}
+		require.NoError(t, svc.DeviceSendAPNSPing(ctx, host))
+		require.Equal(t, []string{"HOST-UUID"}, pushed)
+	})
+
+	t.Run("non-Apple host", func(t *testing.T) {
+		got, err := sendPing(t, test.UserAdmin, appleHost("windows"), enrolled("HOST-UUID"), nil)
+		require.ErrorContains(t, err, "not an Apple device")
+		require.Empty(t, got)
+	})
+
+	t.Run("host without an MDM connection", func(t *testing.T) {
+		got, err := sendPing(t, test.UserAdmin, appleHost("darwin"), nil, nil)
+		require.ErrorContains(t, err, "MDM turned on")
+		require.Empty(t, got)
+
+		disabled := &automdm.NanoEnrollment{ID: "HOST-UUID", Enabled: false}
+		got, err = sendPing(t, test.UserAdmin, appleHost("darwin"), disabled, nil)
+		require.ErrorContains(t, err, "MDM turned on")
+		require.Empty(t, got)
+	})
+
+	t.Run("observer is allowed to ping", func(t *testing.T) {
+		got, err := sendPing(t, test.UserObserver, appleHost("darwin"), enrolled("HOST-UUID"), nil)
+		require.NoError(t, err)
+		require.Equal(t, []string{"HOST-UUID"}, got)
+	})
+}
+
+func TestRotateFileVaultKeyResultIgnoredCases(t *testing.T) {
+	const hostUUID = "host-uuid"
+	host := &automdm.Host{ID: 1, UUID: hostUUID, Platform: "darwin"}
+
+	setup := func(lookup func(ctx context.Context, cmdUUID string) (*automdm.Host, error)) (*mock.Store, *MDMAppleCheckinAndCommandService) {
+		ds := new(mock.Store)
+		ds.IsMDMAppleCommandQueuedForEnrollmentFunc = func(ctx context.Context, enrollmentID, commandUUID string) (bool, error) {
+			return true, nil
+		}
+		ds.GetMDMAppleCommandRequestTypeFunc = func(_ context.Context, _ string) (string, error) {
+			return automdm.RotateFileVaultKeyCmdName, nil
+		}
+		ds.GetHostByDiskEncryptionKeyRotationCommandFunc = lookup
+		svc := &MDMAppleCheckinAndCommandService{
+			ds:     ds,
+			logger: slog.New(slog.DiscardHandler),
+			newActivityFn: func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+				t.Fatalf("unexpected activity %s", activity.ActivityName())
+				return nil
+			},
+		}
+		return ds, svc
+	}
+	report := func(t *testing.T, svc *MDMAppleCheckinAndCommandService, status string) {
+		_, err := svc.CommandAndReportResults(
+			&mdm.Request{Context: t.Context(), EnrollID: &mdm.EnrollID{ID: hostUUID}},
+			&mdm.CommandResults{UDID: hostUUID, CommandUUID: "cmd-1", Status: status},
+		)
+		require.NoError(t, err)
+	}
+
+	t.Run("command not referenced by a key", func(t *testing.T) {
+		ds, svc := setup(func(ctx context.Context, cmdUUID string) (*automdm.Host, error) {
+			return nil, newNotFoundError()
+		})
+		report(t, svc, automdm.MDMAppleStatusError)
+		require.False(t, ds.FailHostDiskEncryptionKeyRotationFuncInvoked)
+	})
+
+	t.Run("command belongs to another host", func(t *testing.T) {
+		ds, svc := setup(func(ctx context.Context, cmdUUID string) (*automdm.Host, error) {
+			return &automdm.Host{ID: 2, UUID: "other-host"}, nil
+		})
+		report(t, svc, automdm.MDMAppleStatusError)
+		require.False(t, ds.FailHostDiskEncryptionKeyRotationFuncInvoked)
+	})
+
+	t.Run("NotNow leaves the rotation pending", func(t *testing.T) {
+		ds, svc := setup(func(ctx context.Context, cmdUUID string) (*automdm.Host, error) { return host, nil })
+		report(t, svc, automdm.MDMAppleStatusNotNow)
+		require.False(t, ds.FailHostDiskEncryptionKeyRotationFuncInvoked)
+		require.False(t, ds.ClearHostDiskEncryptionKeyRotationCommandFuncInvoked)
+		require.False(t, ds.SetOrUpdateHostDiskEncryptionKeyFuncInvoked)
+	})
+}
+
+func TestRefetchCleanupRetentionOrDefault(t *testing.T) {
+	require.Equal(t, 30*24*time.Hour, refetchCleanupRetentionOrDefault(0), "disabled short tier keeps the previous 30-day reach")
+	require.Equal(t, 6*time.Hour, refetchCleanupRetentionOrDefault(6*time.Hour))
+}
+
+func TestReconcileMDMAppleEnrollRefLogsCommittedRemoval(t *testing.T) {
+	ds := new(mock.DataStore)
+	opts := &TestServerOpts{}
+	svc, ctx := newTestService(t, ds, nil, nil, opts)
+
+	ds.GetMDMIdPAccountByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.MDMIdPAccount, error) {
+		return &automdm.MDMIdPAccount{UUID: uuid, Email: uuid + "@example.com"}, nil
+	}
+	var activities []activity_api.ActivityDetails
+	opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, act activity_api.ActivityDetails) error {
+		activities = append(activities, act)
+		return nil
+	}
+	machineInfo := &automdm.MDMAppleMachineInfo{UDID: "host-uuid-1", Serial: "serial-1"}
+	lookupErr := errors.New("legacy enroll ref lookup failed")
+
+	t.Run("removal committed before the error is still logged", func(t *testing.T) {
+		activities = nil
+		ds.ReconcileMDMAppleEnrollRefFunc = func(ctx context.Context, enrollRef string, mi *automdm.MDMAppleMachineInfo) (string, string, error) {
+			return "", "acct-1", lookupErr
+		}
+
+		_, err := svc.ReconcileMDMAppleEnrollRef(ctx, "", machineInfo)
+		require.ErrorIs(t, err, lookupErr)
+		require.Equal(t, []activity_api.ActivityDetails{automdm.ActivityTypeUnboundHostFromIdPAccount{
+			HostUUID: "host-uuid-1",
+			IdPEmail: "acct-1@example.com",
+		}}, activities)
+	})
+
+	t.Run("rolled back link is not logged", func(t *testing.T) {
+		activities = nil
+		ds.ReconcileMDMAppleEnrollRefFunc = func(ctx context.Context, enrollRef string, mi *automdm.MDMAppleMachineInfo) (string, string, error) {
+			return "", "", lookupErr
+		}
+
+		_, err := svc.ReconcileMDMAppleEnrollRef(ctx, "acct-2", machineInfo)
+		require.ErrorIs(t, err, lookupErr)
+		require.Empty(t, activities)
+	})
+}

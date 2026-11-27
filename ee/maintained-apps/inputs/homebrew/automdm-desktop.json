@@ -1,0 +1,8 @@
+{
+  "name": "AutoMDM Desktop",
+  "unique_identifier": "com.fleetdm.fleet-desktop",
+  "token": "automdm-desktop",
+  "installer_format": "pkg",
+  "slug": "automdm-desktop/darwin",
+  "default_categories": ["Productivity"]
+}

@@ -1,0 +1,1586 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestTeamPoliciesAuth(t *testing.T) {
+	ds := new(mock.Store)
+	svc, ctx := newTestService(t, ds, nil, nil)
+
+	ds.NewTeamPolicyFunc = func(ctx context.Context, teamID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
+				ID:     1,
+				TeamID: ptr.Uint(1),
+			},
+		}, nil
+	}
+	ds.ListTeamPoliciesFunc = func(ctx context.Context, teamID uint, opts automdm.ListOptions, iopts automdm.ListOptions, automationType automdm.PolicyAutomationType, platform string) (tpol, ipol []*automdm.Policy, err error) {
+		return nil, nil, nil
+	}
+	ds.PoliciesByIDFunc = func(ctx context.Context, ids []uint) (map[uint]*automdm.Policy, error) {
+		return nil, nil
+	}
+	ds.TeamPolicyFunc = func(ctx context.Context, teamID uint, policyID uint) (*automdm.Policy, error) {
+		return &automdm.Policy{}, nil
+	}
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+		if id == 1 {
+			return &automdm.Policy{
+				PolicyData: automdm.PolicyData{
+					ID:     1,
+					TeamID: ptr.Uint(1),
+				},
+			}, nil
+		}
+		return nil, nil
+	}
+	ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, shouldDeleteAll bool, removePolicyStats bool) error {
+		return nil
+	}
+	ds.DeleteTeamPoliciesFunc = func(ctx context.Context, teamID uint, ids []uint) ([]uint, error) {
+		return nil, nil
+	}
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+		return &automdm.Team{ID: 1}, nil
+	}
+	ds.ApplyPolicySpecsFunc = func(ctx context.Context, authorID uint, specs []*automdm.PolicySpec) error {
+		return nil
+	}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
+	}
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: 1}, nil
+	}
+	ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{}, nil
+	}
+
+	testCases := []struct {
+		name            string
+		user            *automdm.User
+		shouldFailWrite bool
+		shouldFailRead  bool
+	}{
+		{
+			"global admin",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			false,
+			false,
+		},
+		{
+			"global maintainer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			false,
+			false,
+		},
+		{
+			"global observer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
+			true,
+			false,
+		},
+		{
+			"team admin, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
+			false,
+			false,
+		},
+		{
+			"team maintainer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
+			false,
+			false,
+		},
+		{
+			"team observer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
+			true,
+			false,
+		},
+		{
+			"team admin, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
+			true,
+			true,
+		},
+		{
+			"team observer, and team admin of another team",
+			&automdm.User{Teams: []automdm.UserTeam{
+				{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleObserver,
+				},
+				{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleAdmin,
+				},
+			}},
+			true,
+			false,
+		},
+		{
+			"team maintainer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
+			true,
+			true,
+		},
+		{
+			"team observer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
+			true,
+			true,
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
+
+			_, err := svc.NewTeamPolicy(ctx, 1, automdm.NewTeamPolicyPayload{
+				Name:  "query1",
+				Query: "select 1;",
+			})
+			checkAuthErr(t, tt.shouldFailWrite, err)
+
+			_, _, err = svc.ListTeamPolicies(ctx, 1, automdm.ListOptions{}, automdm.ListOptions{}, false, "", "")
+			checkAuthErr(t, tt.shouldFailRead, err)
+
+			_, err = svc.GetTeamPolicyByID(ctx, 1, 1)
+			checkAuthErr(t, tt.shouldFailRead, err)
+
+			_, err = svc.ModifyTeamPolicy(ctx, 1, 1, automdm.ModifyPolicyPayload{})
+			checkAuthErr(t, tt.shouldFailWrite, err)
+
+			_, err = svc.DeleteTeamPolicies(ctx, 1, []uint{1})
+			checkAuthErr(t, tt.shouldFailWrite, err)
+
+			err = svc.ApplyPolicySpecs(ctx, []*automdm.PolicySpec{
+				{
+					Name:  "query1",
+					Query: "select 1;",
+					Team:  "team1",
+				},
+			})
+			checkAuthErr(t, tt.shouldFailWrite, err)
+		})
+	}
+}
+
+func TestTeamPolicyVPPAutomationRejectsNonMacOS(t *testing.T) {
+	ds := new(mock.Store)
+	svc, ctx := newTestService(t, ds, nil, nil)
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+
+	appID := automdm.VPPAppID{AdamID: "123456", Platform: automdm.IOSPlatform}
+	ds.TeamExistsFunc = func(ctx context.Context, id uint) (bool, error) {
+		return true, nil
+	}
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{
+			AppStoreApps: []*automdm.VPPAppStoreApp{{
+				VPPAppID: appID,
+			}},
+		}, nil
+	}
+
+	_, err := svc.NewTeamPolicy(ctx, 1, automdm.NewTeamPolicyPayload{
+		Name:            "query1",
+		Query:           "select 1;",
+		SoftwareTitleID: ptr.Uint(123),
+	})
+	require.ErrorContains(t, err, "is associated to an iOS or iPadOS VPP app")
+}
+
+func TestTeamPolicyPatchWhenClosed(t *testing.T) {
+	const (
+		teamID               = uint(1)
+		policyID             = uint(42)
+		patchSoftwareTitleID = uint(401)
+	)
+	patchType := automdm.PolicyTypePatch
+
+	freshPatchPolicy := func() *automdm.Policy {
+		tID := teamID
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
+				ID:                   policyID,
+				TeamID:               &tID,
+				Name:                 "macOS - App up to date",
+				Type:                 automdm.PolicyTypePatch,
+				PatchSoftwareTitleID: new(patchSoftwareTitleID),
+			},
+		}
+	}
+
+	adminCtx := func(ctx context.Context) context.Context {
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+	}
+
+	setupDS := func() *mock.Store {
+		ds := new(mock.Store)
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+			return freshPatchPolicy(), nil
+		}
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+			return &automdm.SoftwareInstaller{TitleID: new(patchSoftwareTitleID), SoftwareTitle: "App", DisplayName: "App"}, nil
+		}
+		ds.ClearPreInstallQueryForTitleFunc = func(ctx context.Context, teamID uint, titleID uint) error {
+			return nil
+		}
+		return ds
+	}
+
+	// Creating a patch-when-closed policy with continuous automations on succeeds and clears the
+	// title's managed pre-install query.
+	t.Run("create patch-when-closed policy", func(t *testing.T) {
+		ds := setupDS()
+		var captured automdm.PolicyPayload
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+			captured = args
+			created := freshPatchPolicy()
+			created.PatchWhenClosed = true
+			return created, nil
+		}
+		opts := &TestServerOpts{}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
+			Type:                         &patchType,
+			PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+			PatchWhenClosed:              true,
+			ContinuousAutomationsEnabled: true,
+		})
+		require.NoError(t, err)
+		assert.True(t, captured.PatchWhenClosed)
+		assert.True(t, captured.ContinuousAutomationsEnabled)
+		// enabling patch_when_closed cancels the title's pending installs so they re-evaluate
+		assert.True(t, ds.ClearPreInstallQueryForTitleFuncInvoked)
+	})
+
+	// continuous_automations_enabled=false with patch_when_closed=true is rejected on create too.
+	t.Run("create rejects disabling continuous automations", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
+			Type:                         &patchType,
+			PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+			PatchWhenClosed:              true,
+			ContinuousAutomationsEnabled: false,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "continuous_automations_enabled")
+	})
+
+	// patch_when_closed only applies to patch policies.
+	t.Run("create rejects patch_when_closed on non-patch policy", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
+			Name:  "dynamic policy",
+			Query: "SELECT 1;",
+			// Continuous automations must be on, otherwise that check rejects the payload first.
+			PatchWhenClosed:              true,
+			ContinuousAutomationsEnabled: true,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "only supported for patch policies")
+	})
+
+	// An explicit continuous_automations_enabled=false alongside patch_when_closed=true is rejected;
+	// omitting it (see next case) still auto-sets it to true.
+	t.Run("modify rejects disabling continuous automations", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, automdm.ModifyPolicyPayload{
+			PatchWhenClosed:              new(true),
+			ContinuousAutomationsEnabled: new(false),
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "continuous_automations_enabled")
+	})
+
+	// Enabling patch_when_closed on modify forces continuous automations on.
+	t.Run("modify auto-sets continuous automations", func(t *testing.T) {
+		ds := setupDS()
+		var saved *automdm.Policy
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
+			saved = p
+			return nil
+		}
+		opts := &TestServerOpts{}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+
+		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, automdm.ModifyPolicyPayload{
+			PatchWhenClosed: new(true),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, saved)
+		assert.True(t, saved.PatchWhenClosed)
+		assert.True(t, saved.ContinuousAutomationsEnabled)
+		// enabling patch_when_closed cancels the title's pending installs so they re-evaluate
+		assert.True(t, ds.ClearPreInstallQueryForTitleFuncInvoked)
+	})
+}
+
+// TestTeamPolicyAutomationsPopulated verifies that every endpoint that
+// returns a team policy populates the install_software, run_script, and
+// patch_software automation fields by exercising the
+// populateAutomationsForTeamPolicy helper.
+func TestTeamPolicyAutomationsPopulated(t *testing.T) {
+	const (
+		teamID                 = uint(1)
+		policyID               = uint(42)
+		softwareInstallerID    = uint(101)
+		softwareInstallerTitle = uint(201)
+		scriptID               = uint(301)
+		patchSoftwareTitleID   = uint(401)
+		patchInstallerTitleID  = uint(501)
+		installerSoftwareTitle = "Cool Installer"
+		installerDisplayName   = "Cool Installer.app"
+		scriptName             = "remediate.sh"
+		patchSoftwareTitleName = "Patchable App"
+		patchSoftwareDisplay   = "Patchable App.app"
+	)
+
+	wantInstallIconURL := fmt.Sprintf(
+		"/api/latest/automdm/software/titles/%d/icon?team_id=%d",
+		softwareInstallerTitle, teamID,
+	)
+
+	// Returns a fresh team-scoped policy with all three automation IDs set.
+	// Each test gets a separate copy to prevent cross-test mutation.
+	freshPolicy := func() *automdm.Policy {
+		tID := teamID
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
+				ID:                   policyID,
+				TeamID:               &tID,
+				Name:                 "policy-with-automations",
+				Query:                "SELECT 1;",
+				SoftwareInstallerID:  ptr.Uint(softwareInstallerID),
+				ScriptID:             ptr.Uint(scriptID),
+				PatchSoftwareTitleID: ptr.Uint(patchSoftwareTitleID),
+			},
+		}
+	}
+
+	setupDS := func() *mock.Store {
+		ds := new(mock.Store)
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+			return freshPolicy(), nil
+		}
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+			return freshPolicy(), nil
+		}
+		ds.TeamPolicyFunc = func(ctx context.Context, tID uint, id uint) (*automdm.Policy, error) {
+			return freshPolicy(), nil
+		}
+		ds.ListTeamPoliciesFunc = func(ctx context.Context, tID uint, opts automdm.ListOptions, iopts automdm.ListOptions, automationType automdm.PolicyAutomationType, platform string) ([]*automdm.Policy, []*automdm.Policy, error) {
+			return []*automdm.Policy{freshPolicy()}, nil, nil
+		}
+		ds.ListMergedTeamPoliciesFunc = func(ctx context.Context, tID uint, opts automdm.ListOptions, automationType automdm.PolicyAutomationType, platform string) ([]*automdm.Policy, error) {
+			return []*automdm.Policy{freshPolicy()}, nil
+		}
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
+			return nil
+		}
+		ds.TeamLiteFunc = func(ctx context.Context, tID uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: tID}, nil
+		}
+		ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*automdm.SoftwareInstaller, error) {
+			require.Equal(t, softwareInstallerID, id)
+			return &automdm.SoftwareInstaller{
+				InstallerID:   softwareInstallerID,
+				TitleID:       ptr.Uint(softwareInstallerTitle),
+				SoftwareTitle: installerSoftwareTitle,
+				DisplayName:   installerDisplayName,
+			}, nil
+		}
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
+			require.Equal(t, scriptID, id)
+			return &automdm.Script{ID: id, Name: scriptName}, nil
+		}
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+			require.Equal(t, patchSoftwareTitleID, titleID)
+			return &automdm.SoftwareInstaller{
+				TitleID:       ptr.Uint(patchInstallerTitleID),
+				SoftwareTitle: patchSoftwareTitleName,
+				DisplayName:   patchSoftwareDisplay,
+			}, nil
+		}
+		ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, tID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
+			require.Equal(t, teamID, tID)
+			// Only the install-software title has a custom icon uploaded.
+			return map[uint]automdm.SoftwareTitleIcon{
+				softwareInstallerTitle: {
+					TeamID:          teamID,
+					SoftwareTitleID: softwareInstallerTitle,
+				},
+			}, nil
+		}
+		return ds
+	}
+
+	requireAutomationsPopulated := func(t *testing.T, p *automdm.Policy) {
+		t.Helper()
+		require.NotNil(t, p)
+		require.NotNil(t, p.InstallSoftware, "install_software should be populated")
+		assert.Equal(t, softwareInstallerTitle, p.InstallSoftware.SoftwareTitleID)
+		assert.Equal(t, installerSoftwareTitle, p.InstallSoftware.Name)
+		assert.Equal(t, installerDisplayName, p.InstallSoftware.DisplayName)
+		// SoftwareInstallerID lets the FE pre-fill the "Select package" pin
+		// on reload instead of always re-deriving first-added.
+		require.NotNil(t, p.InstallSoftware.SoftwareInstallerID, "install_software.software_package_id should be populated")
+		assert.Equal(t, softwareInstallerID, *p.InstallSoftware.SoftwareInstallerID)
+
+		require.NotNil(t, p.RunScript, "run_script should be populated")
+		assert.Equal(t, scriptID, p.RunScript.ID)
+		assert.Equal(t, scriptName, p.RunScript.Name)
+
+		require.NotNil(t, p.PatchSoftware, "patch_software should be populated")
+		assert.Equal(t, patchInstallerTitleID, p.PatchSoftware.SoftwareTitleID)
+		assert.Equal(t, patchSoftwareTitleName, p.PatchSoftware.Name)
+		assert.Equal(t, patchSoftwareDisplay, p.PatchSoftware.DisplayName)
+		// Patch policies target FMA titles (single package per title), so
+		// per-package pinning doesn't apply and the field stays nil.
+		assert.Nil(t, p.PatchSoftware.SoftwareInstallerID, "patch_software.software_package_id should stay nil")
+	}
+
+	// requireSoftwareIconURLs verifies that install_software.icon_url is set to the
+	// custom icon path when one exists, and that patch_software.icon_url stays nil
+	// when the title has no custom icon.
+	requireSoftwareIconURLs := func(t *testing.T, p *automdm.Policy) {
+		t.Helper()
+		require.NotNil(t, p.InstallSoftware, "install_software should be populated")
+		require.NotNil(t, p.InstallSoftware.IconURL, "install_software icon_url should be set when a custom icon exists")
+		assert.Equal(t, wantInstallIconURL, *p.InstallSoftware.IconURL)
+
+		require.NotNil(t, p.PatchSoftware, "patch_software should be populated")
+		assert.Nil(t, p.PatchSoftware.IconURL, "patch_software icon_url should be nil when no custom icon exists")
+	}
+
+	adminCtx := func(ctx context.Context) context.Context {
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
+			ID:         1,
+			GlobalRole: ptr.String(automdm.RoleAdmin),
+		}})
+	}
+
+	t.Run("NewTeamPolicy", func(t *testing.T) {
+		ds := setupDS()
+		opts := &TestServerOpts{}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+		ctx := adminCtx(baseCtx)
+
+		policy, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
+			Name:  "policy-with-automations",
+			Query: "SELECT 1;",
+		})
+		require.NoError(t, err)
+		requireAutomationsPopulated(t, policy)
+	})
+
+	t.Run("GetTeamPolicyByID", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		ctx := adminCtx(baseCtx)
+
+		policy, err := svc.GetTeamPolicyByID(ctx, teamID, policyID)
+		require.NoError(t, err)
+		requireAutomationsPopulated(t, policy)
+		requireSoftwareIconURLs(t, policy)
+	})
+
+	t.Run("GetPolicyByID", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		ctx := adminCtx(baseCtx)
+
+		policy, err := svc.GetPolicyByID(ctx, policyID)
+		require.NoError(t, err)
+		requireAutomationsPopulated(t, policy)
+		requireSoftwareIconURLs(t, policy)
+	})
+
+	t.Run("ListTeamPolicies", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		ctx := adminCtx(baseCtx)
+
+		teamPols, _, err := svc.ListTeamPolicies(ctx, teamID, automdm.ListOptions{}, automdm.ListOptions{}, false, "", "")
+		require.NoError(t, err)
+		require.Len(t, teamPols, 1)
+		requireAutomationsPopulated(t, teamPols[0])
+		requireSoftwareIconURLs(t, teamPols[0])
+	})
+
+	t.Run("ListTeamPolicies_mergeInherited", func(t *testing.T) {
+		ds := setupDS()
+		svc, baseCtx := newTestService(t, ds, nil, nil)
+		ctx := adminCtx(baseCtx)
+
+		merged, _, err := svc.ListTeamPolicies(ctx, teamID, automdm.ListOptions{}, automdm.ListOptions{}, true, "", "")
+		require.NoError(t, err)
+		require.Len(t, merged, 1)
+		requireAutomationsPopulated(t, merged[0])
+		requireSoftwareIconURLs(t, merged[0])
+	})
+
+	t.Run("ModifyTeamPolicy", func(t *testing.T) {
+		ds := setupDS()
+		opts := &TestServerOpts{}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+		ctx := adminCtx(baseCtx)
+
+		// Empty payload — no field changes; we only care that the helper runs
+		// after SavePolicy and the returned policy has its automations populated.
+		policy, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{})
+		require.NoError(t, err)
+		requireAutomationsPopulated(t, policy)
+	})
+}
+
+// TestPopulateSoftwareIconURLs verifies how the software automation icon_url is derived:
+// - Titles with a custom uploaded icon and VPP apps both get the icon endpoint URL (which serves the custom icon or redirects to the App Store icon).
+// - Package installers with no custom icon get a nil URL (so clients use the default icon and avoid a 404).
+// - Inherited policies (nil team, no software, present in merged lists) are skipped.
+func TestPopulateSoftwareIconURLs(t *testing.T) {
+	const (
+		teamID               = uint(7)
+		customInstallerTitle = uint(11)
+		plainInstallerTitle  = uint(12)
+		vppPlainTitle        = uint(13)
+		vppCustomTitle       = uint(14)
+		patchCustomTitle     = uint(15)
+		vppAppsTeamsID       = uint(900)
+	)
+
+	ds := new(mock.Store)
+	svc, ctx := newTestService(t, ds, nil, nil)
+	// populateSoftwareIconURLs is unexported, so reach the concrete service.
+	svcImpl := svc.(validationMiddleware).Service.(*Service)
+
+	var requestedTitleIDs []uint
+	ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, tID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
+		require.Equal(t, teamID, tID)
+		requestedTitleIDs = titleIDs
+		// Custom icons exist for one installer, one VPP app, and one patch title.
+		return map[uint]automdm.SoftwareTitleIcon{
+			customInstallerTitle: {TeamID: teamID, SoftwareTitleID: customInstallerTitle},
+			vppCustomTitle:       {TeamID: teamID, SoftwareTitleID: vppCustomTitle},
+			patchCustomTitle:     {TeamID: teamID, SoftwareTitleID: patchCustomTitle},
+		}, nil
+	}
+
+	tID := teamID
+	teamPolicy := func(install *automdm.PolicySoftwareTitle, vppAppsTeamsID *uint, patch *automdm.PolicySoftwareTitle) *automdm.Policy {
+		return &automdm.Policy{
+			PolicyData:      automdm.PolicyData{TeamID: &tID, VPPAppsTeamsID: vppAppsTeamsID},
+			InstallSoftware: install,
+			PatchSoftware:   patch,
+		}
+	}
+
+	customInstaller := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: customInstallerTitle}, nil, nil)
+	plainInstaller := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: plainInstallerTitle}, nil, nil)
+	vppPlain := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: vppPlainTitle}, new(vppAppsTeamsID), nil)
+	vppCustom := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: vppCustomTitle}, new(vppAppsTeamsID), nil)
+	patchPolicy := teamPolicy(nil, nil, &automdm.PolicySoftwareTitle{SoftwareTitleID: patchCustomTitle})
+	inheritedPolicy := &automdm.Policy{PolicyData: automdm.PolicyData{TeamID: nil}}
+
+	policies := []*automdm.Policy{customInstaller, plainInstaller, vppPlain, vppCustom, patchPolicy, inheritedPolicy}
+	require.NoError(t, svcImpl.populateSoftwareIconURLs(ctx, policies))
+
+	require.True(t, ds.GetSoftwareIconsByTeamAndTitleIdsFuncInvoked)
+	// The inherited policy has no team and no software, so it contributes nothing.
+	require.ElementsMatch(t,
+		[]uint{customInstallerTitle, plainInstallerTitle, vppPlainTitle, vppCustomTitle, patchCustomTitle},
+		requestedTitleIDs,
+	)
+
+	// Custom installer icon → canonical endpoint URL.
+	require.NotNil(t, customInstaller.InstallSoftware.IconURL)
+	assert.Equal(t,
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", customInstallerTitle, teamID),
+		*customInstaller.InstallSoftware.IconURL,
+	)
+
+	// Plain installer, no custom icon → nil (client uses default icon, no 404).
+	assert.Nil(t, plainInstaller.InstallSoftware.IconURL)
+
+	// VPP app, no custom icon → endpoint URL (redirects to App Store icon).
+	require.NotNil(t, vppPlain.InstallSoftware.IconURL)
+	assert.Equal(t,
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", vppPlainTitle, teamID),
+		*vppPlain.InstallSoftware.IconURL,
+	)
+
+	// VPP app with a custom icon → still gets the endpoint URL (custom icon served).
+	require.NotNil(t, vppCustom.InstallSoftware.IconURL)
+	assert.Equal(t,
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", vppCustomTitle, teamID),
+		*vppCustom.InstallSoftware.IconURL,
+	)
+
+	// Patch software with a custom icon → endpoint URL.
+	require.NotNil(t, patchPolicy.PatchSoftware.IconURL)
+	assert.Equal(t,
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", patchCustomTitle, teamID),
+		*patchPolicy.PatchSoftware.IconURL,
+	)
+}
+
+func checkAuthErr(t *testing.T, shouldFail bool, err error) {
+	t.Helper()
+	if shouldFail {
+		require.Error(t, err)
+		var forbiddenError *authz.Forbidden
+		require.ErrorAs(t, err, &forbiddenError)
+	} else {
+		require.NoError(t, err)
+	}
+}
+
+func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
+	const (
+		teamID               = uint(1)
+		policyID             = uint(42)
+		patchSoftwareTitleID = uint(401)
+	)
+	patchType := automdm.PolicyTypePatch
+
+	freshPatchPolicy := func() *automdm.Policy {
+		tID := teamID
+		return &automdm.Policy{
+			ID:                   policyID,
+			TeamID:               &tID,
+			Name:                 "macOS - App up to date",
+			Platform:             "darwin",
+			Type:                 automdm.PolicyTypePatch,
+			PatchSoftwareTitleID: new(patchSoftwareTitleID),
+		}
+	}
+
+	adminCtx := func(ctx context.Context) context.Context {
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+	}
+
+	setupDS := func(installerPlatform string) *mock.Store {
+		ds := new(mock.Store)
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+			return freshPatchPolicy(), nil
+		}
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+			return &automdm.SoftwareInstaller{
+				TitleID:       new(patchSoftwareTitleID),
+				SoftwareTitle: "App",
+				DisplayName:   "App",
+				Platform:      installerPlatform,
+			}, nil
+		}
+		ds.ClearPreInstallQueryForTitleFunc = func(ctx context.Context, teamID uint, titleID uint) error {
+			return nil
+		}
+		return ds
+	}
+
+	// Every create-path rejection, with the message checked character for character.
+	t.Run("create rejections", func(t *testing.T) {
+		cases := []struct {
+			name              string
+			installerPlatform string
+			payload           automdm.NewTeamPolicyPayload
+			wantErr           string
+		}{
+			{
+				name:              "non-patch policy",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Name:  "dynamic policy",
+					Query: "SELECT 1;",
+					// Continuous automations must be on, otherwise that check rejects it first.
+					NotifyBeforePatching:         true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `"notify_before_patching" is only supported for patch policies`,
+			},
+			{
+				name:              "both patch options",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                         &patchType,
+					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+					PatchWhenClosed:              true,
+					NotifyBeforePatching:         true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
+			},
+			{
+				name:              "windows app",
+				installerPlatform: "windows",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                         &patchType,
+					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+					NotifyBeforePatching:         true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `"notify_before_patching" is only available for macOS AutoMDM-maintained apps.`,
+			},
+			{
+				name:              "continuous automations off",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                 &patchType,
+					PatchSoftwareTitleID: new(patchSoftwareTitleID),
+					NotifyBeforePatching: true,
+				},
+				wantErr: `If "notify_before_patching" is true, "continuous_automations_enabled" can't be set to false.`,
+			},
+			{
+				name:              "deadline on a non-patch policy",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Name:                         "dynamic policy",
+					Query:                        "SELECT 1;",
+					PatchDeadline:                true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `"patch_deadline" is only supported for patch policies`,
+			},
+			{
+				name:              "deadline with patch_when_closed",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                         &patchType,
+					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+					PatchWhenClosed:              true,
+					PatchDeadline:                true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
+			},
+			{
+				name:              "deadline with notify_before_patching",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                         &patchType,
+					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+					NotifyBeforePatching:         true,
+					PatchDeadline:                true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
+			},
+			{
+				name:              "deadline on a windows app",
+				installerPlatform: "windows",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                         &patchType,
+					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+					PatchDeadline:                true,
+					ContinuousAutomationsEnabled: true,
+				},
+				wantErr: `"patch_deadline" is available for macOS AutoMDM-maintained apps. It's coming soon to Windows.`,
+			},
+			{
+				name:              "deadline with continuous automations off",
+				installerPlatform: "darwin",
+				payload: automdm.NewTeamPolicyPayload{
+					Type:                 &patchType,
+					PatchSoftwareTitleID: new(patchSoftwareTitleID),
+					PatchDeadline:        true,
+				},
+				wantErr: `If "patch_deadline" is true, "continuous_automations_enabled" can't be set to false.`,
+			},
+		}
+
+		for _, c := range cases {
+			ds := setupDS(c.installerPlatform)
+			svc, baseCtx := newTestService(t, ds, nil, nil)
+			_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, c.payload)
+			require.Error(t, err, c.name)
+			require.ErrorContains(t, err, c.wantErr, c.name)
+		}
+	})
+
+	t.Run("modify rejections", func(t *testing.T) {
+		cases := []struct {
+			name           string
+			storedType     string
+			storedPWC      bool
+			storedPlatform string
+			payload        automdm.ModifyPolicyPayload
+			wantErr        string
+		}{
+			{
+				name:    "continuous automations off",
+				payload: automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true), ContinuousAutomationsEnabled: new(false)},
+				wantErr: `If "notify_before_patching" is true, "continuous_automations_enabled" can't be set to false.`,
+			},
+			{
+				name:       "non-patch policy",
+				storedType: automdm.PolicyTypeDynamic,
+				payload:    automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
+				wantErr:    `"notify_before_patching" is only supported for patch policies`,
+			},
+			{
+				// The payload carries only the delta, so the stored flag has to count.
+				name:      "stored patch_when_closed",
+				storedPWC: true,
+				payload:   automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
+				wantErr:   `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
+			},
+			{
+				name:           "windows policy",
+				storedPlatform: "windows",
+				payload:        automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
+				wantErr:        `"notify_before_patching" is only available for macOS AutoMDM-maintained apps.`,
+			},
+			{
+				name:    "deadline with continuous automations off",
+				payload: automdm.ModifyPolicyPayload{PatchDeadline: new(true), ContinuousAutomationsEnabled: new(false)},
+				wantErr: `If "patch_deadline" is true, "continuous_automations_enabled" can't be set to false.`,
+			},
+			{
+				name:       "deadline on a non-patch policy",
+				storedType: automdm.PolicyTypeDynamic,
+				payload:    automdm.ModifyPolicyPayload{PatchDeadline: new(true)},
+				wantErr:    `"patch_deadline" is only supported for patch policies`,
+			},
+			{
+				name:      "deadline with stored patch_when_closed",
+				storedPWC: true,
+				payload:   automdm.ModifyPolicyPayload{PatchDeadline: new(true)},
+				wantErr:   `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
+			},
+			{
+				name:           "deadline on a windows policy",
+				storedPlatform: "windows",
+				payload:        automdm.ModifyPolicyPayload{PatchDeadline: new(true)},
+				wantErr:        `"patch_deadline" is available for macOS AutoMDM-maintained apps. It's coming soon to Windows.`,
+			},
+		}
+
+		for _, c := range cases {
+			storedType, storedPWC, storedPlatform := c.storedType, c.storedPWC, c.storedPlatform
+			ds := setupDS("darwin")
+			ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+				stored := freshPatchPolicy()
+				stored.PatchWhenClosed = storedPWC
+				if storedType != "" {
+					stored.Type = storedType
+				}
+				if stored.Type != automdm.PolicyTypePatch {
+					stored.PatchSoftwareTitleID = nil
+				}
+				if storedPlatform != "" {
+					stored.Platform = storedPlatform
+				}
+				return stored, nil
+			}
+			svc, baseCtx := newTestService(t, ds, nil, nil)
+			_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, c.payload)
+			require.Error(t, err, c.name)
+			require.ErrorContains(t, err, c.wantErr, c.name)
+		}
+	})
+
+	// Creating a notify-before-patching policy clears the title's managed pre-install query, the
+	// same as patch_when_closed does.
+	t.Run("create notify-before-patching policy", func(t *testing.T) {
+		ds := setupDS("darwin")
+		var captured automdm.PolicyPayload
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+			captured = args
+			created := freshPatchPolicy()
+			created.NotifyBeforePatching = true
+			return created, nil
+		}
+		opts := &TestServerOpts{}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
+			Type:                         &patchType,
+			PatchSoftwareTitleID:         new(patchSoftwareTitleID),
+			NotifyBeforePatching:         true,
+			ContinuousAutomationsEnabled: true,
+		})
+		require.NoError(t, err)
+		assert.True(t, captured.NotifyBeforePatching)
+		assert.False(t, captured.PatchWhenClosed)
+		assert.True(t, captured.ContinuousAutomationsEnabled)
+		assert.True(t, ds.ClearPreInstallQueryForTitleFuncInvoked)
+	})
+
+	// Enabling notify_before_patching on modify forces continuous automations on.
+	t.Run("modify auto-sets continuous automations", func(t *testing.T) {
+		ds := setupDS("darwin")
+		var saved *automdm.Policy
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
+			saved = p
+			return nil
+		}
+		opts := &TestServerOpts{}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+
+		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, automdm.ModifyPolicyPayload{
+			NotifyBeforePatching: new(true),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, saved)
+		assert.True(t, saved.NotifyBeforePatching)
+		assert.True(t, saved.ContinuousAutomationsEnabled)
+		assert.True(t, ds.ClearPreInstallQueryForTitleFuncInvoked)
+	})
+
+	// Turning it off leaves continuous automations at whatever the caller asked for.
+	// Turning the flag off stops forcing continuous automations on, without changing the value
+	// itself: omitted keeps whatever the policy carried, explicit false is honored.
+	t.Run("modify off stops forcing continuous automations on", func(t *testing.T) {
+		cases := []struct {
+			name           string
+			payload        automdm.ModifyPolicyPayload
+			wantContinuous bool
+		}{
+			{
+				name:           "continuous omitted keeps the stored value",
+				payload:        automdm.ModifyPolicyPayload{NotifyBeforePatching: new(false)},
+				wantContinuous: true,
+			},
+			{
+				name: "explicit false is honored once the flag is off",
+				payload: automdm.ModifyPolicyPayload{
+					NotifyBeforePatching:         new(false),
+					ContinuousAutomationsEnabled: new(false),
+				},
+				wantContinuous: false,
+			},
+		}
+
+		for _, c := range cases {
+			ds := setupDS("darwin")
+			ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+				stored := freshPatchPolicy()
+				stored.NotifyBeforePatching = true
+				stored.ContinuousAutomationsEnabled = true
+				return stored, nil
+			}
+			var saved *automdm.Policy
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
+				saved = p
+				return nil
+			}
+			opts := &TestServerOpts{}
+			svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+			opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+				return nil
+			}
+
+			_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, c.payload)
+			require.NoError(t, err, c.name)
+			require.NotNil(t, saved, c.name)
+			assert.False(t, saved.NotifyBeforePatching, c.name)
+			assert.Equal(t, c.wantContinuous, saved.ContinuousAutomationsEnabled, c.name)
+		}
+	})
+}
+
+func TestModifyGlobalPolicyScriptID(t *testing.T) {
+	const policyID = uint(42)
+
+	ds := new(mock.Store)
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+		return &automdm.Policy{ID: policyID, Name: "global", Query: "SELECT 1;"}, nil
+	}
+	ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error { return nil }
+	opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
+	svc, ctx := newTestService(t, ds, nil, nil, opts)
+	opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+		return nil
+	}
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+
+	_, err := svc.ModifyGlobalPolicy(ctx, policyID, automdm.ModifyPolicyPayload{ScriptID: optjson.Any[uint]{Set: true, Valid: true, Value: 1}})
+	var bre *automdm.BadRequestError
+	require.ErrorAs(t, err, &bre)
+	require.ErrorContains(t, err, errPolicyAllTeamsForScripts)
+	require.False(t, ds.SavePolicyFuncInvoked)
+
+	// Clients such as the UI send the full payload, so unsetting must keep working.
+	for _, unset := range []optjson.Any[uint]{{Set: true, Valid: true}, {Set: true}} {
+		_, err = svc.ModifyGlobalPolicy(ctx, policyID, automdm.ModifyPolicyPayload{ScriptID: unset})
+		require.NoError(t, err)
+	}
+	require.True(t, ds.SavePolicyFuncInvoked)
+}
+
+func TestTeamPolicyResendConfigProfile(t *testing.T) {
+	const (
+		teamID     = uint(1)
+		policyID   = uint(42)
+		appleUUID  = automdm.MDMAppleProfileUUIDPrefix + "1111"
+		winUUID    = automdm.MDMWindowsProfileUUIDPrefix + "2222"
+		otherApple = automdm.MDMAppleProfileUUIDPrefix + "3333"
+		appleName  = "Apple Profile"
+		winName    = "Windows Profile"
+	)
+
+	adminCtx := func(ctx context.Context) context.Context {
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+	}
+
+	// policy returns a fresh team policy whose resend columns are set as given, so
+	// each subtest gets its own copy and cannot mutate another's.
+	policy := func(apple, windows *string) *automdm.Policy {
+		tID := teamID
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
+				ID:                       policyID,
+				TeamID:                   &tID,
+				Name:                     "resend-policy",
+				Query:                    "SELECT 1;",
+				Platform:                 "darwin,windows",
+				ResendAppleProfileUUID:   apple,
+				ResendWindowsProfileUUID: windows,
+			},
+		}
+	}
+
+	setupDS := func(existing *automdm.Policy) *mock.Store {
+		ds := new(mock.Store)
+		ds.TeamExistsFunc = func(ctx context.Context, id uint) (bool, error) { return true, nil }
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) { return existing, nil }
+		ds.TeamPolicyFunc = func(ctx context.Context, tID uint, id uint) (*automdm.Policy, error) { return existing, nil }
+		ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: id}, nil
+		}
+		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: id, Name: "team1"}, nil
+		}
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, profileUUID string) (*automdm.MDMAppleConfigProfile, error) {
+			return &automdm.MDMAppleConfigProfile{ProfileUUID: profileUUID, Name: appleName}, nil
+		}
+		ds.GetMDMWindowsConfigProfileFunc = func(ctx context.Context, profileUUID string) (*automdm.MDMWindowsConfigProfile, error) {
+			return &automdm.MDMWindowsConfigProfile{ProfileUUID: profileUUID, Name: winName}, nil
+		}
+		return ds
+	}
+
+	newPremiumSvc := func(t *testing.T, ds *mock.Store) (automdm.Service, context.Context) {
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
+		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+		return svc, adminCtx(baseCtx)
+	}
+
+	// Create passes profile_uuid straight through to the datastore payload. This is
+	// the plumbing the datastore tests cannot see, since they call the store directly.
+	t.Run("create plumbs profile_uuid to the payload", func(t *testing.T) {
+		for _, uuid := range []string{appleUUID, winUUID} {
+			t.Run(uuid, func(t *testing.T) {
+				ds := setupDS(nil)
+				var captured automdm.PolicyPayload
+				ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+					captured = args
+					return policy(nil, nil), nil
+				}
+				svc, ctx := newPremiumSvc(t, ds)
+
+				_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
+					Name:        "resend-policy",
+					Query:       "SELECT 1;",
+					Platform:    "darwin,windows",
+					ProfileUUID: new(uuid),
+				})
+				require.NoError(t, err)
+				require.True(t, ds.NewTeamPolicyFuncInvoked)
+				require.NotNil(t, captured.ProfileUUID)
+				require.Equal(t, uuid, *captured.ProfileUUID)
+			})
+		}
+	})
+
+	t.Run("platform gate", func(t *testing.T) {
+		t.Run("create on a policy targeting neither darwin nor windows is rejected", func(t *testing.T) {
+			for _, platform := range []string{"linux", "chrome", "linux,chrome"} {
+				t.Run("platform="+platform, func(t *testing.T) {
+					ds := setupDS(nil)
+					ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+						return policy(nil, nil), nil
+					}
+					svc, ctx := newPremiumSvc(t, ds)
+
+					_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
+						Name:        "resend-policy",
+						Query:       "SELECT 1;",
+						Platform:    platform,
+						ProfileUUID: new(appleUUID),
+					})
+					require.Error(t, err)
+					require.Contains(t, err.Error(), `"profile_uuid" is only valid on "darwin" and "windows" policies`)
+					require.False(t, ds.NewTeamPolicyFuncInvoked)
+				})
+			}
+		})
+
+		t.Run("create is allowed whenever darwin or windows is targeted", func(t *testing.T) {
+			// Including the cross-platform pairings, which the automation handles per host.
+			for _, platform := range []string{"darwin", "windows", "darwin,windows", "linux,darwin", ""} {
+				t.Run("platform="+platform, func(t *testing.T) {
+					ds := setupDS(nil)
+					ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+						return policy(new(appleUUID), nil), nil
+					}
+					svc, ctx := newPremiumSvc(t, ds)
+
+					_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
+						Name:        "resend-policy",
+						Query:       "SELECT 1;",
+						Platform:    platform,
+						ProfileUUID: new(appleUUID),
+					})
+					require.NoError(t, err)
+					require.True(t, ds.NewTeamPolicyFuncInvoked)
+				})
+			}
+		})
+
+		t.Run("modify rejects adding a profile to a linux-only policy", func(t *testing.T) {
+			existing := policy(nil, nil)
+			existing.Platform = "linux"
+			ds := setupDS(existing)
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships, removeStats bool) error {
+				return nil
+			}
+			svc, ctx := newPremiumSvc(t, ds)
+
+			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
+				ProfileUUID: optjson.SetString(appleUUID),
+			})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), `"profile_uuid" is only valid on "darwin" and "windows" policies`)
+			require.False(t, ds.SavePolicyFuncInvoked)
+		})
+
+		t.Run("modify rejects narrowing the platform away from a policy that resends", func(t *testing.T) {
+			// The profile stays as it was; the platform change is what invalidates the pairing.
+			ds := setupDS(policy(new(appleUUID), nil))
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships, removeStats bool) error {
+				return nil
+			}
+			svc, ctx := newPremiumSvc(t, ds)
+
+			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
+				Platform: new("linux"),
+			})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), `"profile_uuid" is only valid on "darwin" and "windows" policies`)
+			require.False(t, ds.SavePolicyFuncInvoked)
+		})
+
+		t.Run("modify allows clearing the profile while narrowing the platform", func(t *testing.T) {
+			ds := setupDS(policy(new(appleUUID), nil))
+			var saved *automdm.Policy
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships, removeStats bool) error {
+				saved = p
+				return nil
+			}
+			svc, ctx := newPremiumSvc(t, ds)
+
+			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
+				Platform:    new("linux"),
+				ProfileUUID: optjson.SetString(""),
+			})
+			require.NoError(t, err)
+			require.True(t, ds.SavePolicyFuncInvoked)
+			require.Nil(t, saved.ResendAppleProfileUUID)
+			require.Nil(t, saved.ResendWindowsProfileUUID)
+		})
+	})
+
+	t.Run("create with no profile_uuid leaves the payload nil", func(t *testing.T) {
+		ds := setupDS(nil)
+		var captured automdm.PolicyPayload
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+			captured = args
+			return policy(nil, nil), nil
+		}
+		svc, ctx := newPremiumSvc(t, ds)
+
+		_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{Name: "p", Query: "SELECT 1;"})
+		require.NoError(t, err)
+		require.Nil(t, captured.ProfileUUID)
+	})
+
+	// modifyPolicy routes the single profile_uuid onto the right column, clears the
+	// other, and mirrors the script_id reset asymmetry: setting or changing a profile
+	// resets memberships and stats, unsetting does not.
+	t.Run("modify routes columns and resets stats", func(t *testing.T) {
+		cases := []struct {
+			name        string
+			prevApple   *string
+			prevWindows *string
+			newValue    string
+			wantApple   *string
+			wantWindows *string
+			wantReset   bool
+		}{
+			{
+				name:      "set where there was none",
+				newValue:  appleUUID,
+				wantApple: new(appleUUID),
+				wantReset: true,
+			},
+			{
+				name:        "set windows where there was none",
+				newValue:    winUUID,
+				wantWindows: new(winUUID),
+				wantReset:   true,
+			},
+			{
+				name:      "same apple profile re-applied",
+				prevApple: new(appleUUID),
+				newValue:  appleUUID,
+				wantApple: new(appleUUID),
+				wantReset: false,
+			},
+			{
+				name:      "different apple profile",
+				prevApple: new(appleUUID),
+				newValue:  otherApple,
+				wantApple: new(otherApple),
+				wantReset: true,
+			},
+			{
+				name:        "apple switched to windows clears the apple column",
+				prevApple:   new(appleUUID),
+				newValue:    winUUID,
+				wantWindows: new(winUUID),
+				wantReset:   true,
+			},
+			{
+				name:        "windows switched to apple clears the windows column",
+				prevWindows: new(winUUID),
+				newValue:    appleUUID,
+				wantApple:   new(appleUUID),
+				wantReset:   true,
+			},
+			{
+				name:        "same windows profile re-applied",
+				prevWindows: new(winUUID),
+				newValue:    winUUID,
+				wantWindows: new(winUUID),
+				wantReset:   false,
+			},
+			{
+				name:      "unsetting clears both without resetting",
+				prevApple: new(appleUUID),
+				newValue:  "",
+				wantReset: false,
+			},
+			{
+				name:        "unsetting a windows profile clears both without resetting",
+				prevWindows: new(winUUID),
+				newValue:    "",
+				wantReset:   false,
+			},
+		}
+
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				ds := setupDS(policy(c.prevApple, c.prevWindows))
+				var (
+					saved                *automdm.Policy
+					gotRemoveMemberships bool
+					gotRemoveStats       bool
+				)
+				ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships bool, removeStats bool) error {
+					saved, gotRemoveMemberships, gotRemoveStats = p, removeAllMemberships, removeStats
+					return nil
+				}
+				svc, ctx := newPremiumSvc(t, ds)
+
+				tID := teamID
+				_, err := svc.ModifyTeamPolicy(ctx, tID, policyID, automdm.ModifyPolicyPayload{
+					ProfileUUID: optjson.SetString(c.newValue),
+				})
+				require.NoError(t, err)
+				require.True(t, ds.SavePolicyFuncInvoked)
+
+				require.Equal(t, c.wantApple, saved.ResendAppleProfileUUID)
+				require.Equal(t, c.wantWindows, saved.ResendWindowsProfileUUID)
+				// At most one column may ever be set.
+				require.False(t, saved.ResendAppleProfileUUID != nil && saved.ResendWindowsProfileUUID != nil)
+
+				assert.Equal(t, c.wantReset, gotRemoveMemberships, "removeAllMemberships")
+				assert.Equal(t, c.wantReset, gotRemoveStats, "removeStats")
+			})
+		}
+	})
+
+	// An absent profile_uuid must leave the existing association untouched, since
+	// savePolicy writes both columns unconditionally.
+	t.Run("absent profile_uuid keeps the existing profile", func(t *testing.T) {
+		ds := setupDS(policy(new(appleUUID), nil))
+		var saved *automdm.Policy
+		var gotRemoveMemberships, gotRemoveStats bool
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships bool, removeStats bool) error {
+			saved, gotRemoveMemberships, gotRemoveStats = p, removeAllMemberships, removeStats
+			return nil
+		}
+		svc, ctx := newPremiumSvc(t, ds)
+
+		_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
+			Name: new("renamed"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, new(appleUUID), saved.ResendAppleProfileUUID)
+		require.Nil(t, saved.ResendWindowsProfileUUID)
+		assert.False(t, gotRemoveMemberships)
+		assert.False(t, gotRemoveStats)
+	})
+
+	// Prefix validation happens before the save.
+	t.Run("rejected prefixes", func(t *testing.T) {
+		cases := []struct {
+			name       string
+			uuid       string
+			wantErrMsg string
+		}{
+			{
+				name:       "apple declaration",
+				uuid:       automdm.MDMAppleDeclarationUUIDPrefix + "4444",
+				wantErrMsg: automdm.CantResendAppleDeclarationProfilesMessage,
+			},
+			{
+				name:       "android profile",
+				uuid:       automdm.MDMAndroidProfileUUIDPrefix + "5555",
+				wantErrMsg: "has an invalid prefix",
+			},
+			{
+				name:       "unknown prefix",
+				uuid:       "z5555",
+				wantErrMsg: "has an invalid prefix",
+			},
+		}
+
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				ds := setupDS(policy(nil, nil))
+				ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
+					return nil
+				}
+				svc, ctx := newPremiumSvc(t, ds)
+
+				_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
+					ProfileUUID: optjson.SetString(c.uuid),
+				})
+				require.Error(t, err)
+				var bre *automdm.BadRequestError
+				require.ErrorAs(t, err, &bre)
+				require.Contains(t, bre.Message, c.wantErrMsg)
+				// Nothing must reach the datastore.
+				require.False(t, ds.SavePolicyFuncInvoked)
+			})
+		}
+	})
+
+	// "All teams" (global) policies cannot carry a resend profile.
+	t.Run("global policy rejects profile_uuid", func(t *testing.T) {
+		globalPolicy := &automdm.Policy{
+			PolicyData: automdm.PolicyData{ID: policyID, Name: "global", Query: "SELECT 1;"},
+		}
+		ds := setupDS(globalPolicy)
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error { return nil }
+		svc, ctx := newPremiumSvc(t, ds)
+
+		_, err := svc.ModifyGlobalPolicy(ctx, policyID, automdm.ModifyPolicyPayload{
+			ProfileUUID: optjson.SetString(appleUUID),
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, errPolicyAllTeamsForProfiles)
+		require.False(t, ds.SavePolicyFuncInvoked)
+	})
+
+	// The response object is populated from whichever column is set.
+	t.Run("response object is populated", func(t *testing.T) {
+		t.Run("apple", func(t *testing.T) {
+			ds := setupDS(policy(new(appleUUID), nil))
+			svc, ctx := newPremiumSvc(t, ds)
+
+			got, err := svc.GetTeamPolicyByID(ctx, teamID, policyID)
+			require.NoError(t, err)
+			require.True(t, ds.GetMDMAppleConfigProfileFuncInvoked)
+			require.False(t, ds.GetMDMWindowsConfigProfileFuncInvoked)
+			require.NotNil(t, got.ResendConfigurationProfile)
+			assert.Equal(t, appleUUID, got.ResendConfigurationProfile.UUID)
+			assert.Equal(t, appleName, got.ResendConfigurationProfile.Name)
+		})
+
+		t.Run("windows", func(t *testing.T) {
+			ds := setupDS(policy(nil, new(winUUID)))
+			svc, ctx := newPremiumSvc(t, ds)
+
+			got, err := svc.GetTeamPolicyByID(ctx, teamID, policyID)
+			require.NoError(t, err)
+			require.True(t, ds.GetMDMWindowsConfigProfileFuncInvoked)
+			require.False(t, ds.GetMDMAppleConfigProfileFuncInvoked)
+			require.NotNil(t, got.ResendConfigurationProfile)
+			assert.Equal(t, winUUID, got.ResendConfigurationProfile.UUID)
+			assert.Equal(t, winName, got.ResendConfigurationProfile.Name)
+		})
+
+		t.Run("neither column set", func(t *testing.T) {
+			ds := setupDS(policy(nil, nil))
+			svc, ctx := newPremiumSvc(t, ds)
+
+			got, err := svc.GetTeamPolicyByID(ctx, teamID, policyID)
+			require.NoError(t, err)
+			require.Nil(t, got.ResendConfigurationProfile)
+			require.False(t, ds.GetMDMAppleConfigProfileFuncInvoked)
+			require.False(t, ds.GetMDMWindowsConfigProfileFuncInvoked)
+		})
+	})
+}
+
+func TestModifyPolicyLabelChangeRemovesStats(t *testing.T) {
+	const policyID = uint(42)
+	newSvc := func(t *testing.T) (*mock.Store, automdm.Service, context.Context) {
+		ds := new(mock.Store)
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+			return &automdm.Policy{
+				ID: policyID, Name: "global", Query: "SELECT 1;",
+				LabelsIncludeAny: automdm.LabelNamesToIdents([]string{"label-a", "label-b"}),
+				PassingHostCount: 3, FailingHostCount: 4, HostCountUpdatedAt: new(time.Now()),
+			}, nil
+		}
+		ds.LabelsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]*automdm.Label, error) {
+			labels := make(map[string]*automdm.Label, len(names))
+			for i, name := range names {
+				labels[name] = &automdm.Label{ID: uint(i + 1), Name: name} //nolint:gosec // dismiss G115
+			}
+			return labels, nil
+		}
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
+		svc, ctx := newTestService(t, ds, nil, nil, opts)
+		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
+			return nil
+		}
+		return ds, svc, viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+	}
+
+	cases := []struct {
+		name            string
+		payload         automdm.ModifyPolicyPayload
+		wantRemoveStats bool
+	}{
+		{"changed labels", automdm.ModifyPolicyPayload{LabelsIncludeAny: []string{"label-a"}}, true},
+		{"switched label scope", automdm.ModifyPolicyPayload{LabelsExcludeAny: []string{"label-a", "label-b"}}, true},
+		{"same labels in another order", automdm.ModifyPolicyPayload{LabelsIncludeAny: []string{"label-b", "label-a"}}, false},
+		{"labels not sent", automdm.ModifyPolicyPayload{Description: new("new description")}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ds, svc, ctx := newSvc(t)
+			var removeAll, removeStats bool
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, shouldRemoveAll, shouldRemoveStats bool) error {
+				removeAll, removeStats = shouldRemoveAll, shouldRemoveStats
+				return nil
+			}
+			policy, err := svc.ModifyGlobalPolicy(ctx, policyID, tc.payload)
+			require.NoError(t, err)
+			require.True(t, ds.SavePolicyFuncInvoked)
+			assert.False(t, removeAll)
+			assert.Equal(t, tc.wantRemoveStats, removeStats)
+			if tc.wantRemoveStats {
+				assert.Zero(t, policy.PassingHostCount)
+				assert.Zero(t, policy.FailingHostCount)
+				assert.Nil(t, policy.HostCountUpdatedAt)
+			} else {
+				assert.Equal(t, uint(3), policy.PassingHostCount)
+			}
+		})
+	}
+}
+
+func TestListPoliciesForcePatch(t *testing.T) {
+	const softwareInstallerID = uint(101)
+	const softwareTitleID = uint(201)
+
+	ds := new(mock.Store)
+	ds.TeamLiteFunc = func(ctx context.Context, teamID uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: teamID}, nil
+	}
+	ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{InstallerID: id, TitleID: new(softwareTitleID), SoftwareTitle: "Firefox"}, nil
+	}
+	ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, teamID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
+		return map[uint]automdm.SoftwareTitleIcon{}, nil
+	}
+	ds.ListPoliciesInScopeFunc = func(ctx context.Context, teamID *uint, mergeInherited bool, opts automdm.ListOptions, filter automdm.PolicyListFilter) ([]*automdm.Policy, error) {
+		return []*automdm.Policy{
+			{ID: 1, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID)},
+			{ID: 2, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), PatchWhenClosed: true},
+			{ID: 3, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), NotifyBeforePatching: true},
+			{ID: 4, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), PatchDeadline: true},
+			{ID: 5, TeamID: teamID, Type: automdm.PolicyTypePatch},
+			{ID: 6, TeamID: teamID, Type: automdm.PolicyTypeDynamic, SoftwareInstallerID: new(softwareInstallerID)},
+		}, nil
+	}
+
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+
+	for _, teamID := range []uint{1, 0} {
+		policies, err := svc.ListPolicies(ctx, new(teamID), false, automdm.ListOptions{}, automdm.PolicyListFilter{})
+		require.NoError(t, err)
+		require.Len(t, policies, 6)
+
+		// List a patch policy with an installer and no other option, force_patch should be true.
+		require.True(t, policies[0].ForcePatch, "team %d", teamID)
+		// List patch policies with patch_when_closed, notify_before_patching, or patch_deadline, force_patch should be false.
+		require.False(t, policies[1].ForcePatch, "team %d", teamID)
+		require.False(t, policies[2].ForcePatch, "team %d", teamID)
+		require.False(t, policies[3].ForcePatch, "team %d", teamID)
+		// List a patch policy without an installer, force_patch should be false.
+		require.False(t, policies[4].ForcePatch, "team %d", teamID)
+		// List a dynamic policy with an installer, force_patch should be false.
+		require.False(t, policies[5].ForcePatch, "team %d", teamID)
+	}
+}

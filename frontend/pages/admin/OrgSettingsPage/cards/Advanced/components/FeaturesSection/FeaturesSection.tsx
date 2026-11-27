@@ -1,0 +1,166 @@
+import React from "react";
+
+import CustomLink from "components/CustomLink";
+import Checkbox from "components/forms/fields/Checkbox";
+import GitOpsModeTooltipWrapper from "components/GitOpsModeTooltipWrapper";
+import SettingsSection from "pages/admin/components/SettingsSection";
+
+import { IAdvancedSectionProps } from "../../Advanced";
+
+const FeaturesSection = ({
+  formData,
+  onInputChange,
+  isPremiumTier = false,
+}: IAdvancedSectionProps) => {
+  const {
+    disableLiveQuery,
+    disableAIFeatures,
+    enableProfileValidation,
+    disableMCP,
+  } = formData;
+  return (
+    <SettingsSection title="Features">
+      <GitOpsModeTooltipWrapper
+        position="left"
+        renderChildren={(disableChildren) => (
+          <Checkbox
+            disabled={disableChildren}
+            onChange={() =>
+              onInputChange({
+                name: "disableLiveQuery",
+                value: !disableLiveQuery,
+              })
+            }
+            name="disableLiveQuery"
+            value={!disableLiveQuery}
+            labelTooltipContent={
+              !disableChildren && (
+                <>
+                  When disabled, removes the ability to run live reports (ad hoc
+                  reports executed via the UI or automdmctl).
+                  <br />
+                  <i>
+                    (Default: <strong>On</strong>)
+                  </i>
+                </>
+              )
+            }
+          >
+            Live reports
+          </Checkbox>
+        )}
+      />
+
+      <GitOpsModeTooltipWrapper
+        position="left"
+        renderChildren={(disableChildren) => (
+          <Checkbox
+            disabled={disableChildren}
+            onChange={() =>
+              onInputChange({
+                name: "disableAIFeatures",
+                value: !disableAIFeatures,
+              })
+            }
+            name="disableAIFeatures"
+            value={!disableAIFeatures}
+            labelTooltipContent={
+              !disableChildren && (
+                <>
+                  <>
+                    When disabled, removes AI features that generate policy
+                    descriptions, policy resolutions, and configuration
+                    profiles.
+                  </>{" "}
+                  <br />
+                  <i>
+                    (Default: <strong>On</strong>)
+                  </i>
+                </>
+              )
+            }
+            helpText={
+              "Only policy queries (SQL) and profile prompts are sent to the LLM. AutoMDM doesn't use this data to train models."
+            }
+          >
+            Generative AI
+          </Checkbox>
+        )}
+      />
+      <GitOpsModeTooltipWrapper
+        position="left"
+        renderChildren={(disableChildren) => (
+          <Checkbox
+            disabled={disableChildren}
+            onChange={() =>
+              onInputChange({
+                name: "enableProfileValidation",
+                value: !enableProfileValidation,
+              })
+            }
+            name="enableProfileValidation"
+            value={enableProfileValidation}
+            labelTooltipContent={
+              !disableChildren && (
+                <>
+                  Currently supported for Apple and Windows configuration
+                  profiles. When disabled, AutoMDM does not check that each
+                  setting it recognizes has a value of the expected type.
+                  <br />
+                  <i>
+                    (Default: <strong>On</strong>)
+                  </i>
+                </>
+              )
+            }
+          >
+            Profile validation
+          </Checkbox>
+        )}
+      />
+      {isPremiumTier && (
+        <GitOpsModeTooltipWrapper
+          position="left"
+          renderChildren={(disableChildren) => (
+            <Checkbox
+              disabled={disableChildren}
+              onChange={() =>
+                onInputChange({ name: "disableMCP", value: !disableMCP })
+              }
+              name="disableMCP"
+              value={!disableMCP}
+              labelTooltipContent={
+                !disableChildren && (
+                  <>
+                    When disabled, AI harnesses (e.g. Claude) can&apos;t connect
+                    to AutoMDM&apos;s MCP server.
+                    <br />
+                    <i>
+                      (Default: <strong>On</strong>)
+                    </i>
+                  </>
+                )
+              }
+              helpText={
+                <>
+                  Connect AutoMDM&apos;s MCP server to your AI harness (Claude,
+                  Codex, Copilot, etc.) so that you can ask questions about your
+                  team.{" "}
+                  <CustomLink
+                    url="https://automdm.com/guides/automdm-mcp"
+                    text="Learn more"
+                    newTab
+                  />
+                </>
+              }
+            >
+              MCP server
+            </Checkbox>
+          )}
+        />
+      )}
+    </SettingsSection>
+  );
+};
+
+export default FeaturesSection;

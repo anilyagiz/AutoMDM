@@ -1,0 +1,449 @@
+# Disk encryption architecture
+
+This document provides an overview of AutoMDM's Disk Encryption architecture for MDM.
+
+## Introduction
+
+Disk Encryption in AutoMDM's MDM allows for securing device data by encrypting the storage media. This document provides insights into the design decisions, system components, and interactions specific to the Disk Encryption functionality.
+
+## Architecture overview
+
+The Disk Encryption architecture leverages platform-specific encryption technologies (FileVault for macOS, BitLocker for Windows, LUKS via LVM for Linux) to encrypt device storage and securely manage recovery keys.
+
+## Key components
+
+- **Encryption Configuration**: Settings and policies for configuring disk encryption.
+- **Key Management**: Secure storage and retrieval of encryption keys.
+- **Verification**: Mechanisms to verify the encryption status of devices.
+- **Recovery**: Processes for recovering access to encrypted devices.
+
+## Architecture diagram
+
+See platform-specific diagrams below
+
+## Platform-specific implementation
+
+### FileVault (macOS)
+
+For macOS hosts without disk encryption enabled, encryption involves a two-step process:
+
+1. Sending a profile with two payloads:
+   - A Payload to configure how the disk is going to be encrypted
+   - A Payload to configure the escrow of the encryption key
+
+2. Retrieving the disk encryption key:
+   - Via osquery, AutoMDM grabs the (encrypted) disk encryption key
+   - In a cron job, AutoMDM verify that it is able to decrypt the key
+
+```mermaid
+sequenceDiagram
+        actor Admin
+        participant automdm as AutoMDM server
+        participant host as macOS Host
+        participant automdmd as orbit
+        participant desktop as AutoMDM Desktop
+        actor user as End User
+        Admin->>automdm: Enable disk encryption
+        host->>automdm: Enroll in AutoMDM
+        automdm->>host: Encryption and<br>escrow profile installed
+        automdm->>host: Orbit/osquery installed
+        host->>host: Enable Filevault
+        desktop->>user: prompt user to logout
+        user->>host: logout/login or create<br>initial user during setup
+        host->>host: Store recovery key at <br>/var/db/filevaultprk.dat
+        automdmd->>automdm: request vitals reports
+        automdm->>automdmd: Return vitals reports including query<br>to read /var/db/filevaultprk.dat
+        automdmd->>automdmd: execute reports
+        automdmd->>automdm: return report data including recovery key
+        automdm->>automdm: Verify that recovery key is decryptable<br>(hourly cron job)
+```
+
+If AutoMDM is not able to decrypt the key for a host, or there is no stored key for an already encrypted host, the key needs to be rotated. Rotation happens silently by:
+
+1. The server sends a notification to orbit to rotate the disk encryption recovery key
+2. orbit installs and enables an authorization plugin named [Escrow Buddy](https://github.com/macadmins/escrow-buddy) that performs the key rotation the next time the user logs in.
+3. Escrow Buddy stores the encrypted key on disk after the next login
+4. AutoMDM, via osquery, retrieves the (encrypted) recovery key
+5. A cron job verifies that the retrieved key can be decrypted
+
+```mermaid
+sequenceDiagram
+        actor Admin
+        participant automdm as AutoMDM server
+        participant host as macOS Host
+        participant automdmd as orbit
+        participant desktop as AutoMDM Desktop
+        actor user as End User
+        user->>host: Enable filevault
+        Admin->>automdm: Enable disk encryption
+        host->>automdm: Enroll in AutoMDM
+        automdm->>host: Encryption and<br>escrow profile installed
+        automdm->>host: Orbit/osquery installed
+        automdmd->>automdm: request vitals queries
+        automdm->>automdmd: Return reports including encryption status
+        automdmd->>automdm: return report data including encryption status
+        automdm->>automdmd: Enable notifs.RunDiskEncryptionEscrow in orbit<br>config because Host is encrypted but no<br>key is escrowed
+        automdmd->>host: Install Escrow Buddy
+        automdmd->>host: Set Escrow Buddy<br>GenerateNewKey=true
+        desktop->>user: prompt user to logout
+        user->>host: logout/login
+        host->>host: Store recovery key at <br>/var/db/filevaultprk.dat<br>(triggered by Escrow Buddy)
+        automdmd->>automdm: request vitals reports
+        automdm->>automdmd: Return vitals reports including query<br>to read /var/db/filevaultprk.dat
+        automdmd->>automdmd: execute reports
+        automdmd->>automdm: return report data including recovery key
+        automdm->>automdmd: Disable notifs.RunDiskEncryptionEscrow in orbit<br>config because Host is encrypted and a<br>key is escrowed
+        automdmd->>host: Set Escrow Buddy<br>GenerateNewKey=false
+        automdm->>automdm: Verify that recovery key is decryptable<br>(hourly cron job)
+```
+
+#### Troubleshooting
+The key stored in host_disk_encryption_keys for a given host will be deleted under the following circumstances:
+- MDM re-enrollment or enrollment profile reinstallation, outside AutoMDM-initiated MDM SCEP certificate renewal
+- Host moved to a team with disk encryption disabled
+
+Turning disk encryption off for a team does not delete the keys of the hosts already in it. Deletion on a team change only runs when hosts move teams and only when the destination team has no disk encryption profile.
+
+If the host is still in an encrypted team after the MDM re-enrollment, or in the case of a team
+change, once the host is moved to a team with encryption enabled, AutoMDM will initiate one of the processes
+described above, depending on the host's actual disk encryption status, to escrow a new encryption
+key. Until the process is complete no key will be listed in AutoMDM, however in the event of an
+emergency the latest key can be retrieved from the archive using the steps described in [Key Storage
+and Security](#key-storage-and-security).
+
+### BitLocker (Windows)
+
+Disk encryption on Windows is performed entirely by orbit. 
+
+When disk encryption is enabled, the server sends a notification to orbit, which calls the
+[Win32_EncryptableVolume class](https://learn.microsoft.com/en-us/windows/win32/secprov/getencryptionmethod-win32-encryptablevolume)
+to encrypt the used space of the disk with TPM and Numerical Password protectors and generate an encryption key.
+
+If the disk is already encrypted, orbit rotates the recovery key: it adds a new AutoMDM-managed
+Numerical Password protector, removes old recovery key protectors, and escrows the new key. The disk
+is never decrypted. This matches how other MDM platforms handle pre-encrypted disks and avoids issues
+with secondary drives that use BitLocker auto-unlock (which prevents decrypting the OS drive).
+
+After the disk is encrypted (or the key is rotated), orbit sends the key back to the server using an
+orbit-authenticated endpoint (`POST /api/automdm/orbit/disk_encryption_key`).
+
+The server determines whether the disk is encrypted by checking both `conversion_status` (whether
+the data is encrypted) and `protection_status` (whether the TPM protector is active) from the
+osquery `bitlocker_info` table.
+
+#### Restoring protection
+
+A disk that is encrypted but has protection off, for example because BitLocker was suspended for a BIOS update and never resumed, keeps its key available in the clear. It is encrypted but not protected. AutoMDM repairs this rather than leaving the host in that state: the server sets the `enable_bitlocker_protection` notification and orbit turns protection back on.
+
+Before enabling, orbit makes sure the volume can unseal at boot, adding a TPM protector when no TPM-family protector is present. If a restart is already pending, orbit changes nothing and reports a deferral, because enabling re-seals the key to the current boot measurements and a staged update would change them.
+
+Orbit reports what it did (`restored`, `deferred`, or `failed`) to `POST /api/automdm/orbit/disk_encryption_protection`. While AutoMDM is repairing the host it shows "Enforcing". It shows "Action required" only once orbit reports that it cannot finish, and the host's disk encryption details then carry the reason.
+
+Windows startup-authentication policy can forbid the TPM-only protector orbit needs, which an admin, another tool, or a previous MDM can leave behind. When a volume is unprotected and has no TPM-family protector at all, AutoMDM clears that policy so the repair can proceed.
+
+```mermaid
+sequenceDiagram
+        actor Admin
+        participant automdm as AutoMDM server
+        participant host as Windows Host
+        participant automdmd as orbit
+        participant desktop as AutoMDM Desktop
+        actor user as End User
+        Admin->>automdm: Enable disk encryption
+        host->>automdm: Enroll in AutoMDM
+        automdm->>host: Orbit/osquery installed
+        automdmd->>automdm: request vitals queries
+        automdm->>automdmd: Return reports including encryption status<br>(protection_status and conversion_status)
+        automdmd->>automdm: return report data including encryption status
+        automdm->>automdmd: Enable notifs.EnforceBitLockerEncryption in orbit<br>config because Host is encrypted but no decryptable<br>key is escrowed or host is not encrypted
+        alt Disk not encrypted
+        automdmd->>host: Create TPM and Numerical Password protectors
+        host->>automdmd: Return recovery key after creating protectors
+        automdmd->>host: Encrypt OS volume
+        else Disk already encrypted
+        automdmd->>host: Add new Numerical Password protector
+        host->>automdmd: Return new recovery key
+        automdmd->>host: Remove old recovery key protectors
+        automdmd->>host: Ensure TPM protector exists
+        end
+        automdmd->>automdm: Send recovery key
+        automdmd->>automdm: request vitals reports
+        automdm->>automdmd: Return vitals reports including query<br>to check encryption status
+        automdmd->>automdmd: execute reports
+        automdmd->>automdm: return report data including encryption status
+        automdm->>automdmd: Disable notifs.EnforceBitLockerEncryption in orbit<br>config because Host is encrypted and a<br>key is escrowed
+```
+
+The server encrypts the key with `server.private_key` and marks it decryptable when it's escrowed. Unlike macOS, AutoMDM doesn't re-check Windows keys periodically. Keys escrowed before AutoMDM 4.95.0 are checked once, when they're migrated, see [Key storage and security](#key-storage-and-security). A key marked undecryptable counts as no key: the orbit config sets `EnforceBitLockerEncryption` again, so orbit rotates the recovery key and escrows a new one.
+
+#### Troubleshooting
+
+A number of disk encryption related registry settings can interfere with AutoMDM's ability to encrypt the disk
+and escrow the key in various ways, such as disallowing encryption methods used by AutoMDM or requiring
+a non-standard TPM Platform Validation Profile. These settings can also potentially disallow disk
+encryption entirely either explicitly or implicitly via conflicting settings. Because of the number
+of settings and their possible values it is impractical to cover them all however, a good place to
+begin investigating is the "Full Volume Encryption" policies key in the registry, which can be viewed
+using the following query. Pay careful attention to keys like FDVEncryptionType and OSEncryptionType
+which have been observed on customer systems causing conflicts:
+
+`SELECT * FROM registry WHERE path LIKE 'HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\FVE\%%';`
+
+Additionally, AutoMDM's disk encryption implementation requires a working TPM on Windows hosts. Hosts
+without a TPM or with the TPM disabled via BIOS or other means will fail to have their disks
+encrypted.
+
+Finally, in some error scenarios the disk may be left in a state where AutoMDM has initialized the
+encryption process but is unable to complete it. If you believe the conflicting settings have been
+removed or properly modified the following command will ensure the disk is decrypted and in a clean
+slate for orbit to attempt to encrypt the disk again:
+
+`manage-bde -off C:`
+
+#### BitLocker PIN entry (TPM+PIN)
+
+When a team sets `require_bitlocker_pin`, an encrypted Windows host with no TPM+PIN protector reports
+`action_required` with `action_required: "create_pin"`, and only the end user can clear it.
+
+Nothing on the device lets the browser or AutoMDM Desktop hand a PIN to orbit: AutoMDM Desktop and the **My device** page
+talk only to the AutoMDM server, and orbit only polls the server. So the PIN travels through the server rather than over a
+local channel:
+
+1. The end user submits the PIN from the **My device** page
+   (`POST /api/v1/automdm/device/{token}/disk_encryption_pin`).
+2. The server validates it (6 to 20 printable ASCII characters), encrypts it with the server private key, and stores one
+   row per host in `host_bitlocker_pin_requests` with status `pending`.
+3. orbit picks it up on its next config poll, at most 30 seconds later, through
+   `POST /api/automdm/orbit/disk_encryption_pin/details`. That response is the only one that ever carries the PIN. The
+   server clears the ciphertext as it hands it over and marks the row `delivered`.
+4. orbit adds a TPM+PIN protector with `ProtectKeyWithTPMAndPIN` on
+   [Win32_EncryptableVolume](https://learn.microsoft.com/en-us/windows/win32/secprov/getencryptionmethod-win32-encryptablevolume),
+   then deletes the TPM-only protectors, because "the presence of the 'TPM' key protector type negates the effects of
+   other TPM-based key protectors". orbit runs as SYSTEM, so this needs no UAC prompt and no admin rights from the end
+   user. If any step after the add fails, orbit restores the TPM-only protector before removing the PIN protector, so the
+   volume never ends up bootable only with the recovery key.
+5. orbit reports the outcome to `POST /api/automdm/orbit/disk_encryption_pin/result`. On success the server records a
+   `created_disk_encryption_pin` activity with a nil user, rendered as "End user", and requests a refetch so osquery
+   confirms the protector list.
+
+The PIN is never logged, never returned by any user-authenticated API, and is stored only for the seconds to minutes
+between submission and delivery. A `pending` row that no agent collects expires after 15 minutes, and a `delivered` row
+the agent never reports on expires after an hour; both are then marked failed rather than left waiting.
+
+AutoMDM only advertises the request while the host still qualifies, so turning the setting off or moving the host to
+another team quietly drops it. Hosts whose automdmd is too old advertise no `windows_bitlocker_pin` capability; the device
+API reports `automdmd_can_set_pin: false` and the **My device** page falls back to instructions for Windows' **Manage
+BitLocker**, which does require admin rights.
+
+AutoMDM Desktop's only role is the prompt: it posts a Windows toast once per Windows login whose button opens
+`/device/{token}?create_pin=1`. orbit registers AutoMDM Desktop's AppUserModelID at every start.
+
+The server detects whether a TPM+PIN protector is set via the `tpm_pin_set_verify` vital query, which checks
+`bitlocker_key_protectors` for protector types 4 (TPM+PIN) and 6 (TPM+PIN+startup key). That observation, not the
+agent's report, is what moves the host to **Verified**.
+
+```mermaid
+sequenceDiagram
+        actor user as End User
+        participant desktop as AutoMDM Desktop
+        participant browser as My device page
+        participant automdm as AutoMDM server
+        participant automdmd as orbit
+        participant host as Windows volume
+        desktop->>automdm: Desktop summary
+        automdm->>desktop: needs_bitlocker_pin
+        desktop->>user: Toast: set your BitLocker PIN
+        user->>browser: Open My device, enter PIN
+        browser->>automdm: POST /device/{token}/disk_encryption_pin
+        automdm->>automdm: Validate, encrypt, store (pending)
+        automdmd->>automdm: Config poll (every 30s)
+        automdm->>automdmd: PIN request pending
+        automdmd->>automdm: POST /orbit/disk_encryption_pin/details
+        automdm->>automdmd: PIN (once), row cleared and marked delivered
+        automdmd->>host: Add TPM+PIN protector, remove TPM-only
+        automdmd->>automdm: POST /orbit/disk_encryption_pin/result (set or failed)
+        automdm->>automdm: created_disk_encryption_pin activity, request refetch
+        browser->>automdm: Poll device host details
+        automdm->>browser: pin_request.status
+        automdmd->>automdm: tpm_pin_set_verify confirms the protector
+```
+
+### LUKS (Linux)
+AutoMDM can escrow disk encryption keys for Linux hosts that had LUKS2 encryption enabled during
+installation, on the platforms listed in `Host.IsLUKSSupported` (Ubuntu and its derivatives, Fedora,
+Arch and its derivatives). Escrow starts when the end user clicks **Create key** on the My device
+page. AutoMDM queues the request only if key escrow is enabled for the host's team, the platform is
+supported, the disk is already encrypted, and orbit is new enough. Orbit then prompts the user for
+their existing passphrase, uses it to add a key slot holding a randomly generated passphrase, and
+escrows that new passphrase on the server.
+
+```mermaid
+sequenceDiagram
+        actor Admin
+        participant automdm as AutoMDM server
+        participant desktop as AutoMDM Desktop<br>(My device page)
+        participant automdmd as orbit
+        participant host as Linux host
+        actor user as End User
+        user->>host: Encrypt disk during OS installation
+        Admin->>automdm: Enable disk encryption and Linux key escrow for the automdm
+        host->>automdm: Enroll, osquery reports disk encryption status
+        desktop->>user: Show "Disk encryption" banner with Create key
+        user->>desktop: Click Create key
+        desktop->>automdm: POST /device/{token}/mdm/linux/trigger_escrow
+        automdm->>automdm: Validate (escrow enabled, supported platform,<br>disk encrypted, orbit 1.36.0 or newer, no key stored,<br>not already pending or in flight)
+        automdm->>automdm: Set reset_requested
+        automdmd->>automdm: Poll orbit config
+        automdm->>automdmd: notifs.RunDiskEncryptionEscrow = true
+        automdm->>automdm: Clear reset_requested, set escrow_sent_at (in flight)
+        automdmd->>user: Prompt for passphrase (zenity/kdialog, 1 min timeout)
+        loop Periodically while prompting or escrowing (automdmd with linux_escrow_status)
+            automdmd->>automdm: POST /orbit/luks_data status=prompting or escrowing
+            automdm->>automdm: Refresh escrow_sent_at
+        end
+        alt Passphrase entered
+            user->>automdmd: Enter passphrase
+            automdmd->>host: Validate passphrase, add key slot with a<br>random passphrase, read its salt
+            automdmd->>automdm: POST /orbit/luks_data (passphrase, salt, key slot)<br>or client_error
+            automdm->>automdm: Encrypt and store key, clear escrow_sent_at<br>and reset_requested
+            automdmd->>user: Show success dialog
+            user->>desktop: Refetch, banner clears
+        else Prompt dismissed or timed out
+            automdmd->>automdm: POST /orbit/luks_data status=canceled or timed_out<br>(automdmd with linux_escrow_status, otherwise nothing is sent)
+            automdm->>automdm: Clear escrow_sent_at
+        end
+```
+
+As with Windows, there is no periodic decryptability check for Linux.
+
+Serving the notification to orbit marks the escrow as in flight by setting `escrow_sent_at` on
+`host_disk_encryption_keys`. The escrow stays in flight for `LinuxEscrowInFlightWindow` after the
+last sign of life from orbit, and while it is, clicking **Create key** again queues nothing, so the
+end user is not prompted twice. The trigger endpoint answers `409 Conflict` instead of the usual
+`204`, with a `Retry-After` header carrying the seconds left in the window, and the My device page
+uses both to point the end user at the prompt orbit already opened and to say how long to wait
+before trying again. A key or an error reported through `luks_data` ends the in-flight state
+immediately.
+
+Orbit can also report progress through the `status` field of `luks_data` when the server advertises
+the `linux_escrow_status` capability. `prompting` and `escrowing` heartbeats refresh `escrow_sent_at`,
+so the state survives passphrase retries and the slow key slot creation under orbit's CPU quota.
+`canceled` and `timed_out` end it without touching `client_error`, so the host is not shown as
+failed and the end user can retry at once. Older orbit versions report none of this, which is what
+the window covers: without a heartbeat, a prompt they dismissed or let time out stays in flight until
+`LinuxEscrowInFlightWindow` expires.
+
+If the window expires while the end user is still at the prompt and they click **Create key**
+again, a duplicate request is queued behind the one in progress. Storing the escrowed key clears
+`reset_requested` as well as `escrow_sent_at`. No new request can be accepted once a key is stored,
+so anything still pending at that point is a stale duplicate and must not reach orbit.
+
+#### TPM-backed FDE (Ubuntu 26 and later)
+
+Newer Ubuntu releases offer TPM-backed full-disk encryption. The volume is still LUKS2/dm-crypt
+underneath, but the LUKS key is sealed to the TPM and the disk unlocks automatically at boot, so by
+default there is **no user passphrase**. snapd (via secboot) owns the LUKS key slots.
+
+This means AutoMDM cannot escrow a key by adding a key slot with `cryptsetup luksAddKey` as it does for
+the passphrase flow above: an externally added slot is untracked by snapd and can be removed when
+snapd re-seals the key (for example on a kernel update). Instead, orbit detects that the volume is
+snapd-managed (by inspecting the LUKS2 tokens) and escrows a dedicated, AutoMDM-owned snapd recovery
+key created in its own named slot (`automdm-escrow`), leaving the user's install-time recovery key
+untouched.
+
+Because the disk auto-unlocks and there is no passphrase to collect, this happens **silently with no
+end-user dialog**. orbit reports `key_type: "recovery_key"` in the escrow request
+(`POST /api/automdm/orbit/luks_data`); recovery keys have no salt or key slot, so those columns are
+empty/null in `host_disk_encryption_keys`. The escrowed recovery key is revealed to admins through
+the same Host details flow as other platforms.
+
+```mermaid
+sequenceDiagram
+        actor Admin
+        participant automdm as AutoMDM server
+        participant host as Linux Host (TPM FDE)
+        participant automdmd as orbit
+        participant snapd as snapd / snap-tpmctl
+        actor user as End User
+        user->>host: Enable TPM-backed FDE during OS installation
+        Admin->>automdm: Enable disk encryption
+        host->>automdm: Enroll in AutoMDM
+        automdmd->>automdm: request vitals queries
+        automdm->>automdmd: Return reports including encryption status
+        automdmd->>automdm: return report data including encryption status
+        automdm->>automdmd: Enable notifs.RunDiskEncryptionEscrow in orbit<br>config because Host is encrypted but no<br>key is escrowed
+        automdmd->>snapd: Detect snapd-managed FDE (LUKS2 tokens)
+        automdmd->>snapd: generate-recovery-key
+        snapd->>automdmd: Return recovery key + transient key id
+        automdmd->>snapd: add-recovery-key (enroll under automdm-escrow slot)
+        automdmd->>snapd: check-recovery-key (validate before escrow)
+        automdmd->>automdm: Encrypt and send recovery key<br>(key_type: recovery_key, no salt/key slot)
+        automdm->>automdmd: Disable notifs.RunDiskEncryptionEscrow in orbit<br>config because Host is encrypted and a<br>key is escrowed
+```
+
+**Tooling.** orbit manages the snapd recovery key exclusively through the **snapd REST API over the
+`/run/snapd.socket` unix socket** (`POST /v2/system-volumes`), which snapd 2.74 (shipping in Ubuntu
+26.04) extended so management agents can enroll a dedicated, named recovery key. The flow is:
+`generate-recovery-key` (synchronous; returns the key value and a transient key id) →
+`add-recovery-key` (asynchronous; enrolls the key under the `automdm-escrow` name, falling back to
+`replace-recovery-key` if the slot already exists) → `check-recovery-key` (validates before
+escrow). These actions require root on the privileged socket, which orbit has, and the socket is
+guaranteed present wherever TPM-backed FDE is in use — no network or snap store access needed.
+
+orbit deliberately does **not** shell out to the
+[`snap-tpmctl`](https://github.com/canonical/snap-tpmctl) CLI: that tool is itself just another
+client of the same socket, is GPL-licensed (the socket is a stable, language-agnostic wire
+protocol), is not installed by default, and would add a network/snap-store dependency. If a socket
+operation fails, the escrow is reported to the server as a failure (the host shows "Action
+required"/"Failed") rather than silently falling back to the passphrase dialog, which cannot work on
+a host with no user passphrase. The socket is not on the boot/unlock path either — a TPM-backed host
+boots and auto-unlocks via snapd's initramfs regardless.
+
+snapd's `/v2/system-volumes` exposes no way to delete a recovery-key slot (as of snapd 2.74 — only
+passphrase/PIN auth factors can be removed). A recovery key is retired by rotating it
+(`replace-recovery-key`), which is what enrollment does on a retry. So if escrow to the AutoMDM server
+fails after a key is enrolled, orbit does not (and cannot) delete it; the host stays pending escrow
+and the next attempt regenerates and replaces the key in place, so escrow self-heals on retry. The
+orphaned key is harmless because its secret was never stored anywhere.
+
+## Key storage and security
+
+Encryption keys are stored in the `host_disk_encryption_keys` table. The value for the key is encrypted with a credential that depends on the host's platform, and can only be decrypted with the matching private key:
+
+| Platform | Encrypted with | Decrypted in `getHostDiskEncryptionKey` using |
+| --- | --- | --- |
+| macOS, iOS, iPadOS | AutoMDM's CA certificate | `assets.CACertsAndKeyForDecryption` |
+| Windows | AutoMDM server private key | `server.private_key`, falling back to the WSTEP identity key for keys escrowed before AutoMDM 4.95.0 |
+| Linux | AutoMDM server private key | `server.private_key` |
+
+Replacing any of these leaves every key that was escrowed against the old credential undecryptable. AutoMDM re-verifies decryptability hourly for macOS only, and only for keys it has not verified before. Windows and Linux keys are marked decryptable at escrow time and are never re-checked, and no platform re-checks a key already marked decryptable.
+
+The exception is Windows keys escrowed before AutoMDM 4.95.0, which were encrypted to the WSTEP identity certificate (CMS). Those rows carry `wstep_encrypted = 1` in both tables, which the migration that added the column backfilled. The `reencrypt_windows_disk_encryption_keys` schedule moves them to `server.private_key`, in batches of 500, with its first run ten minutes after startup and hourly after that:
+
+- A key the WSTEP key decrypts is re-encrypted with a compare-and-swap that leaves `updated_at` alone, so the host's disk encryption status doesn't change.
+- A live key it can't decrypt is marked `decryptable = 0`. The host shows "Enforcing" with a detail explaining why, and the orbit config asks it for a new key.
+- An archived key it can't decrypt is left as it is.
+
+Every outcome clears the marker, so later runs find nothing to do. The schedule skips its run when `server.private_key` is empty or the WSTEP pair isn't configured, since a host can't re-escrow without Windows MDM. Replacing or renewing the WSTEP pair doesn't affect keys already on `server.private_key`.
+
+Additionally, a backup copy of any key that gets escrowed is stored in the
+`host_disk_encryption_keys_archive` table. Archived keys are encrypted the same way as live ones, so they don't survive a credential change either. In the event that a host's encryption key is unavailable
+due to a rotation or other event, it is possible to restore the host's most recently archived key by
+executing the following query against the AutoMDM server's MySQL database, replacing HOST_ID with the
+ID of the host in question:
+
+```sql
+INSERT INTO host_disk_encryption_keys (host_id, base64_encrypted, base64_encrypted_salt, key_slot, decryptable, created_at)
+SELECT host_id, base64_encrypted, base64_encrypted_salt, key_slot, 1 AS decryptable, created_at FROM host_disk_encryption_keys_archive
+WHERE host_id = HOST_ID ORDER BY created_at DESC LIMIT 1;
+```
+
+Please note that this key is not guaranteed to work and restoration should be a last resort option.
+In many cases, AutoMDM triggers key rotation when the existing key may not work
+
+## Related resources
+
+- [MDM Product Group Documentation](README.md) - Documentation for the MDM product group
+- [MDM Development Guides](../guides/README.md) - Guides for MDM development
+- [Enforce disk encryption guide](https://automdm.com/guides/enforce-disk-encryption)
+- [Bitlocker Policy Settings registry key guide by Geoff Chappell](https://www.geoffchappell.com/studies/windows/win32/fveapi/policy/index.htm)

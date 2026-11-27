@@ -1,0 +1,543 @@
+package spec
+
+import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/pkg/testutils"
+	"github.com/hashicorp/go-multierror"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSplitYaml(t *testing.T) {
+	in := `
+---
+- Document
+#---
+--- Document2
+---
+Document3
+`
+
+	docs := SplitYaml(in)
+	require.Equal(t, 3, len(docs))
+	assert.Equal(t, "- Document\n#---", docs[0])
+	assert.Equal(t, "Document2", docs[1])
+	assert.Equal(t, "Document3", docs[2])
+}
+
+func gitRootPath(t *testing.T) string {
+	path, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	require.NoError(t, err)
+	return strings.TrimSpace(string(path))
+}
+
+func loadSpec(t *testing.T, relativePaths ...string) []byte {
+	b, err := os.ReadFile(filepath.Join(
+		append([]string{gitRootPath(t)}, relativePaths...)...,
+	))
+	require.NoError(t, err)
+	return b
+}
+
+func TestGroupFromBytesWithStdLib(t *testing.T) {
+	stdQueryLib := loadSpec(t,
+		"docs", "01-Using-AutoMDM", "standard-query-library", "standard-query-library.yml",
+	)
+	g, err := GroupFromBytes(stdQueryLib)
+	require.NoError(t, err)
+	require.NotEmpty(t, g.Queries)
+	require.NotEmpty(t, g.Policies)
+}
+
+func TestGroupFromBytesWithMacOS13CISQueries(t *testing.T) {
+	cisQueries := loadSpec(t,
+		"ee", "cis", "macos-13", "cis-policy-queries.yml",
+	)
+	g, err := GroupFromBytes(cisQueries)
+	require.NoError(t, err)
+	require.NotEmpty(t, g.Policies)
+}
+
+func TestGroupFromBytesWithWin10CISQueries(t *testing.T) {
+	cisQueries := loadSpec(t,
+		"ee", "cis", "win-10", "cis-policy-queries.yml",
+	)
+	g, err := GroupFromBytes(cisQueries)
+	require.NoError(t, err)
+	require.NotEmpty(t, g.Policies)
+}
+
+func TestGroupFromBytesMissingFields(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []byte
+		want string
+	}{
+		{
+			"missing spec",
+			[]byte(`
+---
+apiVersion: v1
+kind: team
+			`),
+			`Missing required fields ("spec") on provided "team" configuration.`,
+		},
+		{
+			"missing spec and kind",
+			[]byte(`
+---
+apiVersion: v1
+			`),
+			`Missing required fields ("spec", "kind") on provided configuration`,
+		},
+		{
+			"missing spec and empty string kind",
+			[]byte(`
+---
+apiVersion: v1
+kind: ""
+			`),
+			`Missing required fields ("spec", "kind") on provided configuration`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := GroupFromBytes(tt.in)
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
+func TestEscapeString(t *testing.T) {
+	for _, tc := range []struct {
+		s         string
+		expResult string
+	}{
+		{`$foo`, `$foo`},                                      // nothing to escape
+		{`bar$foo`, `bar$foo`},                                // nothing to escape
+		{`bar${foo}`, `bar${foo}`},                            // nothing to escape
+		{`\$foo`, `$PREVENT_ESCAPING_foo`},                    // escaping
+		{`bar\$foo`, `bar$PREVENT_ESCAPING_foo`},              // escaping
+		{`\\$foo`, `\\$foo`},                                  // no escaping
+		{`bar\\$foo`, `bar\\$foo`},                            // no escaping
+		{`\\\$foo`, `\$PREVENT_ESCAPING_foo`},                 // escaping
+		{`bar\\\$foo`, `bar\$PREVENT_ESCAPING_foo`},           // escaping
+		{`bar\\\${foo}bar`, `bar\$PREVENT_ESCAPING_{foo}bar`}, // escaping
+		{`\\\\$foo`, `\\\\$foo`},                              // no escaping
+		{`bar\\\\$foo`, `bar\\\\$foo`},                        // no escaping
+		{`bar\\\\${foo}`, `bar\\\\${foo}`},                    // no escaping
+	} {
+		result := escapeString(tc.s, "PREVENT_ESCAPING_")
+		require.Equal(t, tc.expResult, result)
+	}
+}
+
+func checkMultiErrors(t *testing.T, errs ...string) func(err error) {
+	return func(err error) {
+		me, ok := err.(*multierror.Error)
+		require.True(t, ok)
+		require.Len(t, me.Errors, len(errs))
+		for i, err := range me.Errors {
+			require.Equal(t, errs[i], err.Error())
+		}
+	}
+}
+
+func TestExpandEnv(t *testing.T) {
+	for _, tc := range []struct {
+		environment map[string]string
+		s           string
+		expResult   string
+		checkErr    func(error)
+	}{
+		{map[string]string{"foo": "1"}, `$foo`, `1`, nil},
+		{map[string]string{"foo": "1"}, `$foo $AUTOMDM_VAR_BAR ${AUTOMDM_VAR_BAR}x ${foo}`, `1 $AUTOMDM_VAR_BAR ${AUTOMDM_VAR_BAR}x 1`, nil},
+		{map[string]string{"foo": ""}, `$foo`, ``, nil},
+		{map[string]string{"foo": "", "bar": "", "zoo": ""}, `$foo${bar}$zoo`, ``, nil},
+		{map[string]string{}, `$foo`, ``, checkMultiErrors(t, `environment variable "foo" not set; if you intended the literal string $foo then please escape it as \$foo.`)},
+		{map[string]string{"foo": "1"}, `$foo$bar`, ``, checkMultiErrors(t, `environment variable "bar" not set; if you intended the literal string $bar then please escape it as \$bar.`)},
+		{
+			map[string]string{"bar": "1"},
+			`$foo $bar $zoo`, ``,
+			checkMultiErrors(t,
+				`environment variable "foo" not set; if you intended the literal string $foo then please escape it as \$foo.`,
+				`environment variable "zoo" not set; if you intended the literal string $zoo then please escape it as \$zoo.`,
+			),
+		},
+		{map[string]string{"foo": "4", "bar": "2"}, `$foo$bar`, `42`, nil},
+		{map[string]string{"foo": "42", "bar": ""}, `$foo$bar`, `42`, nil},
+		{map[string]string{}, `$$`, ``, checkMultiErrors(t, `environment variable "$" not set; if you intended the literal string $$ then please escape it as \$$.`)},
+		{map[string]string{"foo": "1"}, `$$foo`, ``, checkMultiErrors(t, `environment variable "$" not set; if you intended the literal string $$ then please escape it as \$$.`)},
+		{map[string]string{"foo": "1"}, `\$${foo}`, `$1`, nil},
+		{map[string]string{}, `\$foo`, `$foo`, nil},                     // escaped
+		{map[string]string{"foo": "1"}, `\\$foo`, `\\1`, nil},           // not escaped
+		{map[string]string{}, `\\\$foo`, `\$foo`, nil},                  // escaped
+		{map[string]string{}, `\\\$foo$`, `\$foo$`, nil},                // escaped
+		{map[string]string{}, `bar\\\$foo$`, `bar\$foo$`, nil},          // escaped
+		{map[string]string{"foo": "1"}, `$foo var`, `1 var`, nil},       // not escaped
+		{map[string]string{"foo": "1"}, `${foo}var`, `1var`, nil},       // not escaped
+		{map[string]string{"foo": "1"}, `\${foo}var`, `${foo}var`, nil}, // escaped
+		{map[string]string{"foo": ""}, `${foo}var`, `var`, nil},
+		{map[string]string{"foo": "", "$": "2"}, `${$}${foo}var`, `2var`, nil},
+		{map[string]string{}, `${foo}var`, ``, checkMultiErrors(t, `environment variable "foo" not set; if you intended the literal string ${foo} then please escape it as \${foo}.`)},
+		{map[string]string{}, `foo PREVENT_ESCAPING_bar $ AUTOMDM_VAR_`, `foo PREVENT_ESCAPING_bar $ AUTOMDM_VAR_`, nil}, // nothing to replace
+		{
+			map[string]string{"foo": "BAR"},
+			`\$AUTOMDM_VAR_$foo \${AUTOMDM_VAR_$foo} \${AUTOMDM_VAR_${foo}2}`,
+			`$AUTOMDM_VAR_BAR ${AUTOMDM_VAR_BAR} ${AUTOMDM_VAR_BAR2}`, nil,
+		}, // nested variables
+		{
+			map[string]string{},
+			"$automdm_var_test", // Somehow, variables can be lowercased when coming in from time to time
+			"$automdm_var_test", // Should not be replaced
+			nil,
+		},
+		{
+			map[string]string{"custom_secret": "test&123"},
+			"<Add>$custom_secret</Add>",
+			"<Add>test&amp;123</Add>",
+			nil,
+		},
+	} {
+		// save the current env before clearing it.
+		testutils.SaveEnv(t)
+		os.Clearenv()
+		for k, v := range tc.environment {
+			_ = os.Setenv(k, v)
+		}
+		result, err := ExpandEnv(tc.s)
+		if tc.checkErr == nil {
+			require.NoError(t, err)
+		} else {
+			tc.checkErr(err)
+		}
+		require.Equal(t, tc.expResult, result)
+	}
+}
+
+func TestLookupEnvSecrets(t *testing.T) {
+	for _, tc := range []struct {
+		environment map[string]string
+		s           string
+		expResult   map[string]string
+		checkErr    func(error)
+	}{
+		{map[string]string{"foo": "1"}, `$foo`, map[string]string{}, nil},
+		{map[string]string{"AUTOMDM_SECRET_foo": "1"}, `$AUTOMDM_SECRET_foo`, map[string]string{"AUTOMDM_SECRET_foo": "1"}, nil},
+		{
+			map[string]string{"foo": "1"},
+			`$AUTOMDM_SECRET_foo`,
+			map[string]string{},
+			checkMultiErrors(t, "environment variable \"AUTOMDM_SECRET_foo\" not set"),
+		},
+		{map[string]string{"AUTOMDM_SECRET_foo": "test&123"}, `<Add>$AUTOMDM_SECRET_foo</Add>`, map[string]string{"AUTOMDM_SECRET_foo": "test&123"}, nil},
+	} {
+		// save the current env before clearing it.
+		testutils.SaveEnv(t)
+		os.Clearenv()
+		for k, v := range tc.environment {
+			_ = os.Setenv(k, v)
+		}
+		secretsMap := make(map[string]string)
+		err := LookupEnvSecrets(tc.s, secretsMap)
+		if tc.checkErr == nil {
+			require.NoError(t, err)
+		} else {
+			tc.checkErr(err)
+		}
+		require.Equal(t, tc.expResult, secretsMap)
+	}
+}
+
+// TestExpandEnvBytesIncludingSecrets tests that AUTOMDM_SECRET_ variables are expanded when using ExpandEnvBytesIncludingSecrets
+func TestExpandEnvBytesIncludingSecrets(t *testing.T) {
+	t.Setenv("AUTOMDM_SECRET_API_KEY", "secret123")
+	t.Setenv("NORMAL_VAR", "normalvalue")
+	t.Setenv("AUTOMDM_VAR_HOST", "hostname")
+	t.Setenv("AUTOMDM_SECRET_XML", "secret&123")
+
+	input := []byte(`API Key: $AUTOMDM_SECRET_API_KEY
+Normal: $NORMAL_VAR  
+AutoMDM Var: $AUTOMDM_VAR_HOST
+Missing: $AUTOMDM_SECRET_MISSING`)
+
+	result, err := ExpandEnvBytesIncludingSecrets(input)
+	require.NoError(t, err)
+
+	expected := `API Key: secret123
+Normal: normalvalue  
+AutoMDM Var: $AUTOMDM_VAR_HOST
+Missing: $AUTOMDM_SECRET_MISSING`
+
+	assert.Equal(t, expected, string(result))
+
+	// Verify that AUTOMDM_VAR_ is not expanded (reserved for server)
+	assert.Contains(t, string(result), "$AUTOMDM_VAR_HOST")
+	// Verify that AUTOMDM_SECRET_ is expanded
+	assert.Contains(t, string(result), "secret123")
+	assert.NotContains(t, string(result), "$AUTOMDM_SECRET_API_KEY")
+	// Verify that missing secrets are left as-is
+	assert.Contains(t, string(result), "$AUTOMDM_SECRET_MISSING")
+
+	xmlInput := []byte(`<Add>$AUTOMDM_SECRET_XML</Add>`)
+	xmlResult, err := ExpandEnvBytesIncludingSecrets(xmlInput)
+	require.NoError(t, err)
+
+	expectedXML := `<Add>secret&amp;123</Add>`
+	assert.Equal(t, expectedXML, string(xmlResult))
+}
+
+// TestExpandEnvJSONDocument verifies that env vars and AUTOMDM_SECRET_ vars
+// expanded inside JSON documents are JSON-string-escaped, not XML-escaped.
+func TestExpandEnvJSONDocument(t *testing.T) {
+	testutils.SaveEnv(t)
+
+	t.Run("env var JSON-escaped", func(t *testing.T) {
+		os.Clearenv()
+		t.Setenv("API_KEY", `a"b\c`)
+		input := `{"key":"$API_KEY"}`
+		got, err := ExpandEnv(input)
+		require.NoError(t, err)
+
+		var parsed map[string]string
+		require.NoError(t, json.Unmarshal([]byte(got), &parsed))
+		assert.Equal(t, `a"b\c`, parsed["key"])
+	})
+
+	t.Run("AUTOMDM_SECRET_ JSON-escaped when expanded", func(t *testing.T) {
+		os.Clearenv()
+		t.Setenv("AUTOMDM_SECRET_PWD", `p"<&'d`)
+		input := []byte(`{"pwd":"$AUTOMDM_SECRET_PWD"}`)
+		got, err := ExpandEnvBytesIncludingSecrets(input)
+		require.NoError(t, err)
+
+		var parsed map[string]string
+		require.NoError(t, json.Unmarshal(got, &parsed))
+		assert.Equal(t, `p"<&'d`, parsed["pwd"])
+	})
+
+	t.Run("AUTOMDM_SECRET_ left as placeholder when ignored", func(t *testing.T) {
+		os.Clearenv()
+		t.Setenv("AUTOMDM_SECRET_PWD", `whatever`)
+		input := []byte(`{"pwd":"$AUTOMDM_SECRET_PWD"}`)
+		got, err := ExpandEnvBytesIgnoreSecrets(input)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"pwd":"$AUTOMDM_SECRET_PWD"}`, string(got))
+	})
+
+	t.Run("AUTOMDM_VAR_ left for server regardless of format", func(t *testing.T) {
+		os.Clearenv()
+		input := []byte(`{"v":"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}`)
+		got, err := ExpandEnvBytesIgnoreSecrets(input)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"v":"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}`, string(got))
+	})
+
+	t.Run("leading whitespace still detected as JSON", func(t *testing.T) {
+		os.Clearenv()
+		t.Setenv("API_KEY", `"quoted"`)
+		input := "\n  " + `{"key":"$API_KEY"}`
+		got, err := ExpandEnv(input)
+		require.NoError(t, err)
+
+		var parsed map[string]string
+		require.NoError(t, json.Unmarshal([]byte(got), &parsed))
+		assert.Equal(t, `"quoted"`, parsed["key"])
+	})
+
+	t.Run("XML still XML-escapes (regression guard)", func(t *testing.T) {
+		os.Clearenv()
+		t.Setenv("API_KEY", `a&b<c`)
+		input := `<Add>$API_KEY</Add>`
+		got, err := ExpandEnv(input)
+		require.NoError(t, err)
+		assert.Equal(t, `<Add>a&amp;b&lt;c</Add>`, got)
+	})
+
+	t.Run("plain text neither escapes nor corrupts", func(t *testing.T) {
+		os.Clearenv()
+		t.Setenv("API_KEY", `a"b&c<d>`)
+		input := `hello $API_KEY world`
+		got, err := ExpandEnv(input)
+		require.NoError(t, err)
+		assert.Equal(t, `hello a"b&c<d> world`, got)
+	})
+}
+
+func TestGetExclusionZones(t *testing.T) {
+	// Test with a small dedicated fixture where exact byte positions are stable
+	t.Run("testdata/policies/policies.yml", func(t *testing.T) {
+		fContents, err := os.ReadFile(filepath.Join("testdata", "policies", "policies.yml"))
+		require.NoError(t, err)
+
+		contents := string(fContents)
+		actual := getExclusionZones(contents)
+
+		expected := map[[2]int]string{
+			{46, 106}:  "  description: This policy should always fail.\n  resolution:",
+			{93, 155}:  "  resolution: There is no resolution for this policy.\n  query:",
+			{268, 328}: "  description: This policy should always pass.\n  resolution:",
+			{315, 678}: "  resolution: |\n    Automated method:\n    Ask your system administrator to deploy the following script which will ensure proper Security Auditing Retention:\n    cp /etc/security/audit_control ./tmp.txt; origExpire=$(cat ./tmp.txt  | grep expire-after);  sed \"s/${origExpire}/expire-after:60d OR 5G/\" ./tmp.txt > /etc/security/audit_control; rm ./tmp.txt;\n  query:",
+		}
+		require.Equal(t, len(expected), len(actual))
+
+		for pos, text := range expected {
+			assert.Contains(t, actual, pos)
+			assert.Equal(t, contents[pos[0]:pos[1]], text, pos)
+		}
+	})
+
+	// Test with a larger config file - verify expected text strings are found within zones
+	// without hardcoding byte positions (which shift when the file is modified)
+	t.Run("testdata/global_config_no_paths.yml", func(t *testing.T) {
+		fContents, err := os.ReadFile(filepath.Join("testdata", "global_config_no_paths.yml"))
+		require.NoError(t, err)
+
+		contents := string(fContents)
+		actual := getExclusionZones(contents)
+
+		// Expected text strings that should be found within exclusion zones
+		expectedTexts := []string{
+			"    description: Collect osquery performance stats directly from osquery\n    query:",
+			"    description: This policy should always fail.\n    resolution:",
+			"    resolution: There is no resolution for this policy.\n    query:",
+			"    description: This policy should always pass.\n    resolution:",
+			"    resolution: |\n      Automated method:",
+			"    description: A cool global label\n    query:",
+			"    description: A fly global label\n    hosts:",
+		}
+
+		for _, expectedText := range expectedTexts {
+			found := false
+			for _, zone := range actual {
+				zoneText := contents[zone[0]:zone[1]]
+				if zoneText == expectedText || strings.Contains(zoneText, strings.TrimPrefix(expectedText, "    ")) {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "expected text not found in any exclusion zone: %q", expectedText)
+		}
+	})
+}
+
+func TestGroupFromBytesTeamKinds(t *testing.T) {
+	removedMessage := func(kind removednames.Kind, name string) string {
+		entry, ok := removednames.Find(kind, name, "")
+		require.True(t, ok, name)
+		return entry.Message()
+	}
+
+	tests := []struct {
+		name    string
+		in      []byte
+		wantErr string
+	}{
+		{
+			"kind: team with team: key",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
+    name: macOS
+`),
+			removedMessage(removednames.KindSpecKind, "team"),
+		},
+		{
+			"kind: team with team: key",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
+    name: macOS
+`),
+			"",
+		},
+		{
+			"kind: team with team: key",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
+    name: macOS
+`),
+			removedMessage(removednames.KindYAMLKey, "spec.team"),
+		},
+		{
+			"kind: team with both team: and team: keys, as older get teams exports have",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
+    name: macOS
+  team:
+    name: macOS
+`),
+			removedMessage(removednames.KindYAMLKey, "spec.team"),
+		},
+		{
+			"kind: team with team: key",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
+    name: macOS
+`),
+			removedMessage(removednames.KindSpecKind, "team"),
+		},
+		{
+			"kind: user_roles",
+			[]byte(`
+apiVersion: v1
+kind: user_roles
+spec:
+  roles:
+    admin@example.com:
+      global_role: admin
+`),
+			removedMessage(removednames.KindSpecKind, "user_roles"),
+		},
+		{
+			"kind: pack",
+			[]byte(`
+apiVersion: v1
+kind: pack
+spec:
+  name: pack1
+`),
+			removedMessage(removednames.KindSpecKind, "pack"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g, err := GroupFromBytes(tt.in)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, g.Teams, 1)
+			require.NotNil(t, g.Teams[0])
+
+			var team map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(g.Teams[0], &team))
+			name, ok := team["name"]
+			require.True(t, ok)
+			assert.Equal(t, `"macOS"`, string(name))
+		})
+	}
+}

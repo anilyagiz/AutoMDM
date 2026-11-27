@@ -1,0 +1,359 @@
+package etag_invalidate
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/stretchr/testify/require"
+)
+
+type stubStore struct {
+	automdm.ConfigETagStore
+	invalidateCalls       int
+	labelScopesResetCalls int
+	hostInvalidations     []uint
+	invalidateErr         error
+	resetErr              error
+	hostErr               error
+}
+
+func (s *stubStore) Invalidate(ctx context.Context) error {
+	s.invalidateCalls++
+	return s.invalidateErr
+}
+
+func (s *stubStore) ResetLabelScopes(ctx context.Context) error {
+	s.labelScopesResetCalls++
+	return s.resetErr
+}
+
+func (s *stubStore) InvalidateHost(ctx context.Context, hostID uint) error {
+	s.hostInvalidations = append(s.hostInvalidations, hostID)
+	return s.hostErr
+}
+
+func newTestDatastore() (*mock.Store, *stubStore, *Datastore) {
+	ds := new(mock.Store)
+	store := &stubStore{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return ds, store, New(ds, store, logger)
+}
+
+// TestDeploymentHooksFireOnSuccess exercises every deployment-wide hook: the
+// write must delegate to the wrapped datastore and fire a deployment
+// invalidation on success. Query methods (and DeleteLabel) must additionally
+// reset the label-scope mode state.
+//
+// If you add a method to the etag_invalidate decorator, add a case here.
+
+// hookTestCtx is the context the hook case closures run under. The tables live
+// at package level so TestEveryWrappedMethodHasAHookCase can read them: marking
+// a method as wrapped and proving it invalidates are then the same act.
+var hookTestCtx = context.Background()
+
+const (
+	resetsNothing = iota
+	resetsLabelScopes
+)
+
+type deploymentHookCase struct {
+	name        string
+	resets      int
+	setupAndRun func(ds *mock.Store, d *Datastore) (invoked *bool, run func() error)
+}
+
+var deploymentHookCases = []deploymentHookCase{
+	{
+		"SaveAppConfig", resetsNothing,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return nil }
+			return &ds.SaveAppConfigFuncInvoked, func() error { return d.SaveAppConfig(hookTestCtx, &automdm.AppConfig{}) }
+		},
+	},
+	{
+		"NewTeam", resetsNothing,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) { return team, nil }
+			return &ds.NewTeamFuncInvoked, func() error { _, err := d.NewTeam(hookTestCtx, &automdm.Team{}); return err }
+		},
+	},
+	{
+		"SaveTeam", resetsNothing,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) { return team, nil }
+			return &ds.SaveTeamFuncInvoked, func() error { _, err := d.SaveTeam(hookTestCtx, &automdm.Team{}); return err }
+		},
+	},
+	{
+		"DeleteTeam", resetsNothing,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.DeleteTeamFunc = func(ctx context.Context, tid uint) error { return nil }
+			return &ds.DeleteTeamFuncInvoked, func() error { return d.DeleteTeam(hookTestCtx, 1) }
+		},
+	},
+	{
+		"ApplyQueries", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*automdm.Query, discard map[uint]struct{}) error {
+				return nil
+			}
+			return &ds.ApplyQueriesFuncInvoked, func() error { return d.ApplyQueries(hookTestCtx, 1, nil, nil) }
+		},
+	},
+	{
+		"NewQuery", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
+				return query, nil
+			}
+			return &ds.NewQueryFuncInvoked, func() error { _, err := d.NewQuery(hookTestCtx, &automdm.Query{}); return err }
+		},
+	},
+	{
+		"SaveQuery", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.SaveQueryFunc = func(ctx context.Context, query *automdm.Query, discard, deleteStats bool) error { return nil }
+			return &ds.SaveQueryFuncInvoked, func() error { return d.SaveQuery(hookTestCtx, &automdm.Query{}, false, false) }
+		},
+	},
+	{
+		"DeleteQuery", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.DeleteQueryFunc = func(ctx context.Context, teamID *uint, name string) error { return nil }
+			return &ds.DeleteQueryFuncInvoked, func() error { return d.DeleteQuery(hookTestCtx, nil, "q") }
+		},
+	},
+	{
+		"DeleteQueries", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.DeleteQueriesFunc = func(ctx context.Context, ids []uint) (uint, error) { return 1, nil }
+			return &ds.DeleteQueriesFuncInvoked, func() error { _, err := d.DeleteQueries(hookTestCtx, []uint{1}); return err }
+		},
+	},
+	{
+		// The GitOps label path can change membership immediately
+		// (platform changes delete it; manual-label specs replace it)
+		// with removals unknowable from the specs — deployment-wide.
+		"ApplyLabelSpecs", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.ApplyLabelSpecsFunc = func(ctx context.Context, specs []*automdm.LabelSpec) error { return nil }
+			return &ds.ApplyLabelSpecsFuncInvoked, func() error {
+				return d.ApplyLabelSpecs(hookTestCtx, []*automdm.LabelSpec{{Name: "l"}})
+			}
+		},
+	},
+	{
+		"ApplyLabelSpecsWithAuthor", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.ApplyLabelSpecsWithAuthorFunc = func(ctx context.Context, specs []*automdm.LabelSpec, authorID *uint) error { return nil }
+			return &ds.ApplyLabelSpecsWithAuthorFuncInvoked, func() error {
+				return d.ApplyLabelSpecsWithAuthor(hookTestCtx, []*automdm.LabelSpec{{Name: "l"}}, new(uint(1)))
+			}
+		},
+	},
+	{
+		// DeleteLabel is a REQUIRED hook: deleting a referenced label
+		// cascades query_labels away and can instantly unscope a report.
+		"DeleteLabel", resetsLabelScopes,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.DeleteLabelFunc = func(ctx context.Context, id uint) error { return nil }
+			return &ds.DeleteLabelFuncInvoked, func() error { return d.DeleteLabel(hookTestCtx, 1) }
+		},
+	},
+	{
+		// SaveLabel uses the deployment-wide invalidation: the supplied
+		// host list contains only NEW membership, so removed hosts would
+		// be missed by per-host invalidation.
+		"SaveLabel", resetsNothing,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.SaveLabelFunc = func(ctx context.Context, label *automdm.Label, hostIDs []uint, tf automdm.TeamFilter) (*automdm.LabelWithTeamName, []uint, error) {
+				return &automdm.LabelWithTeamName{}, nil, nil
+			}
+			return &ds.SaveLabelFuncInvoked, func() error {
+				_, _, err := d.SaveLabel(hookTestCtx, &automdm.Label{}, []uint{1, 2}, automdm.TeamFilter{})
+				return err
+			}
+		},
+	},
+	{
+		"UpdateLabelMembershipByHostIDs", resetsNothing,
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.UpdateLabelMembershipByHostIDsFunc = func(ctx context.Context, label automdm.Label, hostIds []uint, tf automdm.TeamFilter) (*automdm.Label, []uint, error) {
+				return &automdm.Label{}, nil, nil
+			}
+			return &ds.UpdateLabelMembershipByHostIDsFuncInvoked, func() error {
+				_, _, err := d.UpdateLabelMembershipByHostIDs(hookTestCtx, automdm.Label{}, []uint{1}, automdm.TeamFilter{})
+				return err
+			}
+		},
+	},
+}
+
+type perHostHookCase struct {
+	name        string
+	wantHosts   []uint
+	setupAndRun func(ds *mock.Store, d *Datastore) (invoked *bool, run func() error)
+}
+
+var perHostHookCases = []perHostHookCase{
+	{
+		"RecordLabelQueryExecutions", []uint{11},
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferred bool) error {
+				return nil
+			}
+			return &ds.RecordLabelQueryExecutionsFuncInvoked, func() error {
+				return d.RecordLabelQueryExecutions(hookTestCtx, &automdm.Host{ID: 11}, nil, time.Now(), false)
+			}
+		},
+	},
+	{
+		"AddLabelsToHost", []uint{41},
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.AddLabelsToHostFunc = func(ctx context.Context, hostID uint, labelIDs []uint) error { return nil }
+			return &ds.AddLabelsToHostFuncInvoked, func() error { return d.AddLabelsToHost(hookTestCtx, 41, []uint{1}) }
+		},
+	},
+	{
+		"RemoveLabelsFromHost", []uint{51},
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.RemoveLabelsFromHostFunc = func(ctx context.Context, hostID uint, labelIDs []uint) error { return nil }
+			return &ds.RemoveLabelsFromHostFuncInvoked, func() error { return d.RemoveLabelsFromHost(hookTestCtx, 51, []uint{1}) }
+		},
+	},
+	{
+		// The host-vitals label cron runs every 5 minutes for every
+		// host-vitals label — it MUST invalidate only the hosts whose
+		// membership value actually changed (returned by the datastore
+		// method), never the deployment and never all members.
+		"UpdateLabelMembershipByHostCriteria", []uint{61, 62},
+		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
+			ds.UpdateLabelMembershipByHostCriteriaFunc = func(ctx context.Context, hvl automdm.HostVitalsLabel) (*automdm.Label, []uint, error) {
+				return &automdm.Label{}, []uint{61, 62}, nil
+			}
+			return &ds.UpdateLabelMembershipByHostCriteriaFuncInvoked, func() error {
+				_, _, err := d.UpdateLabelMembershipByHostCriteria(hookTestCtx, &automdm.Label{})
+				return err
+			}
+		},
+	},
+}
+
+func TestDeploymentHooksFireOnSuccess(t *testing.T) {
+
+	for _, c := range deploymentHookCases {
+		t.Run(c.name, func(t *testing.T) {
+			ds, store, d := newTestDatastore()
+			invoked, run := c.setupAndRun(ds, d)
+
+			require.NoError(t, run())
+			require.True(t, *invoked, "must delegate to the wrapped datastore")
+			require.Equal(t, 1, store.invalidateCalls, "must invalidate on success")
+			require.Empty(t, store.hostInvalidations, "deployment hooks must not fire per-host invalidations")
+			wantScopes := 0
+			if c.resets == resetsLabelScopes {
+				wantScopes = 1
+			}
+			require.Equal(t, wantScopes, store.labelScopesResetCalls)
+		})
+	}
+}
+
+// TestPerHostHooksFireOnSuccess exercises the routine label persistence
+// paths and the direct membership mutations: they must fire PER-HOST
+// invalidations only — never a deployment-wide invalidation (the HARD RULE:
+// routine label traffic must never arm the deployment write fence).
+func TestPerHostHooksFireOnSuccess(t *testing.T) {
+
+	for _, c := range perHostHookCases {
+		t.Run(c.name, func(t *testing.T) {
+			ds, store, d := newTestDatastore()
+			invoked, run := c.setupAndRun(ds, d)
+
+			require.NoError(t, run())
+			require.True(t, *invoked, "must delegate to the wrapped datastore")
+			require.ElementsMatch(t, c.wantHosts, store.hostInvalidations)
+			// HARD RULE routine label persistence must never arm the
+			// deployment write fence.
+			require.Equal(t, 0, store.invalidateCalls,
+				"per-host hooks must never fire a deployment-wide invalidation")
+			require.Equal(t, 0, store.labelScopesResetCalls)
+		})
+	}
+}
+
+// TestNoInvalidationOnWriteError: a failed datastore write must NOT fire an
+// invalidation (nothing changed), and the error must pass through.
+func TestNoInvalidationOnWriteError(t *testing.T) {
+	ctx := context.Background()
+	ds, store, d := newTestDatastore()
+
+	wantErr := errors.New("boom")
+	ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return wantErr }
+	ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferred bool) error {
+		return wantErr
+	}
+	ds.ApplyLabelSpecsWithAuthorFunc = func(ctx context.Context, specs []*automdm.LabelSpec, authorID *uint) error {
+		return wantErr
+	}
+
+	err := d.SaveAppConfig(ctx, &automdm.AppConfig{})
+	require.ErrorIs(t, err, wantErr)
+	require.Equal(t, 0, store.invalidateCalls)
+
+	err = d.RecordLabelQueryExecutions(ctx, &automdm.Host{ID: 1}, nil, time.Now(), false)
+	require.ErrorIs(t, err, wantErr)
+	require.Empty(t, store.hostInvalidations)
+
+	// failed label-spec persistence must not invalidate either
+	err = d.ApplyLabelSpecsWithAuthor(ctx, []*automdm.LabelSpec{{Name: "l"}}, new(uint(1)))
+	require.ErrorIs(t, err, wantErr)
+	require.Equal(t, 0, store.invalidateCalls)
+	require.Equal(t, 0, store.labelScopesResetCalls)
+}
+
+// TestApplyQueriesInvalidatesOnWriteError: ApplyQueries commits in batches,
+// so a failure may follow committed changes.
+func TestApplyQueriesInvalidatesOnWriteError(t *testing.T) {
+	ds, store, d := newTestDatastore()
+	wantErr := errors.New("boom")
+	ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*automdm.Query, discard map[uint]struct{}) error {
+		return wantErr
+	}
+
+	err := d.ApplyQueries(t.Context(), 1, nil, nil)
+	require.ErrorIs(t, err, wantErr)
+	require.Equal(t, 1, store.invalidateCalls)
+	require.Equal(t, 1, store.labelScopesResetCalls)
+}
+
+// TestInvalidationErrorsAreSwallowed: Redis being down must never fail a
+// datastore write — the ETag machinery fails open and the backstop TTLs
+// bound any resulting staleness.
+func TestInvalidationErrorsAreSwallowed(t *testing.T) {
+	ctx := context.Background()
+	ds, store, d := newTestDatastore()
+	store.invalidateErr = errors.New("redis down")
+	store.resetErr = errors.New("redis down")
+	store.hostErr = errors.New("redis down")
+
+	ds.SaveQueryFunc = func(ctx context.Context, q *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+		return nil
+	}
+	ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferred bool) error {
+		return nil
+	}
+
+	require.NoError(t, d.SaveQuery(ctx, &automdm.Query{}, false, false))
+	require.Equal(t, 1, store.invalidateCalls)
+	require.Equal(t, 1, store.labelScopesResetCalls)
+
+	require.NoError(t, d.RecordLabelQueryExecutions(ctx, &automdm.Host{ID: 9}, nil, time.Now(), false))
+	require.Equal(t, []uint{9}, store.hostInvalidations)
+}

@@ -1,0 +1,2 @@
+github.com/anilyagiz/automdm/v4/server/automdm/YaraRule	Name	string
+github.com/anilyagiz/automdm/v4/server/automdm/YaraRule	Contents	string

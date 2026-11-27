@@ -1,0 +1,128 @@
+import React, { useContext, useMemo } from "react";
+import { useQuery } from "react-query";
+import { InjectedRouter, Params } from "react-router/lib/Router";
+
+import PageDescription from "components/PageDescription";
+import Spinner from "components/Spinner";
+import { AppContext } from "context/app";
+import SideNav from "pages/admin/components/SideNav";
+import mdmAPI from "services/entities/mdm";
+
+import getOSSettingsNavItems from "./OSSettingsNavItems";
+import ProfileStatusAggregate from "./ProfileStatusAggregate";
+
+const baseClass = "os-settings";
+
+interface IOSSettingsProps {
+  params: Params;
+  router: InjectedRouter;
+  currentPage: number;
+  // Undefined until the URL's team id resolves to an available team.
+  // Gate team-scoped queries on this being defined — anything fired during
+  // that window targets the wrong team.
+  teamIdForApi?: number;
+  location: {
+    search: string;
+  };
+}
+
+const OSSettings = ({
+  router,
+  currentPage,
+  teamIdForApi,
+  location: { search: queryString },
+  params,
+}: IOSSettingsProps) => {
+  const { section, platform: urlPlatformParam } = params;
+  const { isTeamTechnician, isGlobalTechnician } = useContext(AppContext);
+
+  const {
+    data: aggregateProfileStatusData,
+    refetch: refetchAggregateProfileStatus,
+    isError: isErrorAggregateProfileStatus,
+    isLoading: isLoadingAggregateProfileStatus,
+  } = useQuery(
+    ["aggregateProfileStatuses", teamIdForApi],
+    () => mdmAPI.getProfilesStatusSummary(teamIdForApi as number),
+    {
+      enabled: teamIdForApi !== undefined,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }
+  );
+
+  const isTechnician = !!isTeamTechnician || !!isGlobalTechnician;
+
+  const filteredNavItems = useMemo(() => {
+    return getOSSettingsNavItems(isTechnician);
+  }, [isTechnician]);
+
+  const DEFAULT_SETTINGS_SECTION = filteredNavItems[0];
+
+  // Assets used to have their own route; keep old links working.
+  const effectiveSection =
+    section === "assets" ? "configuration-profiles" : section;
+
+  const currentFormSection =
+    filteredNavItems.find((item) => item.urlSection === effectiveSection) ??
+    DEFAULT_SETTINGS_SECTION;
+
+  // Redirect to the default section if the URL section is not in the filtered list
+  if (
+    section &&
+    currentFormSection === DEFAULT_SETTINGS_SECTION &&
+    section !== DEFAULT_SETTINGS_SECTION.urlSection
+  ) {
+    router.replace(DEFAULT_SETTINGS_SECTION.path.concat(queryString));
+    return null;
+  }
+
+  // only the disk encryption card has platform sub-routes
+  if (urlPlatformParam && currentFormSection.urlSection !== "disk-encryption") {
+    router.replace(currentFormSection.path.concat(queryString));
+    return null;
+  }
+
+  const CurrentCard = currentFormSection.Card;
+
+  // Wait for the team id to resolve before mounting children — they fire
+  // team-scoped queries eagerly.
+  if (teamIdForApi === undefined) {
+    return <Spinner />;
+  }
+
+  return (
+    <div className={baseClass}>
+      <PageDescription
+        variant="tab-panel"
+        content="Remotely enforce OS settings on hosts assigned to this team."
+      />
+      <ProfileStatusAggregate
+        isLoading={isLoadingAggregateProfileStatus}
+        isError={isErrorAggregateProfileStatus}
+        teamId={teamIdForApi}
+        aggregateProfileStatusData={aggregateProfileStatusData}
+      />
+      <SideNav
+        className={`${baseClass}__side-nav`}
+        navItems={filteredNavItems.map((navItem) => ({
+          ...navItem,
+          path: navItem.path.concat(queryString),
+        }))}
+        activeItem={currentFormSection.urlSection}
+        CurrentCard={
+          <CurrentCard
+            key={teamIdForApi}
+            currentTeamId={teamIdForApi}
+            onMutation={refetchAggregateProfileStatus}
+            router={router}
+            currentPage={currentPage}
+            urlPlatformParam={urlPlatformParam}
+          />
+        }
+      />
+    </div>
+  );
+};
+
+export default OSSettings;

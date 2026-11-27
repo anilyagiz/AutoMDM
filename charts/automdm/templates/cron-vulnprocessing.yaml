@@ -1,0 +1,371 @@
+{{- if .Values.vulnProcessing.dedicated }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app: automdm
+    chart: automdm
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: automdm-vulnprocessing
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.vulnProcessing.schedule }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 100
+      template:
+        metadata:
+{{- with .Values.podAnnotations }}
+          annotations:
+{{- toYaml . | trim | nindent 12 }}
+{{- end }}
+          labels:
+            app: automdm
+            chart: automdm
+            heritage: {{ .Release.Service }}
+            release: {{ .Release.Name }}
+        spec:
+          initContainers:
+          {{- if include "automdm.additionalCAs.enabled" . }}
+          - name: install-trusted-cas
+            image: "{{ .Values.imageRepository }}:{{ .Values.imageTag }}"
+            {{- with .Values.imagePullPolicy }}
+            imagePullPolicy: {{ . }}
+            {{- end }}
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+            command:
+              - sh
+              - -c
+              - |
+                set -e
+                apk add ca-certificates
+                echo "Installing trusted CA certificates..."
+
+                for dir in /custom-ca/*; do
+                  if [ -d "$dir" ]; then
+                    cp "$dir"/*.crt /usr/local/share/ca-certificates/
+                  fi
+                done
+
+                update-ca-certificates
+            volumeMounts:
+          {{- range .Values.automdm.additionalCAs.configMaps }}
+              - name: ca-configmap-{{ .name }}
+                mountPath: /custom-ca/configmap-{{ .name }}
+                readOnly: true
+          {{- end }}
+          {{- range .Values.automdm.additionalCAs.secrets }}
+              - name: ca-secret-{{ .name }}
+                mountPath: /custom-ca/secret-{{ .name }}
+                readOnly: true
+          {{- end }}
+              - name: ca-certs
+                mountPath: /etc/ssl/certs
+          {{- end }}
+          restartPolicy: Never
+          shareProcessNamespace: true
+          containers:
+          - name: automdm-vulnprocessing
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                /usr/bin/automdm vuln_processing;
+                {{- if .Values.gke.cloudSQL.enableProxy }}
+                sql_proxy_pid=$(pgrep cloud_sql_proxy) && kill -INT $sql_proxy_pid;
+                {{- end }}
+            image: "{{ .Values.imageRepository }}:{{ .Values.imageTag }}"
+            {{- with .Values.imagePullPolicy }}
+            imagePullPolicy: {{ . }}
+            {{- end }}
+            resources:
+              limits:
+                cpu: {{ .Values.vulnProcessing.resources.limits.cpu }}
+                memory: {{ .Values.vulnProcessing.resources.limits.memory }}
+              requests:
+                cpu: {{ .Values.vulnProcessing.resources.requests.cpu }}
+                memory: {{ .Values.vulnProcessing.resources.requests.memory }}
+            env:
+              ## BEGIN AUTOMDM SECTION
+              - name: AUTOMDM_VULNERABILITIES_DATABASES_PATH
+                value: /tmp/vuln # /tmp might not work on all cloud providers by default
+              # - name: AUTOMDM_SERVER_ADDRESS
+              #   value: "0.0.0.0:{{ .Values.automdm.listenPort }}"
+              # - name: AUTOMDM_AUTH_BCRYPT_COST
+              #   value: "{{ .Values.automdm.auth.bcryptCost }}"
+              # - name: AUTOMDM_AUTH_SALT_KEY_SIZE
+              #   value: "{{ .Values.automdm.auth.saltKeySize }}"
+              # - name: AUTOMDM_APP_TOKEN_KEY_SIZE
+              #   value: "{{ .Values.automdm.app.tokenKeySize }}"
+              # - name: AUTOMDM_APP_TOKEN_VALIDITY_PERIOD
+              #   value: "{{ .Values.automdm.app.inviteTokenValidityPeriod }}"
+              # - name: AUTOMDM_SESSION_KEY_SIZE
+              #   value: "{{ .Values.automdm.session.keySize }}"
+              # - name: AUTOMDM_SESSION_DURATION
+              #   value: "{{ .Values.automdm.session.duration }}"
+              - name: AUTOMDM_LOGGING_DEBUG
+                value: "{{ .Values.automdm.logging.debug }}"
+              - name: AUTOMDM_LOGGING_JSON
+                value: "{{ .Values.automdm.logging.json }}"
+              - name: AUTOMDM_LOGGING_DISABLE_BANNER
+                value: "{{ .Values.automdm.logging.disableBanner }}"
+              # - name: AUTOMDM_SERVER_TLS
+              #   value: "{{ .Values.automdm.tls.enabled }}"
+              # {{- if .Values.automdm.tls.enabled }}
+              # - name: AUTOMDM_SERVER_TLS_COMPATIBILITY
+              #   value: "{{ .Values.automdm.tls.compatibility }}"
+              # - name: AUTOMDM_SERVER_CERT
+              #   value: "/secrets/tls/{{ .Values.automdm.tls.certSecretKey }}"
+              # - name: AUTOMDM_SERVER_KEY
+              #   value: "/secrets/tls/{{ .Values.automdm.tls.keySecretKey }}"
+              # {{- end }}
+              {{- if .Values.automdm.license.secretName }}
+              - name: AUTOMDM_LICENSE_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: {{ .Values.automdm.license.licenseKey }}
+                    name: {{ .Values.automdm.license.secretName }}
+              {{- end }}
+              ## END AUTOMDM SECTION
+              ## BEGIN MYSQL SECTION
+              - name: AUTOMDM_MYSQL_ADDRESS
+                value: "{{ .Values.database.address }}"
+              - name: AUTOMDM_MYSQL_DATABASE
+                value: "{{ .Values.database.database }}"
+              - name: AUTOMDM_MYSQL_USERNAME
+                value: "{{ .Values.database.username }}"
+              - name: AUTOMDM_MYSQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.database.secretName }}
+                    key: {{ .Values.database.passwordKey }}
+              - name: AUTOMDM_MYSQL_MAX_OPEN_CONNS
+                value: "{{ .Values.database.maxOpenConns }}"
+              - name: AUTOMDM_MYSQL_MAX_IDLE_CONNS
+                value: "{{ .Values.database.maxIdleConns }}"
+              - name: AUTOMDM_MYSQL_CONN_MAX_LIFETIME
+                value: "{{ .Values.database.connMaxLifetime }}"
+              {{- if .Values.database.tls.enabled }}
+              {{- if .Values.database.tls.caCertKey }}
+              - name: AUTOMDM_MYSQL_TLS_CA
+                value: "/secrets/mysql/{{ .Values.database.tls.caCertKey }}"
+              {{- end }}
+              {{- if .Values.database.tls.certKey }}
+              - name: AUTOMDM_MYSQL_TLS_CERT
+                value: "/secrets/mysql/{{ .Values.database.tls.certKey }}"
+              {{- end }}
+              {{- if .Values.database.tls.keyKey }}
+              - name: AUTOMDM_MYSQL_TLS_KEY
+                value: "/secrets/mysql/{{ .Values.database.tls.keyKey }}"
+              {{- end }}
+              - name: AUTOMDM_MYSQL_TLS_CONFIG
+                value: "{{ .Values.database.tls.config }}"
+              - name: AUTOMDM_MYSQL_TLS_SERVER_NAME
+                value: "{{ .Values.database.tls.serverName }}"
+              {{- end }}
+              ## END MYSQL SECTION
+              ## BEGIN MYSQL READ REPLICA SECTION
+              {{- if .Values.database_read_replica }}
+              {{- if .Values.database_read_replica.address }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_ADDRESS
+                value: "{{ .Values.database_read_replica.address }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.database }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_DATABASE
+                value: "{{ .Values.database_read_replica.database }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.username }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_USERNAME
+                value: "{{ .Values.database_read_replica.username }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.passwordPath }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_PASSWORD_PATH
+                value: "{{ .Values.database_read_replica.passwordPath }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.secretName }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.database_read_replica.secretName }}
+                    key: {{ .Values.database_read_replica.passwordKey }}
+              {{- end }}
+              {{- if .Values.database_read_replica.maxOpenConns }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_MAX_OPEN_CONNS
+                value: "{{ .Values.database_read_replica.maxOpenConns }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.maxIdleConns }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_MAX_IDLE_CONNS
+                value: "{{ .Values.database_read_replica.maxIdleConns }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.connMaxLifetime }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_CONN_MAX_LIFETIME
+                value: "{{ .Values.database_read_replica.connMaxLifetime }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.tls.enabled }}
+              {{- if .Values.database_read_replica.tls.caCertKey }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_TLS_CA
+                value: "/secrets/mysql/{{ .Values.database_read_replica.tls.caCertKey }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.tls.certKey }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_TLS_CERT
+                value: "/secrets/mysql/{{ .Values.database_read_replica.tls.certKey }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.tls.keyKey }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_TLS_KEY
+                value: "/secrets/mysql/{{ .Values.database_read_replica.tls.keyKey }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.tls.config }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_TLS_CONFIG
+                value: "{{ .Values.database_read_replica.tls.config }}"
+              {{- end }}
+              {{- if .Values.database_read_replica.tls.serverName }}
+              - name: AUTOMDM_MYSQL_READ_REPLICA_TLS_SERVER_NAME
+                value: "{{ .Values.database_read_replica.tls.serverName }}"
+              {{- end }}
+              {{- end }}
+              {{- end }}
+              ## END MYSQL READ REPLICA SECTION
+              ## BEGIN REDIS SECTION
+              - name: AUTOMDM_REDIS_ADDRESS
+                value: "{{ .Values.cache.address }}"
+              - name: AUTOMDM_REDIS_DATABASE
+                value: "{{ .Values.cache.database }}"
+              {{- if .Values.cache.usePassword }}
+              - name: AUTOMDM_REDIS_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: "{{ .Values.cache.secretName }}"
+                    key: "{{ .Values.cache.passwordKey }}"
+              {{- end }}
+              ## END REDIS SECTION
+              ## APPEND ENVIRONMENT VARIABLES FROM VALUES
+              # Skip empty/unset values so an env var provided via envsFrom (e.g. a
+              # secretKeyRef for AUTOMDM_SERVER_PRIVATE_KEY) isn't duplicated by the
+              # empty default here, which server-side apply rejects as a
+              # duplicate env entry.
+              {{- range $key, $value := .Values.environments }}
+              {{- if and (ne (kindOf $value) "invalid") (or (ne (kindOf $value) "string") (ne $value "")) }}
+              - name: {{ $key }}
+                value: {{ $value | quote }}
+              {{- end }}
+              {{- end }}
+              ## APPEND ENVIRONMENT VARIABLES FROM SECRETS/CMs
+              {{- range .Values.envsFrom }}
+              - name: {{ .name }}
+                valueFrom:
+              {{- if .valueFrom.configMapKeyRef }}
+                  configMapKeyRef:
+                    name: {{ .valueFrom.configMapKeyRef.name }}
+                    key: {{ .valueFrom.configMapKeyRef.key }}
+              {{- else if .valueFrom.secretKeyRef }}
+                  secretKeyRef:
+                    name: {{ .valueFrom.secretKeyRef.name }}
+                    key: {{ .valueFrom.secretKeyRef.key }}
+              {{- end }}
+              {{- end }}
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                {{- if .Values.gke.cloudSQL.enableProxy }}
+                add:
+                  - SYS_PTRACE
+                {{- else }}
+                drop: [ALL]
+                {{- end }}
+              privileged: false
+              readOnlyRootFilesystem: true
+              {{- if .Values.automdm.securityContext.runAsGroup }}
+              runAsGroup: {{ int64 .Values.automdm.securityContext.runAsGroup }}
+              {{- end }}
+              {{- if .Values.automdm.securityContext.runAsUser }}
+              runAsUser: {{ int64 .Values.automdm.securityContext.runAsUser }}
+              {{- end }}
+              {{- if .Values.automdm.securityContext.runAsNonRoot }}
+              runAsNonRoot: {{ .Values.automdm.securityContext.runAsNonRoot }}
+              {{- end }}
+            volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+              {{- if .Values.database.tls.enabled }}
+              - name: mysql-tls
+                readOnly: true
+                mountPath: /secrets/mysql
+              {{- end }}
+              {{- if include "automdm.additionalCAs.enabled" . }}
+              - name: ca-certs
+                mountPath: /etc/ssl/certs
+              {{- end }}
+          {{- if .Values.gke.cloudSQL.enableProxy }}
+          - name: cloudsql-proxy
+            image: "{{ .Values.gke.cloudSQL.imageRepository }}:{{ .Values.gke.cloudSQL.imageTag }}"
+            command:
+            - "/cloud_sql_proxy"
+            - "-verbose={{ .Values.gke.cloudSQL.verbose}}"
+            - "-instances={{ .Values.gke.cloudSQL.instanceName }}=tcp:3306"
+            resources:
+              limits:
+                cpu: 0.5 # 500Mhz
+                memory: 150Mi
+              requests:
+                cpu: 0.1 # 100Mhz
+                memory: 50Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+              privileged: false
+              readOnlyRootFilesystem: true
+              {{- if .Values.automdm.securityContext.runAsGroup }}
+              runAsGroup: {{ int64 .Values.automdm.securityContext.runAsGroup }}
+              {{- end }}
+              {{- if .Values.automdm.securityContext.runAsUser }}
+              runAsUser: {{ int64 .Values.automdm.securityContext.runAsUser }}
+              {{- end }}
+              {{- if .Values.automdm.securityContext.runAsNonRoot }}
+              runAsNonRoot: {{ .Values.automdm.securityContext.runAsNonRoot }}
+              {{- end }}
+          {{- end }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12}}
+          {{- end }}
+          serviceAccountName: automdm
+          volumes:
+            - name: tmp
+              emptyDir:
+            {{- if .Values.database.tls.enabled }}
+            - name: mysql-tls
+              secret:
+                secretName: "{{ .Values.database.secretName }}"
+            {{- end }}
+            {{- if include "automdm.additionalCAs.enabled" . }}
+            {{- range .Values.automdm.additionalCAs.configMaps }}
+            - name: ca-configmap-{{ .name }}
+              configMap:
+                name: {{ .name }}
+            {{- end }}
+            {{- range .Values.automdm.additionalCAs.secrets }}
+            - name: ca-secret-{{ .name }}
+              secret:
+                secretName: {{ .name }}
+            {{- end }}
+            - name: ca-certs
+              emptyDir: {}
+            {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+{{- end }}

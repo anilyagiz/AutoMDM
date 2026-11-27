@@ -1,0 +1,893 @@
+---
+name:  Release QA
+about: Checklist of required tests prior to release
+title: 'Release QA:'
+labels: '#g-orchestration,#g-apple-at-work,#g-power-to-pc,#g-auto-patching,#g-supply-chain,#g-byod,:release'
+assignees: 'xpkoala,andreykizimenko,chrstphr84,Brajim20,marcusallen97,thisisjoegrant'
+
+---
+
+# Goal
+
+Easy-to-follow test steps for checking a release manually.
+
+> **How to check off:** Tick the checkbox in each **Progress** list as a test passes. GitHub tracks completion ("X of Y tasks") at the top of the issue. The tables below each list hold the step instructions and expected results for reference. For a **failure**, leave the box unchecked and record the details under the **Notes** section at the bottom of this issue.
+
+# Important reference data
+
+1. [automdmctl preview setup](https://automdm.com/automdmctl-preview)
+2. [Permissions documentation](https://automdm.com/docs/using-automdm/permissions)
+3. [AutoMDM free vs premium documentation](https://automdm.com/pricing)
+
+# Smoke tests
+
+Smoke tests are limited to core functionality and serve as a pre-release final review. If smoke tests are failing, a release cannot proceed.
+
+## AutoMDM core
+
+**AutoMDM version** (Head to the "My account" page in the AutoMDM UI or run `automdmctl version`):
+
+**Web browser** _(e.g. Chrome 88.0.4324)_:
+
+### Prerequisites
+
+1. Local instance is running and up to date with the target release branch.
+2. In your browser, clear local storage using devtools.
+
+### Orchestration
+
+**Progress**
+- [ ] Update flow
+- [ ] Login flow
+- [ ] Packs flow
+- [ ] Log destination flow
+- [ ] IdP Provisioning (SCIM)
+- [ ] GitOps and generate-gitops
+- [ ] AutoMDM Free
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>Update flow</td>
+<td>
+
+1. Remove all team processes/agents/etc using `automdmctl preview reset` for a clean slate.
+2. Run `automdmctl preview` with no tag for latest stable.
+3. Create a host/report to later confirm upgrade with.
+4. STOP automdm-preview-server instances in containers/apps on Docker.
+5. Run `automdmctl preview` with appropriate testing tag.
+6. Navigate through all new UI flows and confirm dashboard, hosts, controls, queries, policies, and settings pages are working as expected.
+
+</td>
+<td>All previously created hosts/queries are verified to still exist.</td>
+</tr>
+
+<tr>
+<td>Login flow</td>
+<td>
+
+1. Navigate to the login page and attempt to login with both valid and invalid credentials to verify some combination of expected results.
+2. Navigate to the login page and attempt to login with both valid and invalid SSO credentials to verify expected results.
+3. With SMTP or SES configured, enable two-factor authentication (email) for a non-SSO user in **Settings > Users**. Log in as that user with valid credentials, then open the magic link from the email in the same browser, with the Network tab of devtools open.
+
+</td>
+<td>
+
+1. Text fields prompt when blank.
+2. Correct error message is "authentication failed".
+3. Forget password link prompts for email.
+4. Valid credentials result in a successful login.
+5. Valid SSO credentials result in a successful login.
+6. MFA login prompts the user to check their email, and the magic link results in a successful login. Exactly one `POST /api/latest/automdm/sessions` request is sent, and the user stays logged in (no "Your session expired" redirect to the login page).
+
+</td>
+</tr>
+
+<tr>
+<td>Packs flow</td>
+<td>Verify management, operation, and logging of ["2017 packs"](https://automdm.com/handbook/company/why-this-way#why-does-automdm-support-query-packs).</td>
+<td>
+
+1. Packs successfully run on host machines after migrations.
+2. New Packs can be created.
+3. Packs can be edited and deleted.
+4. Packs results information is logged.
+
+</td>
+</tr>
+
+<tr>
+<td>Log destination flow</td>
+<td>Verify log destination for software, reports, policies, and packs.</td>
+<td>
+
+1. Software, report, policy, and packs logs are successfully sent to external log destinations.
+2. Software, report, policy, and packs logs are successfully sent to Filesystem log destinations.
+3. Configure the native Splunk integration and confirm its health check reports reachable, then confirm logs arrive in Splunk.
+
+</td>
+</tr>
+
+<tr>
+<td>IdP Provisioning (SCIM)</td>
+<td>Verify host vitals sync.</td>
+<td>
+
+1. Configure and verify provisioning with the following IdPs:
+    1. Okta
+    2. Entra
+    3. Hydrant/Google
+2. Enroll hosts with EUA & IdP Provisioning enabled:
+    1. macOS
+    2. Windows
+    3. Ubuntu
+    4. iOS/iPadOS
+    5. Android
+
+</td>
+</tr>
+
+<tr>
+<td>GitOps and generate-gitops</td>
+<td>Verify <code>automdmctl generate-gitops</code> and GitOps functionality.</td>
+<td>
+
+1. Generate-gitops from a version-matched automdmctl successfully outputs YAML from a brand new AutoMDM server (net of auto-populated teams etc.).
+2. Running GitOps either using the `gitops.sh` script directly (from the `automdm-gitops` repo) or by using the GitOps GitHub or GitLab workflow (attempting via one of these three is sufficient) succeeds.
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM Free</td>
+<td>Verify that product group features behave correctly on AutoMDM Free.</td>
+<td>
+
+Run basic checks for the product group area while using an AutoMDM Free license.
+
+- Features documented as Free work normally:
+   - Packs
+   - GitOps
+- Premium features are correctly restricted or hidden:
+   - IdP information
+- No UI, API, or workflow errors occur when using Free-only functionality.
+
+Reference: https://automdm.com/pricing
+
+</td>
+</tr>
+
+</table>
+
+### Apple at Work
+
+**Progress**
+- [ ] MDM enrollment flow
+- [ ] MDM migration flow
+- [ ] OS settings
+- [ ] Disk encryption
+- [ ] OS updates
+- [ ] Setup experience
+- [ ] iOS/iPadOS
+- [ ] Token & Certificate Renewals
+- [ ] AutoMDM Free
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>MDM enrollment flow</td>
+<td>Verify MDM enrollments, run MDM commands.</td>
+<td>
+
+1. Erase an ADE-eligible macOS host and verify able to complete automated enrollment flow.
+2. Verify able to run MDM commands on macOS hosts from the CLI.
+
+</td>
+</tr>
+
+<tr>
+<td>MDM migration flow</td>
+<td>Verify MDM migration for ADE and non-ADE hosts.</td>
+<td>
+
+1. Turn off MDM on an ADE-eligible macOS host and verify that the native, "Device Enrollment" macOS notification appears.
+2. On the My device page, follow the "Turn on MDM" instructions and verify that MDM is turned on.
+3. Turn off MDM on a non ADE-eligible macOS host.
+
+</td>
+</tr>
+
+<tr>
+<td>OS settings</td>
+<td>Verify OS settings functionality.</td>
+<td>
+
+1. Verify Profiles upload/download/delete.
+2. Verify Profiles are delivered to host and applied.
+
+</td>
+</tr>
+
+<tr>
+<td>Disk encryption</td>
+<td>Verify disk encryption functionality (macOS).</td>
+<td>
+
+1. Verify able to configure Disk encryption (macOS).
+2. Verify host enrolled with Disk encryption enforced successfully encrypts.
+
+</td>
+</tr>
+
+<tr>
+<td>OS updates</td>
+<td>Verify OS updates flow (macOS).</td>
+<td>
+
+1. Configure OS updates (macOS).
+2. Verify enforce minimumOS occurs during enrollment (macOS 14+).
+
+</td>
+</tr>
+
+<tr>
+<td>Setup experience</td>
+<td>Verify macOS Setup experience.</td>
+<td>
+
+1. Configure End user authentication.
+2. Upload a Bootstrap package.
+3. Add software (FMA, VPP, & Custom pkg).
+4. Add a script.
+5. Enroll an ADE-eligible macOS host and verify successful authentication.
+6. Verify Bootstrap package is delivered.
+7. Verify SwiftDialogue window displays.
+8. Verify software installs and script runs.
+
+</td>
+</tr>
+
+<tr>
+<td>iOS/iPadOS</td>
+<td>Verify enrollment, profiles, & software installs.</td>
+<td>
+
+1. Verify ADE enrollment.
+2. Verify BYOD OTA enrollment.
+3. Verify BYOD Account-driven user enrollment (AppleID).
+4. Verify Profiles are delivered to host and applied.
+5. Verify VPP apps install & display correctly in Activity feed.
+6. Verify `Turn Off MDM` for BYOD & ADE hosts.
+
+</td>
+</tr>
+
+<tr>
+<td>Token & Certificate Renewals</td>
+<td>APNs cert and ABM token renewal workflow.</td>
+<td>
+
+1. Renew APNs Certificate.
+2. Renew ABM Token.
+3. Ensure ADE hosts can enroll.
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM Free</td>
+<td>Verify that product group features behave correctly on AutoMDM Free.</td>
+<td>
+
+Run basic checks for the product group area while using an AutoMDM Free license.
+
+- Features documented as Free work normally:
+   - Host enrollment
+   - Apple MDM
+   - Configuration profile delivery
+   - APNs Certificate renewal
+- Premium features are correctly restricted or hidden:
+   - Disk encryption
+   - OS updates
+   - Setup experience
+- No UI, API, or workflow errors occur when using Free-only functionality.
+
+Reference: https://automdm.com/pricing
+
+</td>
+</tr>
+
+</table>
+
+### Power to PC
+
+**Progress**
+- [ ] Manual enrollment
+- [ ] Autopilot enrollment
+- [ ] MDM migration flow
+- [ ] OS settings
+- [ ] Disk encryption
+- [ ] OS updates
+- [ ] Certificate Authorities
+- [ ] AutoMDM Free
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>Manual enrollment</td>
+<td>Verify MDM enrollment, run MDM commands on both Windows 11 and Windows 10 hosts.</td>
+<td>
+
+1. With Windows MDM turned on and the Setup experience configured (end user authentication, hidden `_automdmadmin` user, and software installs), enroll a Windows 11 host and verify MDM is turned on and the configured software installs.
+2. Verify able to run MDM commands on Windows 11 hosts from the CLI.
+3. Repeat steps with a Windows 10 host.
+
+</td>
+</tr>
+
+<tr>
+<td>Autopilot enrollment</td>
+<td>Verify Windows Autopilot/Entra OOBE enrollment, both fully configured and with nothing configured.</td>
+<td>
+
+**Full configuration**
+
+1. Configure a team with setup experience items (enable EUA, add FMA & Custom package software), add a configuration profile, enable OS updates, enable hidden `_automdmadmin` user, and disk encryption (BitLocker).
+2. Enroll an Auto-Pilot host via OOBE and verify the ESP completes and all configured items apply.
+
+**Blank enrollment**
+
+3. Enroll an Auto-Pilot host into the "Unassigned" team with nothing configured and verify the ESP completes.
+
+</td>
+</tr>
+
+<tr>
+<td>MDM migration flow</td>
+<td>Verify MDM migration for Windows hosts.</td>
+<td>
+
+1. Verify Windows host migrates from 3rd party MDM to AutoMDM when automatic migration is turned on.
+
+</td>
+</tr>
+
+<tr>
+<td>OS settings</td>
+<td>Verify OS settings functionality.</td>
+<td>
+
+1. Verify Profiles upload/download/delete.
+2. Verify Profiles are delivered to host and applied.
+
+</td>
+</tr>
+
+<tr>
+<td>Disk encryption</td>
+<td>Verify disk encryption functionality (Windows).</td>
+<td>
+
+1. Verify able to configure Disk encryption (Windows). Do not enable BitLocker PIN required yet.
+2. Verify host enrolled with Disk encryption enforced successfully encrypts.
+3. On AutoMDM, enable BitLocker PIN required for the team containing this host.
+4. On host, create a standard level local user.
+5. Verify local non-admin user can set the BitLocker PIN to satisfy the AutoMDM requirement.
+
+</td>
+</tr>
+
+<tr>
+<td>OS updates</td>
+<td>Verify OS updates flow (Windows).</td>
+<td>
+
+1. Configure OS updates (Windows).
+
+</td>
+</tr>
+
+<tr>
+<td>Certificate Authorities</td>
+<td>Verify setup and certificate delivery.</td>
+<td>
+
+1. Configure and verify that certificates deploy to hosts with the following CAs and that they appear on the Host Details page:
+    1. DigiCert
+    2. NDES
+    3. Okta Dynamic SCEP
+    4. SmallStep
+    5. Custom SCEP
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM Free</td>
+<td>Verify that product group features behave correctly on AutoMDM Free.</td>
+<td>
+
+Run basic checks for the product group area while using an AutoMDM Free license.
+
+- Features documented as Free work normally:
+   - Host enrollment
+   - Windows MDM
+   - Configuration profile delivery
+- Premium features are correctly restricted or hidden:
+   - Automatic MDM migration
+   - Disk encryption
+   - OS updates
+- No UI, API, or workflow errors occur when using Free-only functionality.
+
+Reference: https://automdm.com/pricing
+
+</td>
+</tr>
+
+</table>
+
+### BYOD
+
+**Progress**
+- [ ] BYOD enrollment
+- [ ] Company-owned enrollment
+- [ ] OS settings
+- [ ] Certificates
+- [ ] Setup experience & zero-touch enrollment
+- [ ] Software
+- [ ] Lock, Unenroll, Wipe, & Clear passcode
+- [ ] Custom MDM commands
+- [ ] AutoMDM Free
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>BYOD enrollment</td>
+<td>Verify work profile enrollment on a personally-owned Android host.</td>
+<td>
+
+1. From **Add hosts > Android**, select "Personal (BYOD)" and enroll a host using the enrollment link or QR code.
+2. With end user authentication turned on for the team, verify IdP authentication is required and that the "Enroll" button only appears after successful authentication.
+3. Verify the host appears in AutoMDM in the expected team, with the display name, hardware model, serial, and OS version populated.
+
+</td>
+</tr>
+
+<tr>
+<td>Company-owned enrollment</td>
+<td>Verify fully-managed (company-owned) Android enrollment.</td>
+<td>
+
+1. Factory reset an Android host.
+2. From **Add hosts > Android**, select "Company-owned (fully-managed)" and enroll the host by scanning the QR code during device setup.
+3. Verify the host appears in AutoMDM in the expected team with host vitals populated.
+4. Verify Wipe is available for the host.
+
+</td>
+</tr>
+
+<tr>
+<td>OS settings</td>
+<td>Verify Android configuration profile functionality.</td>
+<td>
+
+1. Verify Android profiles (.json) upload/download/edit/delete.
+2. Verify profiles are delivered to the host and applied, and that OS settings status is accurate on the Host details page.
+
+</td>
+</tr>
+
+<tr>
+<td>Certificates</td>
+<td>Verify Android certificate delivery.</td>
+<td>
+
+1. Configure a custom SCEP CA and add an Android certificate that uses it.
+2. Verify the certificate reports success under **Controls > OS settings**.
+3. Verify the certificate is present in the AutoMDM app on the device.
+4. Verify the certificate grants access to the resource it was issued for.
+5. Verify able to re-send a certificate to a host.
+
+</td>
+</tr>
+
+<tr>
+<td>Setup experience & zero-touch enrollment</td>
+<td>Verify setup experience software is delivered on BYOD and zero-touch enrollment.</td>
+<td>
+
+1. Configure End user authentication and add Play Store apps set to install during setup experience.
+2. Enroll a BYOD host and verify IdP authentication succeeds and that setup experience software installs automatically, with no end user action.
+3. Enroll a zero-touch host by factory resetting it and connecting it to a network. Verify it enrolls to the **Unassigned** team as company-owned with IdP authentication skipped, and that setup experience software still installs.
+4. Verify the installed software appears in each host's software inventory and the installs display in the Activity feed.
+
+</td>
+</tr>
+
+<tr>
+<td>Software</td>
+<td>Verify Android software library and installs.</td>
+<td>
+
+1. Verify Play Store apps can be added and deleted.
+2. Verify a newly added app appears in managed Google Play on the device and can be installed by the end user.
+3. Verify the installed app appears in the host's software inventory.
+
+</td>
+</tr>
+
+<tr>
+<td>Lock, Unenroll, Wipe, & Clear passcode</td>
+<td>Verify host actions on Android hosts.</td>
+<td>
+
+1. Verify Lock and Clear passcode on a BYOD host.
+2. Verify Lock and Clear passcode on a company-owned host.
+3. Verify Wipe on a company-owned host, and that Wipe is not offered for BYOD hosts.
+4. Verify `Unenroll` on a BYOD host removes the work profile only and leaves personal data intact.
+5. Verify the actions display correctly in the Activity feed.
+
+</td>
+</tr>
+
+<tr>
+<td>Custom MDM commands</td>
+<td>Verify custom Android MDM commands.</td>
+<td>
+
+1. Verify able to run a custom Android MDM command from the CLI.
+2. Verify able to list commands and view command results.
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM Free</td>
+<td>Verify that product group features behave correctly on AutoMDM Free.</td>
+<td>
+
+Run basic checks for the product group area while using an AutoMDM Free license.
+
+- Features documented as Free work normally:
+   - Android MDM
+   - BYOD and company-owned enrollment
+   - Configuration profile delivery
+   - Wipe for company-owned hosts
+- Premium features are correctly restricted or hidden:
+   - Zero-touch enrollment
+   - Certificates
+   - Setup experience
+   - Add software
+   - Lock
+- No UI, API, or workflow errors occur when using Free-only functionality.
+
+Reference: https://automdm.com/pricing
+
+</td>
+</tr>
+
+</table>
+
+### Auto Patching
+
+**Progress**
+- [ ] Report flow
+- [ ] Host flow
+- [ ] My device page
+- [ ] Scripts
+- [ ] Software
+- [ ] AutoMDM-maintained apps
+- [ ] AutoMDM Free
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>Report flow</td>
+<td>Create, edit, run, and delete reports.</td>
+<td>
+
+1. Permissions regarding creating/editing/deleting reports are up to date with documentation.
+2. Syntax errors result in error messaging.
+3. Queries can be run manually.
+
+</td>
+</tr>
+
+<tr>
+<td>Host flow</td>
+<td>Verify a new host can be added and removed following modal instructions using your own device.</td>
+<td>
+
+1. Host is added via command line.
+2. Host serial number and date added are accurate.
+3. Host is not visible after it is deleted.
+4. Warning and informational modals show when expected and make sense.
+
+</td>
+</tr>
+
+<tr>
+<td>My device page</td>
+<td>Verify the end user's My device page loads successfully.</td>
+<td>
+
+1. Clicking the AutoMDM desktop item, then "My device" successfully loads the My device page.
+2. The "My device" page is populated correctly and as expected.
+3. Styling and padding appears correct.
+
+</td>
+</tr>
+
+<tr>
+<td>Scripts</td>
+<td>Verify script library and execution.</td>
+<td>
+
+1. Verify able to run a script on all host types from CLI.
+2. Verify scripts library upload/download/delete.
+3. From Host details (macOS, Windows, & Linux) run a script that should PASS, verify.
+4. From Host details (macOS, Windows, & Linux) run a script that should FAIL, verify.
+5. Verify UI loading state and statuses for scripts.
+6. Disable scripts globally and verify unable to run.
+7. Verify scripts display correctly in Activity feed.
+
+</td>
+</tr>
+
+<tr>
+<td>Software</td>
+<td>Verify software library and install / download.</td>
+<td>
+
+1. Verify software library upload/download/delete.
+2. From Host details (macOS, Windows, & Linux) run an install that should PASS, verify.
+3. From My Device (macOS, Windows, & Linux) software tab should have self-service items available, verify.
+4. Verify UI loading state and statuses for installing software.
+5. Verify software installs display correctly in Activity feed.
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM-maintained apps</td>
+<td>Verify AutoMDM-maintained apps (FMA) can be added, installed, updated, pinned, patched, and removed (macOS & Windows).</td>
+<td>
+
+1. From Software > Add software > AutoMDM-maintained, add an app for macOS and one for Windows. Verify the installer downloads and the app shows in the team's software library with the correct version.
+2. Verify apps already in the team show a ✅ icon instead of an Add button in the AutoMDM-maintained list.
+3. From Host details (macOS & Windows) install the FMA, verify it PASSES and the installed version shows in the host's software inventory.
+4. From My device (macOS & Windows) install an FMA enabled for self-service, verify.
+5. From the app's details page select Actions > Versions, pin to an older version, and verify new installs use the pinned version.
+6. Switch the app back to "Automatically update to latest". On a host running the older version, verify the software shows "Update available", then update it from Host details and from the My device Updates card. Verify the "Updating..." state and that the latest version shows in the host's software inventory.
+7. From the app's details page select Actions > Deploy and choose "Patch when app is closed" or "Force patch". Verify a patch policy is created, fails on a host running an outdated version, and installs the update.
+8. From Host details (macOS & Windows) uninstall the FMA, verify.
+9. Apply `automdm_maintained_apps` (with and without a `version` pin) via GitOps, verify the apps and versions match the YAML.
+10. Verify FMA installs, updates, uninstalls, and edits display correctly in Activity feed.
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM Free</td>
+<td>Verify that product group features behave correctly on AutoMDM Free.</td>
+<td>
+
+Run basic checks for the product group area while using an AutoMDM Free license.
+
+- Features documented as Free work normally:
+   - Host details page
+   - Reports (Add, edit, live report)
+   - Software inventory
+   - Scripts (Add, delete, run)
+   - My device page (Mac, Windows, Linux)
+- Premium features are correctly restricted or hidden:
+   - Add software (including AutoMDM-maintained apps)
+- No UI, API, or workflow errors occur when using Free-only functionality.
+
+Reference: https://automdm.com/pricing
+
+</td>
+</tr>
+
+</table>
+
+### Supply Chain
+
+**Progress**
+- [ ] Disk encryption (Linux)
+- [ ] Vulnerabilities
+- [ ] Lock & Wipe
+- [ ] AutoMDM Free
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>Disk encryption (Linux)</td>
+<td>Verify disk encryption functionality (Linux).</td>
+<td>
+
+1. Verify able to configure Disk encryption (Linux).
+2. Verify host enrolled with Disk encryption enforced successfully encrypts.
+
+</td>
+</tr>
+
+<tr>
+<td>Vulnerabilities</td>
+<td>Verify that software vulnerabilities are correctly populated.</td>
+<td>
+
+1. Verify that known vulnerable software items display expected CVEs and severity information in the Software tab.
+2. Verify that individual vulnerabilities can be previewed and open the correct NVD page when selected.
+3. Verify that vulnerable software appears under "My device > Software" for affected hosts with expected CVEs.
+
+</td>
+</tr>
+
+<tr>
+<td>Lock & Wipe</td>
+<td>Verify hosts can be locked & wiped.</td>
+<td>
+
+1. Verify locking a host from the AutoMDM UI (macOS, Windows, & Linux).
+2. Verify unlocking a host from the AutoMDM UI (macOS, Windows, & Linux).
+3. Verify wiping a host from the AutoMDM UI (macOS, Windows, & Linux).
+4. Verify wiping and locking hosts using `automdmctl` (macOS, Windows, & Linux).
+
+</td>
+</tr>
+
+<tr>
+<td>AutoMDM Free</td>
+<td>Verify that product group features behave correctly on AutoMDM Free.</td>
+<td>
+
+Run basic checks for the product group area while using an AutoMDM Free license.
+
+- Features documented as Free work normally:
+   - Vulnerability detection
+   - Individual CVE page
+- Premium features are correctly restricted or hidden:
+   - Disk encryption (Linux)
+   - Lock / Wipe
+   - Certificate authorities
+- No UI, API, or workflow errors occur when using Free-only functionality.
+
+Reference: https://automdm.com/pricing
+
+</td>
+</tr>
+
+</table>
+
+### All product groups
+
+**Progress**
+- [ ] Release-critical issues (Ready for release)
+- [ ] Baseline loadtest (minor releases only)
+- [ ] Migration loadtest (minor releases only)
+- [ ] Helm chart
+- [ ] Migration test
+- [ ] Cloud migration tests
+- [ ] Trivy scan
+
+<table>
+<tr><th>Test name</th><th>Step instructions</th><th>Expected result</th></tr>
+
+<tr>
+<td>Release-critical issues (Ready for release)</td>
+<td>Verify no open <code>~unreleased bug</code> or <code>~release blocker</code> issue is still in the works — all should be "Ready for release".</td>
+<td>
+
+1. Check the [`~unreleased bug`](https://github.com/anilyagiz/automdm/labels/~unreleased%20bug) and [`~release blocker`](https://github.com/anilyagiz/automdm/labels/~release%20blocker) filters and confirm every open issue is "Ready for release" on its product group board.
+2. If any is not, raise an alarm in the `#help-engineering` and the relevant product group channel.
+
+</td>
+</tr>
+
+<tr>
+<td>Baseline loadtest - minor releases only unless otherwise specified</td>
+<td>Verify load test metrics are within acceptable range on a fresh RC instance with no data, compared against the previous release.</td>
+<td>
+
+1. After all expected changes have been merged to the RC branch, set up a load test environment using the RC branch (new instance, no data) and allow it at least 24hrs of run time.
+2. Collect metrics with the [`collect-metrics.sh`](https://github.com/anilyagiz/automdm/blob/main/tools/loadtest/metrics/collect-metrics.sh) script under the `baseline` category (see the [metrics README](https://github.com/anilyagiz/automdm/blob/main/tools/loadtest/metrics/README.md)), e.g. `./collect-metrics.sh --workspace <version>loadtest --category baseline`.
+3. Compare the run against the previous release (n-1) with [`compare-metrics.sh`](https://github.com/anilyagiz/automdm/blob/main/tools/loadtest/metrics/compare-metrics.sh) and post the comparison output as a comment on this issue. All deltas should report `ok` — investigate any `WARN`/`ALERT`.
+4. Open a PR against `main` with the run artifacts (`.json` + `.md`) under `runs/baseline/<workspace>/`, and record the metrics in [this spreadsheet](https://docs.google.com/spreadsheets/d/1FOF0ykFVoZ7DJSTfrveip0olfyRQsY9oT1uXCCZmuKc/edit?usp=drive_link).
+
+</td>
+</tr>
+
+<tr>
+<td>Migration loadtest - minor releases only unless otherwise specified</td>
+<td>Verify load test metrics hold steady after migrating from the previous minor release (n-1) to the RC (n), comparing before vs. after the migration.</td>
+<td>
+
+1. Run a load test on the previous minor release (n-1). Right before migrating, collect the last 2 hours with [`collect-metrics.sh`](https://github.com/anilyagiz/automdm/blob/main/tools/loadtest/metrics/collect-metrics.sh) under the `migration` category (see the [metrics README](https://github.com/anilyagiz/automdm/blob/main/tools/loadtest/metrics/README.md)), e.g. `./collect-metrics.sh --workspace <n-1>to<n>mig --category migration --interval 2h`.
+2. Follow [Deploying code changes to team](https://github.com/anilyagiz/automdm/blob/main/infrastructure/loadtesting/terraform/readme.md#deploying-code-changes-to-automdm) to migrate the environment to the RC branch (n).
+3. Wait ~2 hours, then collect the past 2 hours with `collect-metrics.sh`, e.g. `./collect-metrics.sh --workspace <n-1>to<n>mig --category migration --interval 2h`.
+4. Compare the post-migration run against the pre-migration run with [`compare-metrics.sh`](https://github.com/anilyagiz/automdm/blob/main/tools/loadtest/metrics/compare-metrics.sh) and post the comparison output as a comment on this issue. All deltas should report `ok` — investigate any `WARN`/`ALERT`.
+5. Open a PR against `main` with the run artifacts (`.json` + `.md`) under `runs/migration/<workspace>/`, and record the metrics in [this spreadsheet](https://docs.google.com/spreadsheets/d/1FOF0ykFVoZ7DJSTfrveip0olfyRQsY9oT1uXCCZmuKc/edit?usp=drive_link).
+
+</td>
+</tr>
+
+<tr>
+<td>Helm chart</td>
+<td>Verify the AutoMDM Helm chart deploys cleanly against the RC image.</td>
+<td>
+
+Follow the [Test AutoMDM Helm Chart With Docker Desktop runbook](https://github.com/fleetdm/confidential/blob/main/infrastructure/runbooks/test-automdm-helm-chart-with-docker-desktop.md).
+
+1. Back up your local AutoMDM dev MySQL data if you have anything you care about
+2. Start MySQL and Redis from the AutoMDM repo's Docker Compose file.
+3. Prepare the `automdm` namespace and `mysql` secret on the `docker-desktop` kube context.
+4. `helm upgrade --install` the chart from `./charts/automdm` using the RC image tag (e.g. `imageTag=rc-minor-automdm-v4.xx.0`).
+5. Confirm the AutoMDM pod becomes Ready (`kubectl -n automdm get pods`) with no errors in `kubectl -n automdm logs deploy/automdm -c automdm`.
+6. Port-forward `svc/automdm-service` and confirm the AutoMDM UI loads at `http://localhost:8080`.
+7. Attach a screenshot of `kubectl -n automdm get pods` (showing the AutoMDM pod Ready) and the loaded AutoMDM UI to this issue as a comment.
+8. Tear down with `helm uninstall` + `kubectl delete namespace automdm` + `docker compose stop mysql redis`.
+
+</td>
+</tr>
+
+<tr>
+<td>Migration test</td>
+<td>Verify AutoMDM can migrate to the next version with no issues.</td>
+<td>
+
+Using [this GitHub action](https://github.com/anilyagiz/automdm/actions/workflows/db-upgrade-test.yml):
+
+1. Using the most recent stable version of AutoMDM and `main`, click `Run workflow`.
+2. Enter the Docker tag of AutoMDM starting version, e.g. `v4.64.2`.
+3. Enter the Docker tag of AutoMDM version to upgrade to, e.g. `rc-minor-automdm-v4.65.0`.
+4. Click `Run workflow`.
+5. Action should complete successfully.
+
+</td>
+</tr>
+
+<tr>
+<td>Cloud migration tests</td>
+<td>Verify AutoMDM can migrate when using real world data.</td>
+<td>
+
+Using [this GitHub action](https://github.com/fleetdm/confidential/actions/workflows/cloud-tests.yml):
+
+1. Enter `automdm/automdm:rc-minor-automdm-<version>` for `The image to test`.
+2. Select `all` for `Where will we deploy?`.
+3. Action should complete successfully and the total time for each instance shouldn't be drastically different from previous releases.
+
+</td>
+</tr>
+
+<tr>
+<td>Trivy scan</td>
+<td>Verify the latest Trivy scan of the RC image has no new high/critical vulnerabilities.</td>
+<td>
+
+1. Using [this GitHub action](https://github.com/anilyagiz/automdm/actions/workflows/trivy-scan.yml).
+2. Review the scan results for any new high or critical severity vulnerabilities introduced by this RC.
+3. Attach a screenshot of the latest Trivy scan results to this issue as a comment.
+4. If new high/critical vulnerabilities are found, raise an alarm in the appropriate channels.
+
+</td>
+</tr>
+
+</table>
+
+## Notes
+
+Issues found new to this version:
+
+Issues found that reproduce in last stable version:
+
+What has not been tested:
+
+Include any notes on whether issues should block release or not as needed:

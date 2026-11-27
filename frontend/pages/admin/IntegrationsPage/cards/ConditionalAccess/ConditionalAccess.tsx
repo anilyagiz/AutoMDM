@@ -1,0 +1,875 @@
+import React, { useContext, useEffect, useState } from "react";
+import { useQuery } from "react-query";
+
+import Button from "components/buttons/Button";
+import CustomLink from "components/CustomLink";
+import DataError from "components/DataError";
+import Checkbox from "components/forms/fields/Checkbox";
+import GitOpsModeTooltipWrapper from "components/GitOpsModeTooltipWrapper";
+import Icon from "components/Icon";
+import { IconNames } from "components/icons";
+import Modal from "components/Modal";
+import PremiumFeatureMessage from "components/PremiumFeatureMessage";
+import SectionHeader from "components/SectionHeader";
+import { notify } from "components/ToastNotification";
+import TooltipWrapper from "components/TooltipWrapper";
+import { AppContext } from "context/app";
+import useGitOpsMode from "hooks/useGitOpsMode";
+import {
+  IConfig,
+  isGoogleConditionalAccessConfigured,
+  isOktaConditionalAccessConfigured,
+  withGoogleConditionalAccess,
+} from "interfaces/config";
+import SettingsSection from "pages/admin/components/SettingsSection";
+import conditionalAccessAPI, {
+  ConfirmMSConditionalAccessResponse,
+} from "services/entities/conditional_access";
+import configAPI from "services/entities/config";
+import {
+  DEFAULT_USE_QUERY_OPTIONS,
+  LEARN_MORE_ABOUT_BASE_LINK,
+} from "utilities/constants";
+
+import SectionCard from "../MdmSettings/components/SectionCard";
+
+import EntraConditionalAccessModal from "./components/EntraConditionalAccessModal";
+import GoogleConditionalAccessModal from "./components/GoogleConditionalAccessModal";
+import OktaConditionalAccessModal from "./components/OktaConditionalAccessModal";
+import OktaProfilesModal from "./components/OktaProfilesModal";
+
+const baseClass = "conditional-access";
+
+const troubleshootLink = (
+  <CustomLink
+    text="Learn more"
+    url="https://automdm.com/guides/entra-conditional-access-integration#troubleshooting"
+    newTab
+    variant="flash-message-link"
+  />
+);
+
+type ConditionalAccessProvider = "microsoft-entra" | "okta" | "google";
+
+const PROVIDER_NAMES: Record<ConditionalAccessProvider, string> = {
+  "microsoft-entra": "Microsoft Entra",
+  okta: "Okta",
+  google: "Google",
+};
+
+const PROVIDER_PLATFORMS: Record<
+  ConditionalAccessProvider,
+  { icons: IconNames[]; tip: string }
+> = {
+  "microsoft-entra": {
+    icons: ["darwin", "windows"],
+    tip: "Supported for macOS and Windows",
+  },
+  okta: {
+    icons: ["darwin", "windows"],
+    tip: "Supported for macOS and Windows",
+  },
+  google: {
+    icons: ["android", "ios", "ipados"],
+    tip: "Supported for Android, iOS, and iPadOS",
+  },
+};
+
+interface IDeleteConditionalAccessModal {
+  toggleDeleteConditionalAccessModal: () => void;
+  onDelete: (config: IConfig) => void;
+  provider: ConditionalAccessProvider;
+  config: IConfig | null;
+}
+
+const DeleteConditionalAccessModal = ({
+  toggleDeleteConditionalAccessModal,
+  onDelete,
+  provider,
+  config,
+}: IDeleteConditionalAccessModal) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { gitOpsModeEnabled } = useGitOpsMode();
+
+  const providerName = PROVIDER_NAMES[provider];
+
+  // Okta and Google settings live in AppConfig (GitOps-managed). If GitOps
+  // flips on while this confirmation is open, block the write here so a stale
+  // open modal can't bypass the card-level gate. Entra deletion hits a
+  // separate table, not AppConfig, so leave it alone.
+  const blockedByGitOps = provider !== "microsoft-entra" && gitOpsModeEnabled;
+
+  const handleDelete = async () => {
+    if (blockedByGitOps) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      let updatedConfig;
+      if (provider === "microsoft-entra") {
+        await conditionalAccessAPI.deleteMicrosoftConditionalAccess();
+        updatedConfig = await configAPI.loadAll();
+      } else if (provider === "google") {
+        await conditionalAccessAPI.deleteGoogleConditionalAccess();
+        updatedConfig = config && withGoogleConditionalAccess(config, null);
+      } else {
+        // For Okta, clear all fields via config API
+        updatedConfig = await configAPI.update({
+          conditional_access: {
+            okta_idp_id: "",
+            okta_assertion_consumer_service_url: "",
+            okta_audience_uri: "",
+            okta_certificate: "",
+            // Preserve existing Microsoft Entra settings
+            microsoft_entra_tenant_id:
+              config?.conditional_access?.microsoft_entra_tenant_id || "",
+            microsoft_entra_connection_configured:
+              config?.conditional_access
+                ?.microsoft_entra_connection_configured || false,
+          },
+        });
+      }
+      notify.success(`Successfully disconnected from ${providerName}.`);
+      toggleDeleteConditionalAccessModal();
+      if (updatedConfig) {
+        onDelete(updatedConfig);
+      }
+    } catch (e) {
+      notify.error(
+        `Could not disconnect from ${providerName}, please try again.`,
+        { response: e }
+      );
+      if (provider === "google") {
+        // The server removes the registration before the settings, so a
+        // failed delete can leave the integration half removed.
+        try {
+          onDelete(await configAPI.loadAll());
+        } catch {
+          // The failed delete is already reported.
+        }
+      }
+    }
+    setIsDeleting(false);
+  };
+
+  let copy: React.JSX.Element;
+  if (provider === "google") {
+    copy = (
+      <>
+        <p>
+          Before you delete, first unmark devices as managed in Google.{" "}
+          <CustomLink
+            text="Learn how"
+            url={`${LEARN_MORE_ABOUT_BASE_LINK}/disable-google-conditional-access`}
+            newTab
+          />
+        </p>
+        <p>
+          If you don&apos;t, devices will stay marked as managed even after
+          deleting Google.
+        </p>
+      </>
+    );
+  } else if (provider === "microsoft-entra") {
+    copy = (
+      <>
+        <p>
+          Before you delete, first unblock all end users.{" "}
+          <CustomLink
+            text="Learn how"
+            url={`${LEARN_MORE_ABOUT_BASE_LINK}/disable-entra-conditional-access`}
+            newTab
+          />
+        </p>
+        <p>
+          If you don&apos;t, end users will stay blocked even after deleting
+          Entra.
+        </p>
+      </>
+    );
+  } else {
+    copy = (
+      <>
+        <p>
+          Before you delete, first unblock all end users.{" "}
+          <CustomLink
+            text="Learn how"
+            url={`${LEARN_MORE_ABOUT_BASE_LINK}/disable-okta-conditional-access`}
+            newTab
+          />
+        </p>
+        <p>
+          If you don&apos;t, end users will stay blocked even after deleting
+          Okta.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <Modal
+      title="Delete"
+      onExit={toggleDeleteConditionalAccessModal}
+      onEnter={handleDelete}
+    >
+      {copy}
+      <div className="modal-cta-wrap">
+        <Button
+          type="button"
+          variant="alert"
+          onClick={handleDelete}
+          isLoading={isDeleting}
+          disabled={isDeleting || blockedByGitOps}
+        >
+          Delete
+        </Button>
+        <Button
+          onClick={toggleDeleteConditionalAccessModal}
+          variant="secondary"
+          disabled={isDeleting}
+        >
+          Cancel
+        </Button>
+      </div>
+    </Modal>
+  );
+};
+
+enum EntraPhase {
+  NotConfigured = "not-configured",
+  ConfirmingConfigured = "confirming-configured",
+  ConfirmationError = "confirmation-error",
+  AwaitingOAuth = "awaiting-oauth",
+  Configured = "configured",
+  ConsentMissing = "consent-missing",
+}
+
+const ConditionalAccess = () => {
+  // HOOKS
+  const { isPremiumTier, setConfig, config } = useContext(AppContext);
+
+  const [entraPhase, setEntraPhase] = useState<EntraPhase>(
+    EntraPhase.NotConfigured
+  );
+
+  // Modal states
+  const [showEntraModal, setShowEntraModal] = useState(false);
+  const [showOktaModal, setShowOktaModal] = useState(false);
+  const [showOktaProfilesModal, setShowOktaProfilesModal] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [
+    providerToDelete,
+    setProviderToDelete,
+  ] = useState<ConditionalAccessProvider | null>(null);
+
+  // Bypass disabled state
+  const [bypassDisabled, setBypassDisabled] = useState(
+    config?.conditional_access?.bypass_disabled || false
+  );
+  const [isUpdatingBypass, setIsUpdatingBypass] = useState(false);
+
+  // "loading" state here is encompassed by phase === Phase.ConfirmingConfigured state, don't need
+  // to use useQuery's
+  // "error" state handled by onError callback
+  // success state handled by onSuccess callback
+  useQuery<
+    ConfirmMSConditionalAccessResponse,
+    Error,
+    ConfirmMSConditionalAccessResponse
+  >(["confirmAccess"], conditionalAccessAPI.confirmMicrosoftConditionalAccess, {
+    ...DEFAULT_USE_QUERY_OPTIONS,
+    // only make this call at the appropriate UI phase
+    enabled: entraPhase === EntraPhase.ConfirmingConfigured && isPremiumTier,
+    onSuccess: ({ configuration_completed, setup_error }) => {
+      if (configuration_completed) {
+        setEntraPhase(EntraPhase.Configured);
+        notify.success(
+          "Successfully verified Microsoft Entra conditional access integration"
+        );
+      } else {
+        setEntraPhase(EntraPhase.ConsentMissing);
+        if (
+          // IT admin did not complete the consent.
+          !setup_error ||
+          // IT admin clicked "Cancel" in the consent dialog.
+          setup_error.includes("A Microsoft Entra admin did not consent")
+        ) {
+          notify.error(
+            <>
+              Couldn&apos;t connect. AutoMDM didn&apos;t get permissions for
+              Entra. Please try again and accept the permissions.{" "}
+              {troubleshootLink}
+            </>
+          );
+        } else if (
+          // Covers both the empty (HTTP 204) and unexpected-shape responses.
+          setup_error.includes("PartnerCompliancePolicies API returned")
+        ) {
+          notify.error(
+            <>
+              Couldn&apos;t connect. Entra didn&apos;t create AutoMDM&apos;s
+              compliance policy. Have an Entra admin who&apos;s also an AutoMDM
+              admin select <b>Connect</b> and approve permissions in one
+              session. {troubleshootLink}
+            </>
+          );
+        } else if (
+          setup_error.includes('No "AutoMDM conditional access" Entra ID group')
+        ) {
+          notify.error(
+            <>
+              Couldn&apos;t connect. Create a group named &quot;AutoMDM
+              conditional access&quot; in Entra and try again.{" "}
+              <CustomLink
+                text="Learn how"
+                url={`${LEARN_MORE_ABOUT_BASE_LINK}/create-entra-conditional-access-group`}
+                newTab
+                variant="flash-message-link"
+              />
+            </>
+          );
+        } else if (
+          setup_error.includes("Error occurred when retrieving API tokens")
+        ) {
+          notify.error(
+            <>
+              Couldn&apos;t connect. AutoMDM couldn&apos;t access your Entra
+              tenant. Please try again. {troubleshootLink}
+            </>
+          );
+        } else {
+          // For other kind of errors we just show a generic error.
+          // We won't render the error as is because the error comes from the MS proxy and they may be too big or unformatted
+          // to display in the banner.
+          //
+          // For troubleshooting:
+          //  - The API response contains the setup_error.
+          //  - The AutoMDM server logs the error.
+          //  - The MS proxy stores the error in its database.
+          notify.error(
+            <>
+              Couldn&apos;t connect. Entra returned an error. {troubleshootLink}
+            </>
+          );
+        }
+      }
+    },
+    onError: () => {
+      // distinct from successful confirmation response of `false`, this handles an API error
+      setEntraPhase(EntraPhase.ConfirmationError);
+    },
+  });
+
+  const {
+    microsoft_entra_tenant_id: entraTenantId,
+    microsoft_entra_connection_configured: entraConfigured,
+  } = config?.conditional_access || {};
+
+  const oktaConfigured = isOktaConditionalAccessConfigured(config);
+  const googleConfigured = isGoogleConditionalAccessConfigured(config);
+
+  // Check Entra configuration state
+  // Note: entraPhase is intentionally included in the dependency array to allow
+  // manual phase overrides (e.g., AwaitingOAuth) to persist until config changes
+  useEffect(() => {
+    const finalStates = [
+      EntraPhase.AwaitingOAuth, // Don't check config if we're in AwaitingOAuth phase
+      EntraPhase.ConfirmationError, // Don't do confirm call if we are in a final error state
+      EntraPhase.ConsentMissing, // Don't do confirm call if after tenant ID provided, something went wrong
+    ];
+
+    if (finalStates.includes(entraPhase)) {
+      return;
+    }
+
+    // Don't override if we just successfully confirmed (phase is Configured but config not yet updated)
+    // However, if the tenant ID is removed (deleted), we should still update to NotConfigured
+    if (
+      entraPhase === EntraPhase.Configured &&
+      !entraConfigured &&
+      entraTenantId
+    ) {
+      return;
+    }
+
+    if (entraTenantId) {
+      if (!entraConfigured) {
+        setEntraPhase(EntraPhase.ConfirmingConfigured);
+      } else {
+        // tenant id is present and connection is configured
+        setEntraPhase(EntraPhase.Configured);
+      }
+    } else {
+      setEntraPhase(EntraPhase.NotConfigured);
+    }
+  }, [entraTenantId, entraConfigured, entraPhase]);
+
+  if (!isPremiumTier) {
+    return (
+      <SettingsSection title="Conditional access">
+        <PremiumFeatureMessage />
+      </SettingsSection>
+    );
+  }
+
+  // HANDLERS
+
+  const toggleDeleteModal = () => {
+    setProviderToDelete(null);
+  };
+
+  const toggleEntraModal = () => {
+    setShowEntraModal(!showEntraModal);
+  };
+
+  const handleEntraModalSuccess = () => {
+    setShowEntraModal(false);
+    // Set phase to awaiting OAuth instead of immediately refetching config
+    // Config will be checked when user refreshes the page
+    setEntraPhase(EntraPhase.AwaitingOAuth);
+  };
+
+  const onDeleteConditionalAccess = (updatedConfig: IConfig) => {
+    setConfig(updatedConfig);
+  };
+
+  const toggleOktaModal = () => {
+    setShowOktaModal(!showOktaModal);
+  };
+
+  const toggleOktaProfilesModal = () => {
+    setShowOktaProfilesModal(!showOktaProfilesModal);
+  };
+
+  const handleOktaModalSuccess = (updatedConfig: IConfig) => {
+    setShowOktaModal(false);
+    setConfig(updatedConfig);
+  };
+
+  const toggleGoogleModal = () => {
+    setShowGoogleModal(!showGoogleModal);
+  };
+
+  const handleGoogleModalSuccess = (updatedConfig: IConfig) => {
+    setShowGoogleModal(false);
+    setConfig(updatedConfig);
+  };
+
+  const handleGoogleDelete = () => {
+    setProviderToDelete("google");
+  };
+
+  const handleEntraDelete = () => {
+    setProviderToDelete("microsoft-entra");
+  };
+
+  const handleOktaDelete = () => {
+    setProviderToDelete("okta");
+  };
+
+  const handleSaveBypassSettings = async (evt: React.FormEvent) => {
+    evt.preventDefault();
+    setIsUpdatingBypass(true);
+    try {
+      const updatedConfig = await configAPI.update({
+        conditional_access: {
+          bypass_disabled: bypassDisabled,
+          // Preserve existing settings
+          okta_idp_id: config?.conditional_access?.okta_idp_id || "",
+          okta_assertion_consumer_service_url:
+            config?.conditional_access?.okta_assertion_consumer_service_url ||
+            "",
+          okta_audience_uri:
+            config?.conditional_access?.okta_audience_uri || "",
+          okta_certificate: config?.conditional_access?.okta_certificate || "",
+          microsoft_entra_tenant_id:
+            config?.conditional_access?.microsoft_entra_tenant_id || "",
+        },
+      });
+      setConfig(updatedConfig);
+      notify.success("Successfully updated conditional access settings.");
+    } catch (e) {
+      notify.error("Could not update conditional access settings.", {
+        response: e,
+      });
+    }
+    setIsUpdatingBypass(false);
+  };
+
+  // RENDER
+
+  const renderCardHeader = (provider: ConditionalAccessProvider) => (
+    <span className={`${baseClass}__card-header`}>
+      {PROVIDER_NAMES[provider]}
+      <TooltipWrapper
+        tipContent={PROVIDER_PLATFORMS[provider].tip}
+        showArrow
+        position="right"
+        underline={false}
+      >
+        <span className={`${baseClass}__platforms`}>
+          {PROVIDER_PLATFORMS[provider].icons.map((platform) => (
+            <Icon
+              key={platform}
+              name={platform}
+              size="small-medium"
+              color="ui-automdm-black-50"
+            />
+          ))}
+        </span>
+      </TooltipWrapper>
+    </span>
+  );
+
+  const renderOktaContent = () => {
+    let oktaCta: React.JSX.Element;
+    if (oktaConfigured) {
+      oktaCta = (
+        <div className={`${baseClass}__card-actions`}>
+          <Button
+            variant="subdued"
+            onClick={toggleOktaProfilesModal}
+            icon="settings"
+          >
+            Profiles
+          </Button>
+          <Button variant="subdued" onClick={toggleOktaModal} icon="pencil">
+            Edit
+          </Button>
+          <GitOpsModeTooltipWrapper
+            renderChildren={(disableChildren) => (
+              <Button
+                variant="subdued"
+                onClick={handleOktaDelete}
+                icon="trash"
+                disabled={disableChildren}
+              >
+                Delete
+              </Button>
+            )}
+          />
+        </div>
+      );
+    } else {
+      // Connect stays enabled; the modal gates its own Save.
+      oktaCta = <Button onClick={toggleOktaModal}>Connect</Button>;
+    }
+
+    return (
+      <SectionCard
+        header={oktaConfigured ? undefined : renderCardHeader("okta")}
+        iconName={oktaConfigured ? "success" : undefined}
+        cta={oktaCta}
+      >
+        {oktaConfigured ? (
+          <span>
+            <TooltipWrapper
+              tipContent={
+                <>
+                  <b>IdP ID:</b> {config?.conditional_access?.okta_idp_id}
+                </>
+              }
+            >
+              Okta
+            </TooltipWrapper>{" "}
+            conditional access connected.
+          </span>
+        ) : (
+          "Connect Okta to enable conditional access."
+        )}
+      </SectionCard>
+    );
+  };
+
+  const renderEntraContent = () => {
+    if (entraPhase === EntraPhase.ConfirmationError) {
+      return (
+        <SectionCard header={renderCardHeader("microsoft-entra")}>
+          <DataError />
+        </SectionCard>
+      );
+    }
+
+    if (entraPhase === EntraPhase.ConfirmingConfigured) {
+      return (
+        <SectionCard
+          header={renderCardHeader("microsoft-entra")}
+          cta={
+            <Button isLoading disabled>
+              Connect
+            </Button>
+          }
+        >
+          Please wait until Microsoft Entra configuration is confirmed.
+        </SectionCard>
+      );
+    }
+
+    // Compute Entra card props to avoid nested ternaries
+    const entraIsConfigured = entraPhase === EntraPhase.Configured;
+    const entraIsAwaitingOAuth = entraPhase === EntraPhase.AwaitingOAuth;
+
+    let entraIconName: IconNames | undefined;
+    if (entraIsConfigured) {
+      entraIconName = "success";
+    } else if (entraIsAwaitingOAuth) {
+      entraIconName = "pending";
+    }
+
+    let entraCta: React.JSX.Element | undefined;
+    if (entraIsConfigured) {
+      // Entra setup is DB-backed (POST/DELETE /conditional-access/microsoft),
+      // not AppConfig. GitOps YAML can't manage it, so delete isn't gated.
+      entraCta = (
+        <Button
+          variant="subdued"
+          onClick={handleEntraDelete}
+          icon="trash"
+          iconPosition="right"
+        >
+          Delete
+        </Button>
+      );
+    } else if (!entraIsAwaitingOAuth) {
+      entraCta = <Button onClick={toggleEntraModal}>Connect</Button>;
+    }
+
+    let entraContent: React.ReactNode;
+    if (entraIsConfigured) {
+      entraContent = (
+        <span>
+          <TooltipWrapper
+            tipContent={
+              <>
+                <b>Tenant ID:</b> {entraTenantId}
+              </>
+            }
+          >
+            Microsoft Entra
+          </TooltipWrapper>{" "}
+          conditional access connected.
+        </span>
+      );
+    } else if (entraIsAwaitingOAuth) {
+      entraContent =
+        "To complete your integration, follow the instructions in the other tab, then refresh this page to verify.";
+    } else {
+      entraContent = "Connect Entra to enable conditional access.";
+    }
+
+    return (
+      <SectionCard
+        header={
+          entraIsConfigured || entraIsAwaitingOAuth
+            ? undefined
+            : renderCardHeader("microsoft-entra")
+        }
+        iconName={entraIconName}
+        cta={entraCta}
+      >
+        {entraContent}
+      </SectionCard>
+    );
+  };
+
+  const renderGoogleContent = () => {
+    const header = renderCardHeader("google");
+
+    if (!googleConfigured) {
+      return (
+        <SectionCard
+          header={header}
+          cta={<Button onClick={toggleGoogleModal}>Connect</Button>}
+        >
+          Connect Google to enable conditional access.
+        </SectionCard>
+      );
+    }
+
+    const googleStatus = config?.conditional_access?.google;
+    const googleConnected = googleStatus?.state === "connected";
+    // Edit stays enabled in GitOps mode: the modal lets the admin replace the
+    // key, which the YAML doesn't need to carry.
+    const googleCta = (
+      <div className={`${baseClass}__card-actions`}>
+        <Button variant="subdued" onClick={toggleGoogleModal} icon="pencil">
+          Edit
+        </Button>
+        <GitOpsModeTooltipWrapper
+          renderChildren={(disableChildren) => (
+            <Button
+              variant="subdued"
+              onClick={handleGoogleDelete}
+              icon="trash"
+              iconPosition="right"
+              disabled={disableChildren}
+            >
+              Delete
+            </Button>
+          )}
+        />
+      </div>
+    );
+
+    if (googleConnected) {
+      return (
+        <SectionCard iconName="success" cta={googleCta}>
+          <span>
+            <TooltipWrapper
+              tipContent={
+                <>
+                  <b>Customer ID:</b>{" "}
+                  {config?.integrations?.google_conditional_access?.customer_id}
+                </>
+              }
+            >
+              Google
+            </TooltipWrapper>{" "}
+            conditional access connected.
+          </span>
+        </SectionCard>
+      );
+    }
+
+    // Saved while a connection is in flight, and left behind if it never
+    // finished.
+    if (googleStatus?.state === "pending") {
+      return (
+        <SectionCard header={header} iconName="pending" cta={googleCta}>
+          AutoMDM is connecting to Google. If this doesn&apos;t change, edit the
+          settings and save to try again.
+        </SectionCard>
+      );
+    }
+
+    // A delete that failed after removing the registration keeps the settings.
+    if (googleStatus?.state === "deleted") {
+      return (
+        <SectionCard header={header} iconName="error" cta={googleCta}>
+          AutoMDM couldn&apos;t finish deleting Google conditional access. Delete
+          it again, or edit the settings and save to reconnect.
+        </SectionCard>
+      );
+    }
+
+    return (
+      <SectionCard header={header} iconName="error" cta={googleCta}>
+        {googleStatus?.error_message ||
+          "AutoMDM couldn't connect to Google. Edit the settings and try again."}
+      </SectionCard>
+    );
+  };
+
+  const renderContent = () => {
+    return (
+      <div className={`${baseClass}__cards`}>
+        {renderOktaContent()}
+        {renderEntraContent()}
+        {renderGoogleContent()}
+      </div>
+    );
+  };
+
+  return (
+    <div className={baseClass}>
+      <div className={`${baseClass}__connections`}>
+        <SectionHeader title="Conditional access" />
+        <p className={`${baseClass}__page-description`}>
+          Block access to third-party apps from hosts that don&apos;t meet your
+          requirements.{" "}
+          <CustomLink
+            url={`${LEARN_MORE_ABOUT_BASE_LINK}/conditional-access`}
+            text="Learn more"
+            newTab
+          />
+        </p>
+        {renderContent()}
+        {showEntraModal && (
+          <EntraConditionalAccessModal
+            onCancel={toggleEntraModal}
+            onSuccess={handleEntraModalSuccess}
+          />
+        )}
+        {showOktaModal && (
+          <OktaConditionalAccessModal
+            onCancel={toggleOktaModal}
+            onSuccess={handleOktaModalSuccess}
+          />
+        )}
+        {showOktaProfilesModal && (
+          <OktaProfilesModal onExit={toggleOktaProfilesModal} />
+        )}
+        {showGoogleModal && (
+          <GoogleConditionalAccessModal
+            onCancel={toggleGoogleModal}
+            onSuccess={handleGoogleModalSuccess}
+          />
+        )}
+        {providerToDelete && (
+          <DeleteConditionalAccessModal
+            onDelete={onDeleteConditionalAccess}
+            toggleDeleteConditionalAccessModal={toggleDeleteModal}
+            provider={providerToDelete}
+            config={config}
+          />
+        )}
+      </div>
+      {oktaConfigured && (
+        <div className={`${baseClass}__end-user-experience`}>
+          <SectionHeader title="End user experience" />
+          <form onSubmit={handleSaveBypassSettings}>
+            <GitOpsModeTooltipWrapper
+              renderChildren={(disableChildren) => (
+                <Checkbox
+                  onChange={() => setBypassDisabled(!bypassDisabled)}
+                  name="bypassDisabled"
+                  value={!bypassDisabled}
+                  disabled={disableChildren}
+                >
+                  {disableChildren ? (
+                    "Bypass for non-critical policies"
+                  ) : (
+                    <TooltipWrapper
+                      tipContent={
+                        <>
+                          Bypassing is valid for a single login attempt and is
+                          tracked in audit logs. Critical policies can never be
+                          bypassed.
+                          <br />
+                          <i>
+                            (Default: <strong>On</strong>)
+                          </i>
+                        </>
+                      }
+                      showArrow={false}
+                    >
+                      Bypass for non-critical policies
+                    </TooltipWrapper>
+                  )}
+                </Checkbox>
+              )}
+            />
+            <GitOpsModeTooltipWrapper
+              renderChildren={(disableChildren) => (
+                <Button
+                  type="submit"
+                  isLoading={isUpdatingBypass}
+                  disabled={
+                    disableChildren ||
+                    bypassDisabled ===
+                      (config?.conditional_access?.bypass_disabled ?? false) ||
+                    !config
+                  }
+                >
+                  Save
+                </Button>
+              )}
+            />
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ConditionalAccess;

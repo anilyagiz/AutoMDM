@@ -1,0 +1,49 @@
+services:
+  mysql:
+    platform: ${AUTOMDM_MYSQL_PLATFORM:-}
+    image: mysql:8.0.44
+    environment:
+      MYSQL_ROOT_PASSWORD: toor
+      MYSQL_DATABASE: automdm
+      MYSQL_USER: automdm
+      MYSQL_PASSWORD: automdm
+    ports:
+      - "3306"
+
+  redis:
+    image: redis:6
+
+  automdm:
+    image: automdm/automdm:${AUTOMDM_VERSION:-latest}
+    environment:
+      AUTOMDM_MYSQL_ADDRESS: mysql:3306
+      AUTOMDM_MYSQL_DATABASE: automdm
+      AUTOMDM_MYSQL_USERNAME: automdm
+      AUTOMDM_MYSQL_PASSWORD: automdm
+      AUTOMDM_REDIS_ADDRESS: redis:6379
+      AUTOMDM_SERVER_ADDRESS: 0.0.0.0:8080
+      AUTOMDM_SERVER_CERT: /automdm.crt
+      AUTOMDM_SERVER_KEY: /automdm.key
+      AUTOMDM_LOGGING_JSON: "true"
+      AUTOMDM_OSQUERY_LABEL_UPDATE_INTERVAL: 1m
+      AUTOMDM_VULNERABILITIES_CURRENT_INSTANCE_CHECKS: "yes"
+      AUTOMDM_VULNERABILITIES_DATABASES_PATH: /automdm/vulndb
+      AUTOMDM_VULNERABILITIES_PERIODICITY: 5m
+      AUTOMDM_LOGGING_DEBUG: "true"
+    volumes:
+      - ./automdm.crt:/automdm.crt
+      - ./automdm.key:/automdm.key
+    ports:
+      - "8080"
+    depends_on:
+      - mysql
+      - redis
+
+  osquery:
+    image: "osquery/osquery:4.7.0-ubuntu20.04"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:-foobar}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags

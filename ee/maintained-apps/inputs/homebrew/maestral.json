@@ -1,0 +1,11 @@
+{
+  "name": "Maestral",
+  "unique_identifier": "com.samschott.maestral",
+  "token": "maestral",
+  "installer_format": "dmg",
+  "slug": "maestral/darwin",
+  "install_script_path": "ee/maintained-apps/inputs/homebrew/scripts/maestral-install.sh",
+  "default_categories": [
+    "Productivity"
+  ]
+}

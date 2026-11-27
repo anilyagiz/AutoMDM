@@ -1,0 +1,112 @@
+version: "3.7"
+
+networks:
+  automdm-preview:
+    name: automdm-preview
+    external: true
+
+services:
+  ubuntu25-osquery:
+    image: "osquery/osquery:5.17.0-ubuntu25.04"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview
+
+  ubuntu24-osquery:
+    image: "osquery/osquery:5.17.0-ubuntu24.04"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview
+
+  ubuntu22-osquery:
+    image: "osquery/osquery:5.17.0-ubuntu22.04"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview
+
+  debian12-osquery:
+    image: "osquery/osquery:5.17.0-debian12"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview
+
+  debian11-osquery:
+    image: "osquery/osquery:5.17.0-debian11"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview
+
+  centos8-osquery:
+    image: "osquery/osquery:5.17.0-centos8"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview
+
+  centos7-osquery:
+    image: "osquery/osquery:5.17.0-centos7"
+    volumes:
+      - ./automdm.crt:/etc/osquery/automdm.crt
+      - ./example_osquery.flags:/etc/osquery/osquery.flags
+    environment:
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
+    command: osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER-host.docker.internal:8412}
+    ulimits:
+      core:
+        hard: 1000000000
+        soft: 1000000000
+    networks:
+      - automdm-preview

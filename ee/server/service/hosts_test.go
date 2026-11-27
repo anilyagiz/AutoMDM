@@ -1,0 +1,1089 @@
+package service
+
+import (
+	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"errors"
+	"log/slog"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/jmoiron/sqlx"
+	"github.com/smallstep/pkcs7"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestGetHostManagedAccountPasswordAuth(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, baseSvc := newTestServiceWithMock(t, ds)
+
+	teamID := uint(1)
+
+	verified := string(automdm.MDMDeliveryVerified)
+
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: "test-uuid", Platform: "darwin", TeamID: &teamID}, nil
+	}
+	ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMManagedLocalAccount, error) {
+		return &automdm.HostMDMManagedLocalAccount{Status: &verified, PasswordAvailable: true}, nil
+	}
+	ds.GetHostManagedLocalAccountPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostManagedLocalAccountPassword, error) {
+		return &automdm.HostManagedLocalAccountPassword{}, nil
+	}
+	ds.MarkManagedLocalAccountPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
+		return time.Now(), nil
+	}
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+		return nil
+	}
+
+	testCases := []struct {
+		name       string
+		user       *automdm.User
+		shouldFail bool
+	}{
+		{
+			"global admin",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
+			false,
+		},
+		{
+			"global maintainer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
+			false,
+		},
+		{
+			"global observer",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
+			false,
+		},
+		{
+			"global observer+",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
+			false,
+		},
+		{
+			"global gitops",
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
+			true,
+		},
+		{
+			"team admin, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
+			false,
+		},
+		{
+			"team maintainer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
+			false,
+		},
+		{
+			"team observer, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
+			false,
+		},
+		{
+			"team observer+, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
+			false,
+		},
+		{
+			"team gitops, belongs to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
+			true,
+		},
+		{
+			"team admin, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
+			true,
+		},
+		{
+			"team observer, DOES NOT belong to team",
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
+			true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: tt.user})
+			_, err := svc.GetHostManagedAccountPassword(ctx, 1)
+			checkAuthErr(t, tt.shouldFail, err)
+		})
+	}
+}
+
+// TestRotateWindowsManagedLocalAccountPassword covers the Windows branch of the rotate endpoint, which maps the
+// datastore's typed errors rather than enqueuing an MDM command.
+func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
+	t.Parallel()
+
+	verified := string(automdm.MDMDeliveryVerified)
+	admin := &automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}
+
+	setup := func(t *testing.T, platform string, acct *automdm.HostMDMManagedLocalAccount) (*mock.Store, *Service, *svcmock.Service, context.Context) {
+		ds := new(mock.Store)
+		svc, baseSvc := newTestServiceWithMock(t, ds)
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "test-uuid", Platform: platform}, nil
+		}
+		ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMManagedLocalAccount, error) {
+			return acct, nil
+		}
+		ds.InitiateWindowsManagedLocalAccountRotationFunc = func(ctx context.Context, hostUUID string) error { return nil }
+		baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
+		return ds, svc, baseSvc, viewer.NewContext(context.Background(), viewer.Viewer{User: admin})
+	}
+
+	available := &automdm.HostMDMManagedLocalAccount{Status: &verified, PasswordAvailable: true}
+
+	t.Run("records the request and logs the activity against the requesting user", func(t *testing.T) {
+		ds, svc, baseSvc, ctx := setup(t, "windows", available)
+		var actor *automdm.User
+		var logged automdm.ActivityDetails
+		baseSvc.NewActivityFunc = func(_ context.Context, u *automdm.User, a automdm.ActivityDetails) error {
+			actor, logged = u, a
+			return nil
+		}
+
+		require.NoError(t, svc.RotateManagedLocalAccountPassword(ctx, 1))
+
+		require.True(t, ds.InitiateWindowsManagedLocalAccountRotationFuncInvoked)
+		// No MDM command is involved on Windows, so nothing should reach the Apple rotation path.
+		require.False(t, ds.GetManagedLocalAccountUUIDFuncInvoked)
+		rotated, ok := logged.(automdm.ActivityTypeRotatedManagedLocalAccountPassword)
+		require.True(t, ok)
+		assert.False(t, rotated.AutoMDMInitiated, "a manual rotation is the user's, not AutoMDM's")
+		require.NotNil(t, actor)
+		assert.Equal(t, admin.ID, actor.ID)
+	})
+
+	t.Run("maps the datastore's typed errors to bad requests", func(t *testing.T) {
+		cases := []struct {
+			name    string
+			dsErr   error
+			message string
+		}{
+			{
+				"already outstanding",
+				automdm.ErrManagedLocalAccountRotationPending,
+				"Cannot rotate managed local account password while an operation is pending.",
+			},
+			{
+				"no windows mdm enrollment to carry the notification",
+				&testNotFoundError{},
+				"Host does not have MDM turned on.",
+			},
+			{
+				"row not eligible",
+				automdm.ErrManagedLocalAccountNotEligible,
+				"Couldn’t rotate managed local account password. Please try again.",
+			},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				ds, svc, _, ctx := setup(t, "windows", available)
+				ds.InitiateWindowsManagedLocalAccountRotationFunc = func(ctx context.Context, hostUUID string) error {
+					return c.dsErr
+				}
+
+				err := svc.RotateManagedLocalAccountPassword(ctx, 1)
+				require.Error(t, err)
+				var badReq *automdm.BadRequestError
+				require.ErrorAs(t, err, &badReq)
+				assert.Equal(t, c.message, badReq.Message)
+			})
+		}
+	})
+
+	t.Run("rejects a platform that has no managed local account", func(t *testing.T) {
+		_, svc, _, ctx := setup(t, "ubuntu", available)
+		err := svc.RotateManagedLocalAccountPassword(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Equal(t, "Host is not a macOS or Windows device.", badReq.Message)
+	})
+
+	t.Run("rejects while a rotation is already in flight", func(t *testing.T) {
+		ds, svc, _, ctx := setup(t, "windows", &automdm.HostMDMManagedLocalAccount{
+			Status: &verified, PasswordAvailable: true, PendingRotation: true,
+		})
+		err := svc.RotateManagedLocalAccountPassword(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Equal(t, "Managed local account password rotation is already in progress for this host.", badReq.Message)
+		assert.False(t, ds.InitiateWindowsManagedLocalAccountRotationFuncInvoked)
+	})
+}
+
+type rotateFileVaultKeyCommander struct {
+	automdm.MDMAppleCommandIssuer
+	calls []string
+	err   error
+}
+
+func (c *rotateFileVaultKeyCommander) RotateFileVaultKey(ctx context.Context, hostUUID, cmdUUID string, replyCertDER []byte) error {
+	c.calls = append(c.calls, cmdUUID)
+	return c.err
+}
+
+func TestRotateDiskEncryptionKey(t *testing.T) {
+	t.Parallel()
+
+	caCert, caKey, err := apple_mdm.NewSCEPCACertKey()
+	require.NoError(t, err)
+	caCertPEM := tokenpki.PEMCertificate(caCert.Raw)
+	caKeyPEM := tokenpki.PEMRSAPrivateKey(caKey)
+	encrypted, err := pkcs7.Encrypt([]byte("ABCD-EFGH"), []*x509.Certificate{caCert})
+	require.NoError(t, err)
+	decryptableKey := func() *automdm.HostDiskEncryptionKey {
+		return &automdm.HostDiskEncryptionKey{Base64Encrypted: base64.StdEncoding.EncodeToString(encrypted), Decryptable: new(true)}
+	}
+
+	teamID := uint(1)
+	admin := &automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}
+
+	type env struct {
+		ds        *mock.Store
+		svc       *Service
+		baseSvc   *svcmock.Service
+		commander *rotateFileVaultKeyCommander
+		host      *automdm.Host
+		key       *automdm.HostDiskEncryptionKey
+		keyErr    error
+		escrow    bool
+		marker    *string
+		pending   bool
+		stale     bool
+		acts      []automdm.ActivityDetails
+	}
+	setup := func(t *testing.T) *env {
+		e := &env{
+			ds:        new(mock.Store),
+			commander: &rotateFileVaultKeyCommander{},
+			host:      &automdm.Host{ID: 1, UUID: "host-uuid", Platform: "darwin", TeamID: &teamID},
+			key:       decryptableKey(),
+			escrow:    true,
+		}
+		e.svc, e.baseSvc = newTestServiceWithMock(t, e.ds)
+		e.svc.mdmAppleCommander = e.commander
+		e.svc.logger = slog.New(slog.DiscardHandler)
+		e.baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return nil }
+		e.baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			require.Equal(t, admin.ID, user.ID)
+			e.acts = append(e.acts, activity)
+			return nil
+		}
+		e.ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			if id != e.host.ID {
+				return nil, &testNotFoundError{}
+			}
+			return e.host, nil
+		}
+		e.ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, h *automdm.Host) (bool, error) { return true, nil }
+		e.ds.GetConfigEnableDiskEncryptionFunc = func(ctx context.Context, teamID *uint) (automdm.DiskEncryptionConfig, error) {
+			return automdm.DiskEncryptionConfig{MacOSEscrowEnabled: e.escrow}, nil
+		}
+		e.ds.GetHostDiskEncryptionKeyFunc = func(ctx context.Context, hostID uint) (*automdm.HostDiskEncryptionKey, error) {
+			if e.keyErr != nil {
+				return nil, e.keyErr
+			}
+			k := *e.key
+			k.RotationCommandUUID = e.marker
+			return &k, nil
+		}
+		e.ds.IsHostDiskEncryptionKeyRotationInProgressFunc = func(ctx context.Context, hostID uint, hostUUID, cmdUUID string, staleAfter time.Duration) (bool, error) {
+			require.Equal(t, time.Minute, staleAfter)
+			return e.pending || !e.stale, nil
+		}
+		e.ds.ClearHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string) error {
+			if e.marker != nil && *e.marker == cmdUUID {
+				e.marker = nil
+			}
+			return nil
+		}
+		e.ds.ClearStaleHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string, olderThan time.Duration) (bool, error) {
+			require.Equal(t, time.Minute, olderThan)
+			if !e.stale || e.marker == nil || *e.marker != cmdUUID {
+				return false, nil
+			}
+			e.marker = nil
+			return true, nil
+		}
+		e.ds.SetHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string) (bool, error) {
+			if e.marker != nil {
+				return false, nil
+			}
+			e.marker = &cmdUUID
+			return true, nil
+		}
+		e.ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext,
+		) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetCACert: {Name: automdm.MDMAssetCACert, Value: caCertPEM},
+				automdm.MDMAssetCAKey:  {Name: automdm.MDMAssetCAKey, Value: caKeyPEM},
+			}, nil
+		}
+		e.ds.GetAllMDMConfigAssetsByNameIncludingDeletedFunc = func(ctx context.Context, _ []automdm.MDMAssetName) ([]automdm.MDMConfigAsset, error) {
+			return []automdm.MDMConfigAsset{{Name: automdm.MDMAssetCACert, Value: caCertPEM}}, nil
+		}
+		return e
+	}
+	adminCtx := func() context.Context { return viewer.NewContext(context.Background(), viewer.Viewer{User: admin}) }
+	requireStatus := func(t *testing.T, err error, status int, msg string) {
+		t.Helper()
+		var ume *automdm.UserMessageError
+		require.ErrorAs(t, err, &ume)
+		require.Equal(t, status, ume.StatusCode())
+		require.Contains(t, ume.Error(), msg)
+	}
+
+	t.Run("enqueues the command, records the marker and the activity", func(t *testing.T) {
+		e := setup(t)
+		require.NoError(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1))
+		require.Len(t, e.commander.calls, 1)
+		require.NotNil(t, e.marker)
+		require.Equal(t, e.commander.calls[0], *e.marker)
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeRotatedDiskEncryptionKey{
+			HostID: 1, HostDisplayName: e.host.DisplayName(),
+		}}, e.acts)
+	})
+
+	t.Run("bad requests", func(t *testing.T) {
+		for _, platform := range []string{"windows", "ubuntu", "ios"} {
+			e := setup(t)
+			e.host.Platform = platform
+			var bre *automdm.BadRequestError
+			require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &bre, platform)
+			require.Contains(t, bre.Message, "only supported on macOS")
+		}
+
+		e := setup(t)
+		e.ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, h *automdm.Host) (bool, error) { return false, nil }
+		var bre *automdm.BadRequestError
+		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &bre)
+		require.Contains(t, bre.Message, "enrolled in AutoMDM")
+
+		for _, status := range []string{automdm.MDMEnrollmentStatusPersonal, automdm.MDMEnrollmentStatusManualPersonal} {
+			e := setup(t)
+			e.host.MDM.EnrollmentStatus = new(status)
+			var bre *automdm.BadRequestError
+			require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &bre, status)
+			require.Contains(t, bre.Message, "isn't available for personal hosts")
+			require.Empty(t, e.commander.calls)
+			require.Nil(t, e.marker)
+		}
+	})
+
+	t.Run("MDM not configured", func(t *testing.T) {
+		e := setup(t)
+		e.baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return automdm.ErrMDMNotConfigured }
+		require.ErrorIs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), automdm.ErrMDMNotConfigured)
+	})
+
+	t.Run("unprocessable preconditions", func(t *testing.T) {
+		cases := []struct {
+			name   string
+			modify func(e *env)
+			msg    string
+		}{
+			{"escrow off", func(e *env) { e.escrow = false }, "escrow is not turned on"},
+			{"no key row", func(e *env) { e.keyErr = &testNotFoundError{} }, "does not have a disk encryption key"},
+			{"empty key", func(e *env) { e.key.Base64Encrypted = "" }, "does not have a disk encryption key"},
+			{"decryptable unknown", func(e *env) { e.key.Decryptable = nil }, "not decryptable"},
+			{"decryptable false", func(e *env) { e.key.Decryptable = new(false) }, "not decryptable"},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				e := setup(t)
+				c.modify(e)
+				requireStatus(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), http.StatusUnprocessableEntity, c.msg)
+				require.Empty(t, e.commander.calls)
+				require.Nil(t, e.marker, "a failed precondition leaves no marker")
+				require.Empty(t, e.acts)
+			})
+		}
+	})
+
+	t.Run("pending rotation conflicts", func(t *testing.T) {
+		e := setup(t)
+		e.marker, e.pending = new("in-flight"), true
+		var conflict *automdm.ConflictError
+		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
+		require.Empty(t, e.commander.calls)
+		require.Equal(t, "in-flight", *e.marker)
+	})
+
+	t.Run("lost race conflicts", func(t *testing.T) {
+		e := setup(t)
+		e.ds.SetHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string) (bool, error) {
+			return false, nil
+		}
+		var conflict *automdm.ConflictError
+		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
+		require.Empty(t, e.commander.calls)
+	})
+
+	t.Run("stale marker is replaced", func(t *testing.T) {
+		e := setup(t)
+		e.marker, e.stale = new("stale"), true
+		require.NoError(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1))
+		require.Len(t, e.commander.calls, 1)
+		require.Equal(t, e.commander.calls[0], *e.marker)
+	})
+
+	// Before its command is enqueued, or before its result is handled, a fresh
+	// marker has no pending queue row; it must not be taken for a stale one.
+	t.Run("recent marker without a pending command conflicts", func(t *testing.T) {
+		e := setup(t)
+		e.marker = new("in-flight")
+		var conflict *automdm.ConflictError
+		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
+		require.Empty(t, e.commander.calls)
+		require.Equal(t, "in-flight", *e.marker)
+	})
+
+	t.Run("losing the stale-marker race conflicts", func(t *testing.T) {
+		e := setup(t)
+		e.marker, e.stale = new("stale"), true
+		e.ds.ClearStaleHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string, olderThan time.Duration) (bool, error) {
+			return false, nil
+		}
+		var conflict *automdm.ConflictError
+		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
+		require.Empty(t, e.commander.calls)
+	})
+
+	t.Run("enqueue failure clears the marker", func(t *testing.T) {
+		e := setup(t)
+		e.commander.err = errors.New("enqueue failed")
+		require.Error(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1))
+		require.Nil(t, e.marker)
+		require.Empty(t, e.acts)
+	})
+
+	t.Run("push failure keeps the marker and does not fail", func(t *testing.T) {
+		e := setup(t)
+		e.commander.err = ctxerr.Wrap(context.Background(), &apple_mdm.NotificationFailedError{}, "sending notifications")
+		require.NoError(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), "push notification failures should not fail if we enqueued the command")
+		require.NotNil(t, e.marker)
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeRotatedDiskEncryptionKey{
+			HostID: 1, HostDisplayName: e.host.DisplayName(),
+		}}, e.acts)
+	})
+
+	t.Run("authorization", func(t *testing.T) {
+		cases := []struct {
+			name     string
+			user     *automdm.User
+			wantErr  bool
+			notFound bool
+		}{
+			{"global admin", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}, false, false},
+			{"global maintainer", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleMaintainer)}, false, false},
+			{"global gitops", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleGitOps)}, true, false},
+			{"global observer", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleObserver)}, true, false},
+			{"global observer+", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleObserverPlus)}, true, false},
+			{"global technician", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleTechnician)}, true, false},
+			{"team admin", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleAdmin}}}, false, false},
+			{"team maintainer", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleMaintainer}}}, false, false},
+			{"team observer", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleObserver}}}, true, false},
+			{"team technician", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleTechnician}}}, true, false},
+			{"other team admin", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 2, Role: automdm.RoleAdmin}}}, true, true},
+			{"team gitops", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleGitOps}}}, true, false},
+			// can list hosts through the other team, but gitops can't read the host's MDM commands
+			{
+				"team gitops with another team's observer+",
+				&automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleGitOps}, {ID: 2, Role: automdm.RoleObserverPlus}}},
+				true, true,
+			},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				e := setup(t)
+				e.baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
+				err := e.svc.RotateDiskEncryptionKey(viewer.NewContext(context.Background(), viewer.Viewer{User: c.user}), 1)
+				switch {
+				case c.notFound:
+					require.True(t, automdm.IsNotFound(err), "%v", err)
+				case c.wantErr:
+					checkAuthErr(t, true, err)
+				default:
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+}
+
+func TestLockWipeRejectPersonalAppleHosts(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, _ := newTestServiceWithMock(t, ds)
+	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+	for _, platform := range []string{"darwin", "ios", "ipados"} {
+		for _, status := range []string{automdm.MDMEnrollmentStatusPersonal, automdm.MDMEnrollmentStatusManualPersonal} {
+			t.Run(platform+" "+status, func(t *testing.T) {
+				ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+					return &automdm.Host{ID: id, Platform: platform, MDM: automdm.MDMHostData{EnrollmentStatus: new(status)}}, nil
+				}
+
+				_, err := svc.LockHost(ctx, 1, false)
+				require.ErrorContains(t, err, automdm.CantLockPersonalHostsMessage)
+
+				err = svc.WipeHost(ctx, 1)
+				require.ErrorContains(t, err, automdm.CantWipePersonalHostsMessage)
+			})
+		}
+	}
+}
+
+func TestGetHostRecoveryLockPassword(t *testing.T) {
+	t.Run("rejects non-darwin platform", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc, _ := newTestServiceWithMock(t, ds)
+
+		windowsHost := &automdm.Host{
+			ID:       1,
+			Platform: "windows",
+			UUID:     "windows-uuid",
+			CPUType:  "x86_64",
+		}
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return windowsHost, nil
+		}
+
+		userCtx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.GetHostRecoveryLockPassword(userCtx, 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "recovery lock is only available on Apple Silicon macOS hosts")
+	})
+
+	t.Run("rejects darwin host with non-ARM CPU", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc, _ := newTestServiceWithMock(t, ds)
+
+		intelMacHost := &automdm.Host{
+			ID:       2,
+			Platform: "darwin",
+			UUID:     "intel-mac-uuid",
+			CPUType:  "x86_64",
+		}
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return intelMacHost, nil
+		}
+
+		userCtx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.GetHostRecoveryLockPassword(userCtx, 2)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "recovery lock is only available on Apple Silicon macOS hosts")
+	})
+
+	t.Run("accepts darwin host with ARM CPU", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc, svcMock := newTestServiceWithMock(t, ds)
+
+		appleSiliconHost := &automdm.Host{
+			ID:       3,
+			Platform: "darwin",
+			UUID:     "apple-silicon-uuid",
+			CPUType:  "arm64e",
+		}
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return appleSiliconHost, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
+					EnabledAndConfigured: true,
+				},
+			}, nil
+		}
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
+				Password: new("test-password"),
+				Status:   &automdm.MDMDeliveryVerified,
+			}, nil
+		}
+		ds.MarkRecoveryLockPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
+			return time.Now().Add(1 * time.Hour), nil
+		}
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return nil
+		}
+
+		userCtx := test.UserContext(t.Context(), test.UserAdmin)
+		password, err := svc.GetHostRecoveryLockPassword(userCtx, 3)
+		require.NoError(t, err)
+		require.NotNil(t, password.Password)
+		assert.Equal(t, "test-password", *password.Password)
+	})
+
+	t.Run("calls MarkRecoveryLockPasswordViewed and sets auto_rotate_at", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc, svcMock := newTestServiceWithMock(t, ds)
+
+		appleSiliconHost := &automdm.Host{
+			ID:       4,
+			Platform: "darwin",
+			UUID:     "apple-silicon-uuid-4",
+			CPUType:  "arm64e",
+		}
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return appleSiliconHost, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
+					EnabledAndConfigured: true,
+				},
+			}, nil
+		}
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
+				Password: new("test-password-4"),
+				Status:   &automdm.MDMDeliveryVerified,
+			}, nil
+		}
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return nil
+		}
+
+		expectedRotateAt := time.Now().Add(1 * time.Hour)
+		markViewedCalled := false
+		ds.MarkRecoveryLockPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
+			markViewedCalled = true
+			assert.Equal(t, "apple-silicon-uuid-4", hostUUID)
+			return expectedRotateAt, nil
+		}
+
+		userCtx := test.UserContext(t.Context(), test.UserAdmin)
+		password, err := svc.GetHostRecoveryLockPassword(userCtx, 4)
+		require.NoError(t, err)
+		require.NotNil(t, password.Password)
+		assert.Equal(t, "test-password-4", *password.Password)
+		assert.True(t, markViewedCalled, "MarkRecoveryLockPasswordViewed should be called")
+		require.NotNil(t, password.AutoRotateAt)
+		assert.WithinDuration(t, expectedRotateAt, *password.AutoRotateAt, 1*time.Second)
+	})
+
+	t.Run("fails if MarkRecoveryLockPasswordViewed fails", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc, svcMock := newTestServiceWithMock(t, ds)
+
+		appleSiliconHost := &automdm.Host{
+			ID:       5,
+			Platform: "darwin",
+			UUID:     "apple-silicon-uuid-5",
+			CPUType:  "arm64e",
+		}
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return appleSiliconHost, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
+					EnabledAndConfigured: true,
+				},
+			}, nil
+		}
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
+				Password: new("test-password-5"),
+				Status:   &automdm.MDMDeliveryVerified,
+			}, nil
+		}
+		ds.MarkRecoveryLockPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
+			return time.Time{}, errors.New("database error")
+		}
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return nil
+		}
+
+		userCtx := test.UserContext(t.Context(), test.UserAdmin)
+		// Should fail because rotation scheduling failed - password must not be
+		// returned unless rotation is successfully scheduled
+		password, err := svc.GetHostRecoveryLockPassword(userCtx, 5)
+		require.Error(t, err)
+		assert.Nil(t, password)
+		assert.Contains(t, err.Error(), "mark recovery lock password viewed")
+	})
+
+	t.Run("keeps auto_rotate_at pending if viewed while verifying", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc, svcMock := newTestServiceWithMock(t, ds)
+
+		appleSiliconHost := &automdm.Host{
+			ID:       5,
+			Platform: "darwin",
+			UUID:     "apple-silicon-uuid-5",
+			CPUType:  "arm64e",
+		}
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return appleSiliconHost, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
+					EnabledAndConfigured: true,
+				},
+			}, nil
+		}
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
+				Password: new("test-password-5"),
+				Status:   &automdm.MDMDeliveryVerifying,
+			}, nil
+		}
+		expectedRotateAt := time.Now().Add(1 * time.Hour)
+		viewedCalled := false
+		ds.MarkRecoveryLockPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
+			viewedCalled = true
+			return expectedRotateAt, nil
+		}
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return nil
+		}
+
+		userCtx := test.UserContext(t.Context(), test.UserAdmin)
+		// Should fail because rotation scheduling failed - password must not be
+		// returned unless rotation is successfully scheduled
+		password, err := svc.GetHostRecoveryLockPassword(userCtx, 5)
+		require.NoError(t, err)
+		require.True(t, viewedCalled)
+		require.NotNil(t, password.AutoRotateAt)
+		require.Equal(t, expectedRotateAt, *password.AutoRotateAt)
+	})
+}
+
+func TestUnlockHostAndroid(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, baseSvc := newTestServiceWithMock(t, ds)
+
+	ackedAt := time.Date(2026, 11, 11, 10, 30, 0, 0, time.UTC)
+	resetPassword := &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeResetPassword)}
+	acked := &automdm.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusAcknowledged), UpdatedAt: ackedAt}
+	lockedStatus := func() *automdm.HostLockWipeStatus {
+		return &automdm.HostLockWipeStatus{
+			HostAutoMDMPlatform: "android", UnlockPIN: "135792", LockMDMCommand: resetPassword, LockMDMCommandResult: acked,
+		}
+	}
+
+	var hostTeamID *uint
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Platform: "android", Hostname: "pixel", TeamID: hostTeamID}, nil
+	}
+	// Unlock only reads the stored PIN, so it must not depend on the host still being connected to AutoMDM.
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+		return false, nil
+	}
+	status := lockedStatus()
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+		return status, nil
+	}
+	baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return nil }
+	var activities []automdm.ActivityDetails
+	var activityErr error
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+		if activityErr != nil {
+			return activityErr
+		}
+		activities = append(activities, activity)
+		return nil
+	}
+	reset := func() {
+		hostTeamID = nil
+		status = lockedStatus()
+		activities = nil
+		activityErr = nil
+		baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return nil }
+	}
+	adminCtx := test.UserContext(t.Context(), test.UserAdmin)
+
+	t.Run("returns the PIN and lock time and logs a view", func(t *testing.T) {
+		reset()
+		res, err := svc.UnlockHost(adminCtx, 1)
+		require.NoError(t, err)
+		require.Equal(t, "135792", res.UnlockPIN)
+		require.NotNil(t, res.LockedAt)
+		require.Equal(t, ackedAt, *res.LockedAt)
+		require.Equal(t, automdm.DeviceStatusUnlocked, res.DeviceStatus)
+		require.Equal(t, automdm.PendingActionNone, res.PendingAction)
+		require.False(t, ds.IsHostConnectedToAutoMDMMDMFuncInvoked)
+
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeViewedHostUnlockPIN{
+			HostID: 1, HostDisplayName: "pixel", HostPlatform: "android",
+		}}, activities)
+	})
+
+	t.Run("doesn't return the PIN when the activity can't be logged", func(t *testing.T) {
+		reset()
+		activityErr = errors.New("activity insert failed")
+		res, err := svc.UnlockHost(adminCtx, 1)
+		require.ErrorContains(t, err, "activity insert failed")
+		require.Nil(t, res)
+	})
+
+	t.Run("lock states", func(t *testing.T) {
+		pendingWipe := lockedStatus()
+		pendingWipe.WipeMDMCommand = &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeWipe)}
+		wiped := lockedStatus()
+		wiped.WipeMDMCommand = &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeWipe)}
+		wiped.WipeMDMCommandResult = acked
+		pendingLock := lockedStatus()
+		pendingLock.LockMDMCommandResult = nil
+		failedLock := lockedStatus()
+		failedLock.LockMDMCommandResult = &automdm.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusError)}
+		legacyLock := lockedStatus()
+		legacyLock.UnlockPIN = ""
+		legacyLock.LockMDMCommand = &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeLock)}
+
+		cases := []struct {
+			name       string
+			status     *automdm.HostLockWipeStatus
+			wantErr    string
+			wantStatus int
+		}{
+			{"pending lock", pendingLock, "Host has pending lock request. Host cannot be unlocked until lock is complete.", http.StatusUnprocessableEntity},
+			{"pending wipe", pendingWipe, "Host has pending wipe request. Cannot process unlock requests once host is wiped.", http.StatusUnprocessableEntity},
+			{"wiped", wiped, "Host is wiped. Cannot process unlock requests once host is wiped.", http.StatusUnprocessableEntity},
+			{"failed lock", failedLock, "Host is already unlocked.", http.StatusConflict},
+			{"lock from before AutoMDM 5", legacyLock, "Host is already unlocked.", http.StatusConflict},
+			{"never locked", &automdm.HostLockWipeStatus{HostAutoMDMPlatform: "android"}, "Host is already unlocked.", http.StatusConflict},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				reset()
+				status = tc.status
+				res, err := svc.UnlockHost(adminCtx, 1)
+				require.ErrorContains(t, err, tc.wantErr)
+				require.Nil(t, res)
+				// Invalid argument errors are 422 unless WithStatus overrides it.
+				gotStatus := http.StatusUnprocessableEntity
+				var statusErr interface{ Status() int }
+				if errors.As(err, &statusErr) {
+					gotStatus = statusErr.Status()
+				}
+				require.Equal(t, tc.wantStatus, gotStatus)
+				require.Empty(t, activities)
+			})
+		}
+	})
+
+	t.Run("Android MDM not configured", func(t *testing.T) {
+		reset()
+		baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return automdm.ErrMDMNotConfigured }
+		_, err := svc.UnlockHost(adminCtx, 1)
+		require.ErrorContains(t, err, automdm.AndroidMDMNotConfiguredMessage)
+		require.Empty(t, activities)
+	})
+
+	t.Run("authorization", func(t *testing.T) {
+		team1 := new(uint(1))
+		cases := []struct {
+			desc       string
+			user       *automdm.User
+			hostTeamID *uint
+			wantErr    error
+		}{
+			{"observer", test.UserObserver, nil, test.ErrForbidden},
+			{"observer+", test.UserObserverPlus, nil, test.ErrForbidden},
+			{"gitops", test.UserGitOps, nil, test.ErrForbidden},
+			{"maintainer", test.UserMaintainer, nil, nil},
+			{"team 1 admin", test.UserTeamAdminTeam1, team1, nil},
+			{"team 1 observer", test.UserTeamObserverTeam1, team1, test.ErrForbidden},
+			{"team 2 admin", test.UserTeamAdminTeam2, team1, test.ErrNotFound},
+		}
+		for _, c := range cases {
+			t.Run(c.desc, func(t *testing.T) {
+				reset()
+				hostTeamID = c.hostTeamID
+				_, err := svc.UnlockHost(test.UserContext(t.Context(), c.user), 1)
+				test.RequireErrKind(t, c.wantErr, err)
+				if c.wantErr != nil {
+					require.Empty(t, activities)
+				}
+			})
+		}
+	})
+}
+
+type lockAndroidModule struct {
+	android.Service
+	lockedHostIDs []uint
+}
+
+func (m *lockAndroidModule) LockAndroidHost(ctx context.Context, hostID uint) (string, error) {
+	m.lockedHostIDs = append(m.lockedHostIDs, hostID)
+	return "135792", nil
+}
+
+func TestLockHostAndroidAuthorization(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, baseSvc := newTestServiceWithMock(t, ds)
+	androidModule := &lockAndroidModule{}
+	svc.androidModule = androidModule
+
+	var hostTeamID *uint
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Platform: "android", Hostname: "pixel", TeamID: hostTeamID}, nil
+	}
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+		return true, nil
+	}
+	var statusReadFromPrimary bool
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+		statusReadFromPrimary = ctxdb.IsPrimaryRequired(ctx)
+		return &automdm.HostLockWipeStatus{HostAutoMDMPlatform: "android"}, nil
+	}
+	baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return nil }
+	var activities []automdm.ActivityDetails
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+		activities = append(activities, activity)
+		return nil
+	}
+
+	team1 := new(uint(1))
+	cases := []struct {
+		desc       string
+		user       *automdm.User
+		hostTeamID *uint
+		wantErr    error
+	}{
+		{"observer", test.UserObserver, nil, test.ErrForbidden},
+		{"observer+", test.UserObserverPlus, nil, test.ErrForbidden},
+		{"gitops", test.UserGitOps, nil, test.ErrForbidden},
+		{"maintainer", test.UserMaintainer, nil, nil},
+		{"team 1 admin", test.UserTeamAdminTeam1, team1, nil},
+		{"team 1 observer", test.UserTeamObserverTeam1, team1, test.ErrForbidden},
+		{"team 2 admin", test.UserTeamAdminTeam2, team1, test.ErrNotFound},
+	}
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			hostTeamID = c.hostTeamID
+			androidModule.lockedHostIDs = nil
+			activities = nil
+			pin, err := svc.LockHost(test.UserContext(t.Context(), c.user), 1, true)
+			test.RequireErrKind(t, c.wantErr, err)
+			if c.wantErr != nil {
+				require.Empty(t, pin)
+				require.Empty(t, androidModule.lockedHostIDs, "no RESET_PASSWORD may be issued")
+				require.Empty(t, activities)
+				return
+			}
+			require.Equal(t, "135792", pin)
+			require.Equal(t, []uint{1}, androidModule.lockedHostIDs)
+			require.Len(t, activities, 1)
+			// A replica lagging behind an earlier request's lock or clear would let this one through.
+			require.True(t, statusReadFromPrimary)
+		})
+	}
+}
+
+func TestClearPasscodeAndroidPendingLock(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, _ := newTestServiceWithMock(t, ds)
+
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Platform: "android"}, nil
+	}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
+	}
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+		return true, nil
+	}
+	var statusReadFromPrimary bool
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+		statusReadFromPrimary = ctxdb.IsPrimaryRequired(ctx)
+		return &automdm.HostLockWipeStatus{
+			HostAutoMDMPlatform: "android",
+			LockMDMCommand:      &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeResetPassword)},
+		}, nil
+	}
+
+	_, err := svc.ClearPasscode(test.UserContext(t.Context(), test.UserAdmin), 1)
+	require.ErrorContains(t, err, "Host has pending lock request. Passcode cannot be cleared until lock is complete.")
+	require.True(t, statusReadFromPrimary)
+}
+
+func TestResetHostRefusals(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, baseSvc := newTestServiceWithMock(t, ds)
+	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) { return true, nil }
+	ds.WipeHostViaWindowsMDMFunc = func(ctx context.Context, host *automdm.Host, cmd *automdm.MDMWindowsCommand) error { return nil }
+	baseSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil }
+
+	locked := &automdm.HostScriptResult{ExitCode: new(int64(0))}
+	for _, tc := range []struct {
+		name     string
+		platform string
+		mdmOff   bool
+		lockWipe automdm.HostLockWipeStatus
+		wantMsg  string
+	}{
+		{name: "macOS host", platform: "darwin", wantMsg: "Reset is only available for Windows hosts."},
+		{name: "Windows MDM off", platform: "windows", mdmOff: true, wantMsg: automdm.WindowsMDMNotConfiguredMessage},
+		{
+			name: "pending lock", platform: "windows", lockWipe: automdm.HostLockWipeStatus{LockScript: &automdm.HostScriptResult{}},
+			wantMsg: "Host has pending lock request. Host cannot be reset until lock is complete.",
+		},
+		{
+			name: "pending unlock", platform: "windows",
+			lockWipe: automdm.HostLockWipeStatus{LockScript: locked, UnlockScript: &automdm.HostScriptResult{}},
+			wantMsg:  "Host has pending unlock request. Host cannot be reset until unlock is complete.",
+		},
+		{
+			name: "locked", platform: "windows", lockWipe: automdm.HostLockWipeStatus{LockScript: locked},
+			wantMsg: "Host is locked. Host cannot be reset until it is unlocked.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{ID: id, Platform: tc.platform}, nil
+			}
+			baseSvc.VerifyMDMWindowsConfiguredFunc = func(ctx context.Context) error {
+				if tc.mdmOff {
+					return automdm.ErrWindowsMDMNotConfigured
+				}
+				return nil
+			}
+			ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+				status := tc.lockWipe
+				status.HostAutoMDMPlatform = host.AutoMDMPlatform()
+				return &status, nil
+			}
+			ds.WipeHostViaWindowsMDMFuncInvoked = false
+			baseSvc.NewActivityFuncInvoked = false
+
+			err := svc.ResetHost(ctx, 1)
+			require.ErrorContains(t, err, tc.wantMsg)
+			require.False(t, ds.WipeHostViaWindowsMDMFuncInvoked)
+			require.False(t, baseSvc.NewActivityFuncInvoked)
+		})
+	}
+}

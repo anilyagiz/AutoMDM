@@ -1,0 +1,148 @@
+import classnames from "classnames";
+import { noop } from "lodash";
+import PropTypes from "prop-types";
+import React, { Component } from "react";
+
+import Button from "components/buttons/Button";
+import ClickOutside from "components/ClickOutside";
+import GitOpsModeTooltipWrapper from "components/GitOpsModeTooltipWrapper";
+import Icon from "components/Icon";
+
+const baseClass = "dropdown-button";
+
+export class DropdownButton extends Component {
+  static propTypes = {
+    children: PropTypes.node,
+    className: PropTypes.string,
+    disabled: PropTypes.bool,
+    icon: PropTypes.string,
+    iconPosition: PropTypes.oneOf(["left", "right"]),
+    options: PropTypes.arrayOf(
+      PropTypes.shape({
+        disabled: PropTypes.bool,
+        gitOpsModeCompatible: PropTypes.bool,
+        label: PropTypes.string,
+        onClick: PropTypes.func,
+      })
+    ).isRequired,
+    size: PropTypes.string,
+    tabIndex: PropTypes.number,
+    type: PropTypes.string,
+    variant: PropTypes.string,
+    showCaret: PropTypes.bool,
+  };
+
+  static defaultProps = {
+    onChange: noop,
+  };
+
+  constructor(props) {
+    super(props);
+
+    this.state = { isOpen: false };
+  }
+
+  setDOMNode = (DOMNode) => {
+    this.DOMNode = DOMNode;
+  };
+
+  toggleDropdown = () => {
+    const { isOpen } = this.state;
+    this.setState({ isOpen: !isOpen });
+  };
+
+  optionClick = (evt, onClick) => {
+    this.setState({ isOpen: false });
+    onClick(evt);
+  };
+
+  renderOptions = (opt, idx) => {
+    const { optionClick } = this;
+    const { disabled, gitOpsModeCompatible, label, onClick } = opt;
+
+    const button = (
+      <Button
+        variant="unstyled"
+        onClick={(evt) => optionClick(evt, onClick)}
+        disabled={disabled}
+      >
+        {label}
+      </Button>
+    );
+
+    return (
+      <li
+        className={`${baseClass}__option`}
+        key={`dropdown-button-option-${idx}`}
+      >
+        {/* A GitOps-compatible action is only disabled by GitOps mode, so explain it. */}
+        {gitOpsModeCompatible && disabled ? (
+          <GitOpsModeTooltipWrapper renderChildren={() => button} />
+        ) : (
+          button
+        )}
+      </li>
+    );
+  };
+
+  render() {
+    const {
+      children,
+      className,
+      disabled,
+      icon,
+      iconPosition,
+      options,
+      size,
+      tabIndex,
+      type,
+      variant,
+      showCaret = true,
+    } = this.props;
+    const { isOpen } = this.state;
+    const { toggleDropdown, renderOptions, setDOMNode } = this;
+
+    const buttonClass = classnames(baseClass, className);
+    const optionsClass = classnames(`${baseClass}__options`, {
+      [`${baseClass}__options--opened`]: isOpen,
+    });
+
+    return (
+      <div className={`${baseClass}__wrapper`} ref={setDOMNode}>
+        <Button
+          className={`${buttonClass}`}
+          disabled={disabled}
+          icon={icon}
+          iconPosition={iconPosition}
+          onClick={toggleDropdown}
+          size={size}
+          tabIndex={tabIndex}
+          type={type}
+          variant={variant}
+        >
+          {children}{" "}
+          {showCaret && <Icon name="chevron-down" color="core-automdm-white" />}
+        </Button>
+
+        <ul className={optionsClass}>
+          {options.map((option, i) => {
+            return renderOptions(option, i);
+          })}
+        </ul>
+      </div>
+    );
+  }
+}
+
+export default ClickOutside(DropdownButton, {
+  getDOMNode: (component) => {
+    return component.DOMNode;
+  },
+  onOutsideClick: (component) => {
+    return () => {
+      component.setState({ isOpen: false });
+
+      return false;
+    };
+  },
+});

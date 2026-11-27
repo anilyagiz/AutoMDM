@@ -1,0 +1,442 @@
+package worker
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/jmoiron/sqlx"
+	"github.com/stretchr/testify/require"
+	"github.com/tj/assert"
+)
+
+type testJob struct {
+	name string
+	run  func(ctx context.Context, argsJSON json.RawMessage) error
+}
+
+func (t testJob) Name() string {
+	return t.name
+}
+
+func (t testJob) Run(ctx context.Context, argsJSON json.RawMessage) error {
+	return t.run(ctx, argsJSON)
+}
+
+type testJobNotifier struct {
+	testJob
+	onFinalFailure func(ctx context.Context, argsJSON json.RawMessage, jobErr string) error
+}
+
+func (t testJobNotifier) OnFinalFailure(ctx context.Context, argsJSON json.RawMessage, jobErr string) error {
+	return t.onFinalFailure(ctx, argsJSON, jobErr)
+}
+
+func TestWorkerFinalFailureNotifier(t *testing.T) {
+	ds := new(mock.Store)
+
+	argsJSON := json.RawMessage(`{"arg1":"foo"}`)
+	theJob := &automdm.Job{
+		ID:      1,
+		Name:    "test",
+		Args:    &argsJSON,
+		State:   automdm.JobStateQueued,
+		Retries: 0,
+	}
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		if theJob.State == automdm.JobStateQueued {
+			return []*automdm.Job{theJob}, nil
+		}
+		return nil, nil
+	}
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
+		return job, nil
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	w := NewWorker(ds, logger)
+
+	var finalFailureCalls int
+	var gotArgs json.RawMessage
+	var gotErr string
+	j := testJobNotifier{
+		testJob: testJob{
+			name: "test",
+			run: func(ctx context.Context, argsJSON json.RawMessage) error {
+				return errors.New("boom")
+			},
+		},
+		onFinalFailure: func(ctx context.Context, argsJSON json.RawMessage, jobErr string) error {
+			finalFailureCalls++
+			gotArgs = argsJSON
+			gotErr = jobErr
+			return nil
+		},
+	}
+	w.Register(j)
+
+	for i := range maxRetries + 1 {
+		require.NoError(t, w.ProcessJobs(t.Context()))
+		ds.GetFilteredQueuedJobsFuncInvoked = false
+		ds.UpdateJobFuncInvoked = false
+
+		// the hook must NOT fire on intermediate retries, only on final failure
+		if i < maxRetries {
+			require.Equal(t, 0, finalFailureCalls, "final failure handler fired before retries exhausted (iteration %d)", i)
+		}
+	}
+
+	require.Equal(t, 1, finalFailureCalls)
+	require.JSONEq(t, `{"arg1":"foo"}`, string(gotArgs))
+	require.Equal(t, "boom", gotErr)
+}
+
+func TestWorker(t *testing.T) {
+	ds := new(mock.Store)
+
+	// set up mocks
+	getFilteredQueuedJobsCalled := 0
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		if getFilteredQueuedJobsCalled > 0 {
+			return nil, nil
+		}
+		getFilteredQueuedJobsCalled++
+		require.Equal(t, 1, len(jobNames))
+		require.Equal(t, "test", jobNames[0])
+		argsJSON := json.RawMessage(`{"arg1":"foo"}`)
+		return []*automdm.Job{
+			{
+				ID:   1,
+				Name: "test",
+				Args: &argsJSON,
+			},
+		}, nil
+	}
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
+		assert.Equal(t, automdm.JobStateSuccess, job.State)
+		return job, nil
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	w := NewWorker(ds, logger)
+
+	// register a test job
+	jobCalled := false
+	j := testJob{
+		name: "test",
+		run: func(ctx context.Context, argsJSON json.RawMessage) error {
+			jobCalled = true
+
+			assert.Equal(t, json.RawMessage(`{"arg1":"foo"}`), argsJSON)
+			return nil
+		},
+	}
+
+	w.Register(j)
+
+	err := w.ProcessJobs(context.Background())
+	require.NoError(t, err)
+
+	require.True(t, ds.GetFilteredQueuedJobsFuncInvoked)
+	require.True(t, ds.UpdateJobFuncInvoked)
+
+	require.True(t, jobCalled)
+}
+
+func TestWorkerRetries(t *testing.T) {
+	ds := new(mock.Store)
+
+	// set up mocks
+	argsJSON := json.RawMessage(`{"arg1":"foo"}`)
+	theJob := &automdm.Job{
+		ID:      1,
+		Name:    "test",
+		Args:    &argsJSON,
+		State:   automdm.JobStateQueued,
+		Retries: 0,
+	}
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		if theJob.State == automdm.JobStateQueued {
+			return []*automdm.Job{theJob}, nil
+		}
+		return nil, nil
+	}
+
+	jobFailed := false
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
+		assert.Equal(t, "unknown error", job.Error)
+		if job.State == automdm.JobStateFailure {
+			jobFailed = true
+			assert.Equal(t, maxRetries, job.Retries)
+		}
+
+		return job, nil
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	w := NewWorker(ds, logger)
+
+	// register a test job
+	jobCalled := 0
+	j := testJob{
+		name: "test",
+		run: func(ctx context.Context, argsJSON json.RawMessage) error {
+			jobCalled++
+			return errors.New("unknown error")
+		},
+	}
+	w.Register(j)
+
+	// the worker stops a ProcessJobs batch once it receives the same job again,
+	// so run it multiple times to test its retries.
+	for i := 0; i < maxRetries+1; i++ {
+		err := w.ProcessJobs(context.Background())
+		require.NoError(t, err)
+
+		require.True(t, ds.GetFilteredQueuedJobsFuncInvoked)
+		require.True(t, ds.UpdateJobFuncInvoked)
+		ds.GetFilteredQueuedJobsFuncInvoked = false
+		ds.UpdateJobFuncInvoked = false
+
+		require.Equal(t, i+1, jobCalled)
+		require.Equal(t, i == maxRetries, jobFailed) // true on last iteration, false otherwise
+	}
+
+	// processing again does nothing as the job is not queued anymore, it is failed
+	err := w.ProcessJobs(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, maxRetries+1, jobCalled)
+}
+
+func TestWorkerMiddleJobFails(t *testing.T) {
+	ds := new(mock.Store)
+
+	// set up mocks
+	jobs := []*automdm.Job{
+		{
+			ID:      1,
+			Name:    "test",
+			State:   automdm.JobStateQueued,
+			Args:    ptr.RawMessage(json.RawMessage(`1`)),
+			Retries: 0,
+		},
+		{
+			ID:      2,
+			Name:    "test",
+			State:   automdm.JobStateQueued,
+			Args:    ptr.RawMessage(json.RawMessage(`2`)),
+			Retries: 0,
+		},
+		{
+			ID:      3,
+			Name:    "test",
+			State:   automdm.JobStateQueued,
+			Args:    ptr.RawMessage(json.RawMessage(`3`)),
+			Retries: 0,
+		},
+	}
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		var queued []*automdm.Job
+		for _, j := range jobs {
+			if j.State == automdm.JobStateQueued {
+				queued = append(queued, j)
+			}
+		}
+		return queued, nil
+	}
+
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
+		return job, nil
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	w := NewWorker(ds, logger)
+
+	// register a test job
+	var jobCallCount int
+	j := testJob{
+		name: "test",
+		run: func(ctx context.Context, argsJSON json.RawMessage) error {
+			jobCallCount++
+
+			var id int
+			if err := json.Unmarshal(argsJSON, &id); err != nil {
+				return err
+			}
+
+			if id == 2 {
+				// fail the job with id 2
+				return errors.New("unknown error")
+			}
+			return nil
+		},
+	}
+	w.Register(j)
+
+	// process the jobs, jobs 1 and 3 should be successful, job 2 still queued
+	err := w.ProcessJobs(context.Background())
+	require.NoError(t, err)
+
+	require.True(t, ds.GetFilteredQueuedJobsFuncInvoked)
+	require.True(t, ds.UpdateJobFuncInvoked)
+	ds.GetFilteredQueuedJobsFuncInvoked = false
+	ds.UpdateJobFuncInvoked = false
+
+	require.Equal(t, automdm.JobStateSuccess, jobs[0].State)
+	require.Equal(t, automdm.JobStateQueued, jobs[1].State)
+	require.Equal(t, 1, jobs[1].Retries)
+	require.Equal(t, automdm.JobStateSuccess, jobs[2].State)
+	require.Equal(t, 3, jobCallCount)
+
+	// processing again only processes job 2 (still queued)
+	err = w.ProcessJobs(context.Background())
+	require.NoError(t, err)
+
+	require.True(t, ds.GetFilteredQueuedJobsFuncInvoked)
+	require.True(t, ds.UpdateJobFuncInvoked)
+
+	require.Equal(t, automdm.JobStateQueued, jobs[1].State)
+	require.Equal(t, 2, jobs[1].Retries)
+	require.Equal(t, 4, jobCallCount)
+}
+
+func TestWorkerWithRealDatastore(t *testing.T) {
+	ctx := context.Background()
+	ds := mysqltest.CreateMySQLDS(t)
+	// call TruncateTables immediately, because a DB migration may create jobs
+	mysqltest.TruncateTables(t, ds)
+
+	logger := slog.New(slog.DiscardHandler)
+	w := NewWorker(ds, logger)
+	w.delayPerRetry = []time.Duration{
+		1: 0,
+		2: 0,
+		3: time.Hour,
+	} // retry twice on the next cron, then not before an hour
+
+	// register a test job
+	var jobCallCount int
+	j := testJob{
+		name: "test",
+		run: func(ctx context.Context, argsJSON json.RawMessage) error {
+			jobCallCount++
+
+			var name string
+			if err := json.Unmarshal(argsJSON, &name); err != nil {
+				return err
+			}
+
+			if name == "fail" {
+				// always fail that job
+				return errors.New("unknown error")
+			}
+			return nil
+		},
+	}
+	w.Register(j)
+
+	// add some jobs
+	j1, err := QueueJob(ctx, ds, "test", "success")
+	require.NoError(t, err)
+	require.NotZero(t, j1.ID)
+	j2, err := QueueJob(ctx, ds, "test", "fail")
+	require.NoError(t, err)
+	require.NotZero(t, j2.ID)
+	j3, err := QueueJob(ctx, ds, "test", "success2")
+	require.NoError(t, err)
+	require.NotZero(t, j3.ID)
+
+	// process the jobs a first time, jobs 1 and 3 should be successful, job 2 still queued
+	err = w.ProcessJobs(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, jobCallCount)
+	jobCallCount = 0
+
+	// add a delay because there may be a slight discrepency when truncating the
+	// timestamp in mysql vs the one set in ProcessJobs (time.Now().Add(...)).
+	time.Sleep(time.Second)
+
+	jobs, err := ds.GetQueuedJobs(ctx, 10, time.Time{})
+	require.NoError(t, err)
+	require.Len(t, jobs, 1)
+	require.Equal(t, j2.ID, jobs[0].ID)
+	require.Equal(t, 1, jobs[0].Retries)
+
+	// process the jobs a second time, job 2 still queued
+	err = w.ProcessJobs(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, jobCallCount)
+	jobCallCount = 0
+
+	// add a delay because there may be a slight discrepency when truncating the
+	// timestamp in mysql vs the one set in ProcessJobs (time.Now().Add(...)).
+	time.Sleep(time.Second)
+
+	jobs, err = ds.GetQueuedJobs(ctx, 10, time.Time{})
+	require.NoError(t, err)
+	require.Len(t, jobs, 1)
+	require.Equal(t, j2.ID, jobs[0].ID)
+	require.Equal(t, 2, jobs[0].Retries)
+
+	// process the jobs a third time, job 2 still queued but now with a long delay
+	beforeThirdTime := time.Now()
+	err = w.ProcessJobs(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, jobCallCount)
+	jobCallCount = 0
+
+	time.Sleep(time.Second)
+
+	jobs, err = ds.GetQueuedJobs(ctx, 10, time.Time{})
+	require.NoError(t, err)
+	require.Empty(t, jobs)
+
+	var failedJob automdm.Job
+	mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
+		return sqlx.GetContext(ctx, q, &failedJob, "SELECT * FROM jobs WHERE id = ?", j2.ID)
+	})
+	require.Equal(t, 3, failedJob.Retries)
+	require.WithinDuration(t, beforeThirdTime.Add(time.Hour), failedJob.NotBefore, time.Minute)
+}
+
+// With a read replica, the queue must be read from the primary: UpdateJob
+// writes to the primary, so a lagging replica would keep returning jobs that
+// were already processed, ending the run after the first batch.
+func TestWorkerBatchesWithReplica(t *testing.T) {
+	ctx := t.Context()
+	opts := &testing_utils.DatastoreTestOptions{DummyReplica: true}
+	ds := mysqltest.CreateMySQLDSWithOptions(t, opts)
+	// a DB migration may create jobs
+	mysqltest.TruncateTables(t, ds)
+
+	w := NewWorker(ds, slog.New(slog.DiscardHandler))
+
+	var processed int
+	w.Register(testJob{
+		name: "test",
+		run: func(ctx context.Context, argsJSON json.RawMessage) error {
+			processed++
+			return nil
+		},
+	})
+
+	const numJobs = 250
+	for range numJobs {
+		args := json.RawMessage(`"job"`)
+		_, err := ds.NewJob(ctx, &automdm.Job{Name: "test", Args: &args, State: automdm.JobStateQueued})
+		require.NoError(t, err)
+	}
+	// replicate the queued jobs once, then let the replica lag behind
+	opts.RunReplication()
+
+	require.NoError(t, w.ProcessJobs(ctx))
+	require.Equal(t, numJobs, processed)
+}

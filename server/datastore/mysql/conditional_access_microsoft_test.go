@@ -1,0 +1,369 @@
+package mysql
+
+import (
+	"context"
+	"testing"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/stretchr/testify/require"
+)
+
+func TestConditionalAccess(t *testing.T) {
+	ds := CreateMySQLDS(t)
+
+	cases := []struct {
+		name string
+		fn   func(t *testing.T, ds *Datastore)
+	}{
+		{"Setup", testConditionalAccessSetup},
+		{"Hosts", testConditionalAccessHosts},
+		{"DeviceIDOneHost", testConditionalAccessDeviceIDOneHost},
+	}
+
+	for _, c := range cases {
+		t.Helper()
+		t.Run(c.name, func(t *testing.T) {
+			defer TruncateTables(t, ds)
+
+			c.fn(t, ds)
+		})
+	}
+}
+
+func testConditionalAccessSetup(t *testing.T, ds *Datastore) {
+	ctx := context.Background()
+
+	_, err := ds.ConditionalAccessMicrosoftGet(ctx)
+	require.Error(t, err)
+	require.True(t, automdm.IsNotFound(err))
+
+	err = ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "foobar", "insecure")
+	require.NoError(t, err)
+	ca, err := ds.ConditionalAccessMicrosoftGet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, ca)
+	require.False(t, ca.SetupDone)
+	require.Equal(t, "insecure", ca.ProxyServerSecret)
+	require.Equal(t, "foobar", ca.TenantID)
+
+	// ConditionalAccessMicrosoftCreateIntegration replaces the existing one.
+	err = ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "foobar2", "insecure2")
+	require.NoError(t, err)
+	ca, err = ds.ConditionalAccessMicrosoftGet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, ca)
+	require.False(t, ca.SetupDone)
+	require.Equal(t, "insecure2", ca.ProxyServerSecret)
+	require.Equal(t, "foobar2", ca.TenantID)
+
+	err = ds.ConditionalAccessMicrosoftMarkSetupDone(ctx)
+	require.NoError(t, err)
+
+	ca, err = ds.ConditionalAccessMicrosoftGet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, ca)
+	require.True(t, ca.SetupDone)
+	require.Equal(t, "insecure2", ca.ProxyServerSecret)
+	require.Equal(t, "foobar2", ca.TenantID)
+
+	err = ds.ConditionalAccessMicrosoftDelete(ctx)
+	require.NoError(t, err)
+
+	_, err = ds.ConditionalAccessMicrosoftGet(ctx)
+	require.Error(t, err)
+	require.True(t, automdm.IsNotFound(err))
+
+	// Create a new one after deleting the existing.
+	err = ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "foobar3", "insecure3")
+	require.NoError(t, err)
+	ca, err = ds.ConditionalAccessMicrosoftGet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, ca)
+	require.False(t, ca.SetupDone)
+	require.Equal(t, "insecure3", ca.ProxyServerSecret)
+	require.Equal(t, "foobar3", ca.TenantID)
+}
+
+func testConditionalAccessHosts(t *testing.T, ds *Datastore) {
+	ctx := context.Background()
+
+	err := ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "foobar", "insecure")
+	require.NoError(t, err)
+
+	// Test with non-existent host.
+	_, err = ds.LoadHostConditionalAccessStatus(ctx, 999_999)
+	require.Error(t, err)
+	require.True(t, automdm.IsNotFound(err))
+
+	noTeamHost := newTestHostWithPlatform(t, ds, "host1", "darwin", nil)
+
+	// Test with an existent host but no status yet.
+	_, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.Error(t, err)
+	require.True(t, automdm.IsNotFound(err))
+
+	// Nothing happens if the host doesn't have an entry yet.
+	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, false, false)
+	require.NoError(t, err)
+	_, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.Error(t, err)
+	require.True(t, automdm.IsNotFound(err))
+
+	changed, err := ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID", "foobar@example.onmicrosoft.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	s, err := ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID", s.DeviceID)
+	require.Equal(t, "foobar@example.onmicrosoft.com", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	// When the status entry is created, these are not set yet.
+	// These values are updated during detail query ingestion.
+	require.Nil(t, s.Managed)
+	require.Nil(t, s.Compliant)
+
+	// Execute with same values should do nothing.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID", "foobar@example.onmicrosoft.com", true)
+	require.NoError(t, err)
+	require.False(t, changed)
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID", s.DeviceID)
+	require.Equal(t, "foobar@example.onmicrosoft.com", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	// These values are updated during detail query ingestion.
+	require.Nil(t, s.Managed)
+	require.Nil(t, s.Compliant)
+
+	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, true, false)
+	require.NoError(t, err)
+
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID", s.DeviceID)
+	require.Equal(t, "foobar@example.onmicrosoft.com", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	require.NotNil(t, s.Managed)
+	require.True(t, *s.Managed)
+	require.NotNil(t, s.Compliant)
+	require.False(t, *s.Compliant)
+
+	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, false, true)
+	require.NoError(t, err)
+
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.NotNil(t, s.Managed)
+	require.False(t, *s.Managed)
+	require.NotNil(t, s.Compliant)
+	require.True(t, *s.Compliant)
+
+	// Simulate a device changing its device ID and user principal name
+	// (e.g. log out from Entra on device and log in again).
+	// We should update its data and clear its statuses.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID2", "foobar2@example.onmicrosoft.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID2", s.DeviceID)
+	require.Equal(t, "foobar2@example.onmicrosoft.com", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	require.Nil(t, s.Managed)
+	require.Nil(t, s.Compliant)
+
+	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, false, true)
+	require.NoError(t, err)
+
+	// Simulate a device with same device ID but empty username.
+	// This can happen on workstations with two user macOS accounts where one is registered and another one is not.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID2", "", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID2", s.DeviceID)
+	require.Equal(t, "", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	require.Nil(t, s.Managed)
+	require.Nil(t, s.Compliant)
+
+	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, false, true)
+	require.NoError(t, err)
+
+	// Simulate now that the second user has logged in to Entra.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID2", "foobar3@example.onmicrosoft.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID2", s.DeviceID)
+	require.Equal(t, "foobar3@example.onmicrosoft.com", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	require.Nil(t, s.Managed)
+	require.Nil(t, s.Compliant)
+
+	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, false, true)
+	require.NoError(t, err)
+
+	// Simulate that the first user has logged in again to the workstation.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID2", "foobar@example.onmicrosoft.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+	s, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
+	require.NoError(t, err)
+	require.Equal(t, noTeamHost.ID, s.HostID)
+	require.Equal(t, "entraDeviceID2", s.DeviceID)
+	require.Equal(t, "foobar@example.onmicrosoft.com", s.UserPrincipalName)
+	require.Equal(t, "host1", s.DisplayName)
+	require.Equal(t, "15.4.1", s.OSVersion)
+	require.NotZero(t, s.CreatedAt)
+	require.NotZero(t, s.UpdatedAt)
+	require.Nil(t, s.Managed)
+	require.Nil(t, s.Compliant)
+}
+
+func TestExtractWindowsBuildVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Windows 10 Pro",
+			input:    "Windows 10 Pro 22H2 10.0.19045.6456",
+			expected: "10.0.19045.6456",
+		},
+		{
+			name:     "Windows Server 2025 Datacenter",
+			input:    "Windows Server 2025 Datacenter 24H2 10.0.26100.32230",
+			expected: "10.0.26100.32230",
+		},
+		{
+			name:     "no spaces",
+			input:    "10.0.19045.6456",
+			expected: "10.0.19045.6456",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "single word",
+			input:    "Windows",
+			expected: "Windows",
+		},
+		{
+			name:     "trailing whitespace",
+			input:    "Windows 10 Pro 22H2 10.0.19045.6456  ",
+			expected: "10.0.19045.6456",
+		},
+		{
+			name:     "leading whitespace",
+			input:    "  Windows 10 Pro 22H2 10.0.19045.6456",
+			expected: "10.0.19045.6456",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractWindowsBuildVersion(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func testConditionalAccessDeviceIDOneHost(t *testing.T, ds *Datastore) {
+	ctx := t.Context()
+
+	mac1 := newTestHostWithPlatform(t, ds, "mac1", "darwin", nil)
+	mac2 := newTestHostWithPlatform(t, ds, "mac2", "darwin", nil)
+	win1 := newTestHostWithPlatform(t, ds, "win1", "windows", nil)
+	win2 := newTestHostWithPlatform(t, ds, "win2", "windows", nil)
+	var conflictErr *automdm.ConflictError
+	assertDeviceID := func(hostID uint, deviceID string) {
+		status, err := ds.LoadHostConditionalAccessStatus(ctx, hostID)
+		if deviceID == "" {
+			require.True(t, automdm.IsNotFound(err), err)
+			return
+		}
+		require.NoError(t, err)
+		require.Equal(t, deviceID, status.DeviceID)
+	}
+
+	changed, err := ds.CreateHostConditionalAccessStatus(ctx, mac1.ID, "macDeviceID", "user1@example.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	// Another host can't take a verified device ID, verified or not.
+	_, err = ds.CreateHostConditionalAccessStatus(ctx, win1.ID, "macDeviceID", "", false)
+	require.ErrorAs(t, err, &conflictErr)
+	_, err = ds.CreateHostConditionalAccessStatus(ctx, mac2.ID, "macDeviceID", "user2@example.com", true)
+	require.ErrorAs(t, err, &conflictErr)
+	assertDeviceID(win1.ID, "")
+	assertDeviceID(mac2.ID, "")
+
+	// The host that has it can still change its user.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, mac1.ID, "macDeviceID", "user2@example.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	// An unverified device ID can't be taken by another unverified claim.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, win1.ID, "winDeviceID", "", false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	_, err = ds.CreateHostConditionalAccessStatus(ctx, win2.ID, "winDeviceID", "", false)
+	require.ErrorAs(t, err, &conflictErr)
+	assertDeviceID(win2.ID, "")
+
+	// A verified claim takes it from the unverified one.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, mac2.ID, "winDeviceID", "user3@example.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+	assertDeviceID(mac2.ID, "winDeviceID")
+	assertDeviceID(win1.ID, "")
+
+	// An unverified claimant that later reports itself as macOS still can't block a verified claim.
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, win2.ID, "spoofedDeviceID", "", false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET platform = 'darwin' WHERE id = ?`, win2.ID)
+	require.NoError(t, err)
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, mac2.ID, "spoofedDeviceID", "user3@example.com", true)
+	require.NoError(t, err)
+	require.True(t, changed)
+	assertDeviceID(mac2.ID, "spoofedDeviceID")
+	assertDeviceID(win2.ID, "")
+
+	// After the host is deleted, the device ID can move to another host.
+	require.NoError(t, ds.DeleteHost(ctx, mac1.ID))
+	changed, err = ds.CreateHostConditionalAccessStatus(ctx, win2.ID, "macDeviceID", "", false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	assertDeviceID(win2.ID, "macDeviceID")
+}

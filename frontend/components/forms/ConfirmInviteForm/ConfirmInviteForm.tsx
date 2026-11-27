@@ -1,0 +1,105 @@
+import React from "react";
+
+import Button from "components/buttons/Button";
+import InputField from "components/forms/fields/InputField";
+import { isEqual, isPresent } from "components/forms/validators";
+import useFormValidation, { IFormErrors } from "hooks/useFormValidation";
+
+const baseClass = "confirm-invite-page__form";
+
+export interface IConfirmInviteFormData {
+  name: string;
+  password: string;
+  password_confirmation: string;
+}
+
+interface IConfirmInviteFormProps {
+  defaultFormData?: Partial<IConfirmInviteFormData>;
+  handleSubmit: (data: IConfirmInviteFormData) => void | Promise<unknown>;
+}
+
+const validate = (formData: IConfirmInviteFormData): IFormErrors => {
+  const errors: IFormErrors = {};
+  const { name, password, password_confirmation: confirmation } = formData;
+
+  if (!isPresent(name)) {
+    errors.name = "Enter your full name";
+  }
+
+  if (!isPresent(password)) {
+    errors.password = "Enter a password";
+  }
+
+  if (!isPresent(confirmation)) {
+    errors.password_confirmation = "Confirm your password";
+  } else if (password && !isEqual(password, confirmation)) {
+    errors.password_confirmation = "Match the password above";
+  }
+
+  return errors;
+};
+
+const ConfirmInviteForm = ({
+  defaultFormData,
+  handleSubmit,
+}: IConfirmInviteFormProps) => {
+  const {
+    getTextFieldProps,
+    handleSubmit: onSubmit,
+    isSubmitting,
+  } = useFormValidation<IConfirmInviteFormData>({
+    initialFormData: {
+      name: defaultFormData?.name || "",
+      password: "",
+      password_confirmation: "",
+    },
+    validate,
+    skipTrim: ["password", "password_confirmation"],
+  });
+
+  return (
+    <form
+      onSubmit={onSubmit(handleSubmit)}
+      className={baseClass}
+      autoComplete="off"
+    >
+      <InputField
+        label="Full name"
+        autofocus
+        {...getTextFieldProps("name")}
+        inputOptions={{ maxLength: 80 }}
+        ignore1password={false}
+        disabled={isSubmitting}
+      />
+      <InputField
+        label="Password"
+        type="password"
+        placeholder="Password"
+        helpText="Must include 12 characters, at least 1 number (e.g. 0 - 9), and at least 1 symbol (e.g. &*#)"
+        {...getTextFieldProps("password")}
+        ignore1password={false}
+        disabled={isSubmitting}
+      />
+      <InputField
+        label="Confirm password"
+        type="password"
+        placeholder="Confirm password"
+        {...getTextFieldProps("password_confirmation")}
+        ignore1password={false}
+        disabled={isSubmitting}
+      />
+      <div className="button-wrap--center">
+        <Button
+          type="submit"
+          size="wide"
+          isLoading={isSubmitting}
+          disabled={isSubmitting}
+        >
+          Submit
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default ConfirmInviteForm;

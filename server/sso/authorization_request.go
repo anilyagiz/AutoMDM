@@ -1,0 +1,103 @@
+package sso
+
+import (
+	"bytes"
+	"context"
+	"encoding/xml"
+	"errors"
+	"fmt"
+
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/crewjam/saml"
+)
+
+const cacheLifetimeSeconds = uint(300) // in seconds (5 minutes)
+
+func getDestinationURL(idpMetadata *saml.EntityDescriptor) (string, error) {
+	for _, ssoDescriptor := range idpMetadata.IDPSSODescriptors {
+		for _, ssos := range ssoDescriptor.SingleSignOnServices {
+			if ssos.Binding == saml.HTTPRedirectBinding {
+				return ssos.Location, nil
+			}
+		}
+	}
+	return "", errors.New("IDP does not support redirect binding")
+}
+
+// CreateAuthorizationRequest creates a new SAML AuthnRequest and creates a new session in sessionStore.
+// It will generate and return the session identifier.
+// (the IdP will send it again to AutoMDM in the callback, and that's how AutoMDM will authenticate the session).
+// If sessionTTLSeconds is 0 then a default of 5 minutes of TTL is used.
+func CreateAuthorizationRequest(
+	ctx context.Context,
+	samlProvider *saml.ServiceProvider,
+	sessionStore SessionStore,
+	originalURL string,
+	sessionTTLSeconds uint,
+	relayState automdm.SSORelayState,
+	requestData SSORequestData,
+) (sessionID string, idpURL string, err error) {
+	idpURL, err = getDestinationURL(samlProvider.IDPMetadata)
+	if err != nil {
+		return "", "", fmt.Errorf("get idp url: %w", err)
+	}
+	samlAuthRequest, err := samlProvider.MakeAuthenticationRequest(
+		idpURL,
+		saml.HTTPRedirectBinding,
+		saml.HTTPPostBinding,
+	)
+	if err != nil {
+		return "", "", ctxerr.Wrap(ctx, err, "make auth request")
+	}
+	// We can modify the samlAuthRequest because it's not signed
+	// (not a requirement when using "HTTPRedirectBinding" binding for the request)
+	samlAuthRequest.ProviderName = "AutoMDM"
+
+	var metadataWriter bytes.Buffer
+	err = xml.NewEncoder(&metadataWriter).Encode(samlProvider.IDPMetadata)
+	if err != nil {
+		return "", "", fmt.Errorf("encoding metadata creating auth request: %w", err)
+	}
+
+	sessionID, err = generateSessionID()
+	if err != nil {
+		return "", "", ctxerr.Wrap(ctx, err, "generate session ID")
+	}
+
+	sessionLifetimeSeconds := cacheLifetimeSeconds
+	if sessionTTLSeconds > 0 {
+		sessionLifetimeSeconds = sessionTTLSeconds
+	}
+
+	// Store the session with the generated ID.
+	// We cache the metadata so we can check the signatures on the response we get from the IdP.
+	err = sessionStore.create(
+		sessionID,
+		samlAuthRequest.ID,
+		originalURL,
+		metadataWriter.String(),
+		sessionLifetimeSeconds,
+		requestData,
+	)
+	if err != nil {
+		return "", "", fmt.Errorf("caching SSO session while creating auth request: %w", err)
+	}
+
+	idpRedirectURL, err := samlAuthRequest.Redirect(string(relayState), samlProvider)
+	if err != nil {
+		return "", "", ctxerr.Wrap(ctx, err, "generating redirect")
+	}
+	return sessionID, idpRedirectURL.String(), nil
+}
+
+func generateSessionID() (string, error) {
+	// sessionIDRawLen is shared with sessionKey, which rejects any ID that is
+	// not the canonical encoding of exactly this many random bytes.
+	sessionID, err := server.GenerateRandomText(sessionIDRawLen)
+	if err != nil {
+		return "", fmt.Errorf("create random session ID: %w", err)
+	}
+	return sessionID, nil
+}

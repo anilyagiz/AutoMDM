@@ -1,0 +1,6 @@
+name: Unassigned
+controls:
+policies:
+software:
+  packages:
+    - path: subdir/installer.yml

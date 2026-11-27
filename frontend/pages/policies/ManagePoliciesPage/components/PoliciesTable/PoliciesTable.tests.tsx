@@ -1,0 +1,683 @@
+import { screen, waitFor } from "@testing-library/react";
+import { noop } from "lodash";
+import React from "react";
+
+import createMockPolicy from "__mocks__/policyMock";
+import createMockUser from "__mocks__/userMock";
+import { createCustomRenderer, createMockRouter } from "test/test-utils";
+
+import PoliciesTable from "./PoliciesTable";
+
+const mockRouter = createMockRouter();
+
+describe("Policies table", () => {
+  it("Renders the page-wide empty state when no policies are present (free tier)", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={0}
+      />
+    );
+
+    expect(screen.getByText("No policies yet")).toBeInTheDocument();
+    expect(screen.queryByText("Name")).toBeNull();
+    expect(screen.getByPlaceholderText("Search by name")).toBeDisabled();
+  });
+
+  it("Renders the page-wide empty state when no policies are present (all teams)", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={0}
+      />
+    );
+
+    expect(
+      screen.getByText("No policies apply to all teams")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Name")).toBeNull();
+    expect(screen.getByPlaceholderText("Search by name")).toBeDisabled();
+  });
+
+  it("Renders the page-wide empty state when no policies are present (specific team)", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 1, name: "Some team" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={0}
+      />
+    );
+
+    expect(screen.getByText("No policies for this team")).toBeInTheDocument();
+    expect(screen.queryByText("Name")).toBeNull();
+  });
+
+  it("Renders generic empty state header in Primo mode (all teams)", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+          config: { partnerships: { enable_primo: true } },
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        renderPoliciesCount={() => null}
+        count={0}
+        router={mockRouter}
+      />
+    );
+
+    expect(screen.getByText("No policies yet")).toBeInTheDocument();
+    expect(
+      screen.queryByText("No policies apply to all teams")
+    ).not.toBeInTheDocument();
+  });
+
+  it("Renders generic empty state header in Primo mode (specific team)", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+          config: { partnerships: { enable_primo: true } },
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 1, name: "Some team" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        renderPoliciesCount={() => null}
+        count={0}
+        router={mockRouter}
+      />
+    );
+
+    expect(screen.getByText("No policies yet")).toBeInTheDocument();
+    expect(
+      screen.queryByText("No policies for this team")
+    ).not.toBeInTheDocument();
+  });
+
+  it("Renders the empty search state when search query exists for server side search with no results", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery="shouldn't match anything"
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={0}
+      />
+    );
+
+    expect(screen.getByText("No matching policies")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search by name")).toBeInTheDocument();
+    expect(screen.queryByText("Name")).toBeNull();
+  });
+
+  it("Renders a critical badge and tooltip for a critical policy", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const testCriticalPolicy = createMockPolicy({ critical: true });
+
+    const { user } = render(
+      <PoliciesTable
+        policiesList={[testCriticalPolicy]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={[testCriticalPolicy].length}
+      />
+    );
+
+    await waitFor(() => {
+      waitFor(() => {
+        user.hover(screen.getByTestId("policy-icon"));
+      });
+
+      expect(
+        screen.getByText("This policy has been marked as critical.")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("Renders a hidden badge and tooltip for a policy hidden from end users", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const hiddenPolicy = createMockPolicy({ team_id: 2, hidden: true });
+
+    const { user } = render(
+      <PoliciesTable
+        policiesList={[hiddenPolicy]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 2, name: "Workstations" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={1}
+      />
+    );
+
+    await user.hover(screen.getByTestId("eye-slash-icon"));
+    // By role: the badge also carries the same text for screen readers.
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Hidden from end users"
+    );
+  });
+
+  it("Does not render a hidden badge for a visible policy", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[createMockPolicy({ team_id: 2, hidden: false })]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 2, name: "Workstations" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={1}
+      />
+    );
+
+    expect(screen.queryByTestId("eye-slash-icon")).not.toBeInTheDocument();
+  });
+
+  it("Renders an inherited badge and tooltip for inherited policy on a team's policies page", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const testInheritedPolicy = createMockPolicy({ team_id: null });
+
+    const { user } = render(
+      <PoliciesTable
+        policiesList={[testInheritedPolicy]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 2, name: "Team 2" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={[testInheritedPolicy].length}
+      />
+    );
+
+    await waitFor(() => {
+      waitFor(() => {
+        user.hover(screen.getByText("Inherited"));
+      });
+
+      expect(
+        screen.getByText("This policy runs on all hosts.")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("Does not render an inherited badge and tooltip for global policy on the All teams's policies page", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const testGlobalPolicy = createMockPolicy({ team_id: null });
+
+    render(
+      <PoliciesTable
+        policiesList={[testGlobalPolicy]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={[testGlobalPolicy].length}
+      />
+    );
+
+    expect(screen.queryByText("Inherited")).not.toBeInTheDocument();
+  });
+
+  it("Renders the correct number of checkboxes for team policies and not inherited policies on a team's policies page and can check select all box", async () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const testInheritedPolicies = [
+      createMockPolicy({ team_id: null, name: "Inherited policy 1" }),
+      createMockPolicy({ id: 2, team_id: null, name: "Inherited policy 2" }),
+      createMockPolicy({ id: 3, team_id: null, name: "Inherited policy 3" }),
+    ];
+
+    const testTeamPolicies = [
+      createMockPolicy({ id: 4, team_id: 2, name: "Team policy 1" }),
+      createMockPolicy({ id: 5, team_id: 2, name: "Team policy 2" }),
+    ];
+
+    const policiesList = [...testInheritedPolicies, ...testTeamPolicies];
+
+    const { user } = render(
+      <PoliciesTable
+        policiesList={policiesList}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 2, name: "Team 2" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        canAddOrDeletePolicies
+        hasPoliciesToDelete
+        count={policiesList.length}
+      />
+    );
+
+    const numberOfCheckboxes = screen.queryAllByRole("checkbox").length;
+
+    expect(numberOfCheckboxes).toBe(
+      testTeamPolicies.length + 1 // +1 for Select all checkbox
+    );
+
+    const checkbox = screen.queryAllByRole("checkbox")[0];
+
+    await waitFor(async () => {
+      await user.click(checkbox);
+    });
+
+    expect(checkbox).toBeChecked();
+  });
+
+  it("Renders a Patch badge for a patch policy", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const testPatchPolicy = createMockPolicy({
+      type: "patch",
+      name: "macOS - Zoom up to date",
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[testPatchPolicy]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={1}
+      />
+    );
+
+    expect(screen.getByText("Patch")).toBeInTheDocument();
+  });
+
+  it("Does not render a Patch badge for a dynamic policy", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const testDynamicPolicy = createMockPolicy({ type: "dynamic" });
+
+    render(
+      <PoliciesTable
+        policiesList={[testDynamicPolicy]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={1}
+      />
+    );
+
+    expect(screen.queryByText("Patch")).not.toBeInTheDocument();
+  });
+
+  it("Renders the Targeted platforms column using the policy's platform field", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const policyWithAllPlatforms = createMockPolicy({
+      id: 100,
+      name: "cross-platform policy",
+      platform: "",
+    });
+    const policyWithDarwin = createMockPolicy({
+      id: 101,
+      name: "macOS policy",
+      platform: "darwin",
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[policyWithAllPlatforms, policyWithDarwin]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={2}
+      />
+    );
+
+    expect(screen.getByText("Targeted platforms")).toBeInTheDocument();
+    expect(screen.getByTestId("darwin-icon")).toBeInTheDocument();
+    expect(screen.queryByTestId("windows-icon")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("linux-icon")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chrome-icon")).not.toBeInTheDocument();
+  });
+
+  it("Renders the platform filter dropdown when the table is searchable", () => {
+    const render = createCustomRenderer({
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[createMockPolicy({ platform: "darwin" })]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={1}
+      />
+    );
+
+    expect(screen.getByText("All platforms")).toBeInTheDocument();
+  });
+
+  it("Renders the Automation column with correct values", () => {
+    const render = createCustomRenderer({
+      withBackendMock: true,
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    const policyWithAutomations = createMockPolicy({
+      id: 10,
+      name: "Policy with automations",
+      automation_type: "software",
+      install_software: { name: "Zoom", software_title_id: 1 },
+    });
+
+    const policyWithoutAutomations = createMockPolicy({
+      id: 11,
+      name: "Policy without automations",
+      install_software: undefined,
+      automation_type: null,
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[policyWithAutomations, policyWithoutAutomations]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: -1, name: "All teams" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={2}
+      />
+    );
+
+    expect(screen.getByText("Automation")).toBeInTheDocument();
+    expect(screen.getAllByText("Zoom")[0]).toBeInTheDocument();
+    expect(screen.getByText("---")).toBeInTheDocument();
+  });
+
+  it("Labels each webhook or ticket automation from the scope that owns the policy", () => {
+    const render = createCustomRenderer({
+      withBackendMock: true,
+      context: {
+        app: {
+          isGlobalAdmin: true,
+          currentUser: createMockUser(),
+        },
+      },
+    });
+
+    render(
+      <PoliciesTable
+        policiesList={[
+          createMockPolicy({
+            id: 10,
+            name: "AutoMDM policy",
+            team_id: 2,
+            automation_type: "webhook_or_ticket",
+          }),
+          createMockPolicy({
+            id: 11,
+            name: "Inherited policy",
+            team_id: null,
+            automation_type: "webhook_or_ticket",
+          }),
+        ]}
+        isLoading={false}
+        onDeletePoliciesClick={noop}
+        onAddPolicyClick={noop}
+        currentTeam={{ id: 2, name: "AutoMDM 2" }}
+        isPremiumTier
+        searchQuery=""
+        page={0}
+        onQueryChange={noop}
+        router={mockRouter}
+        renderPoliciesCount={() => null}
+        count={2}
+        otherAutomationType="ticket"
+        inheritedOtherAutomationType="webhook"
+      />
+    );
+
+    const automationIn = (name: string) =>
+      (screen.getAllByText(name)[0].closest("tr") as HTMLElement).textContent;
+    expect(automationIn("AutoMDM policy")).toContain("Ticket");
+    expect(automationIn("Inherited policy")).toContain("Webhook");
+    expect(automationIn("Inherited policy")).not.toContain("Ticket");
+  });
+});

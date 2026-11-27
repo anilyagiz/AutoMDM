@@ -1,0 +1,20 @@
+FROM golang:1.27.4-alpine3.23@sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82
+ARG TAG
+RUN apk update && apk add --no-cache git
+RUN git clone --branch "${TAG}" --depth=1 --progress --no-recurse-submodules https://github.com/anilyagiz/automdm.git /go/automdm \
+    && cd /go/automdm/tools/mdm/migration/mdmproxy \
+    && go build -o /go/automdm/tools/mdm/migration/mdmproxy/mdmproxy .
+
+FROM alpine:3.23.8@sha256:5c216c9767869f6ec7c4718977601d52f087c5c7bf2fdfb198e403f6b48ec40d
+LABEL maintainer="AutoMDM Developers"
+
+RUN apk --no-cache upgrade openssl libcrypto3 libssl3 \
+    && apk add --no-cache tini
+COPY --from=0 /go/automdm/tools/mdm/migration/mdmproxy/mdmproxy /usr/bin/mdmproxy
+ADD --chmod=0755 ./entrypoint.sh /usr/bin/entrypoint.sh
+
+# Create mdmproxy group and user
+RUN addgroup -S mdmproxy && adduser -S mdmproxy -G mdmproxy
+USER mdmproxy
+
+ENTRYPOINT ["/sbin/tini", "/usr/bin/entrypoint.sh"]

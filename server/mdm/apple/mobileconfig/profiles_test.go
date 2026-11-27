@@ -1,0 +1,50 @@
+package mobileconfig
+
+import (
+	"bytes"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"howett.net/plist"
+)
+
+func TestAutoMDMdProfileTemplate(t *testing.T) {
+	cases := []AutoMDMdProfileOptions{
+		{},
+		{PayloadType: "", EnrollSecret: "", ServerURL: "", PayloadName: ""},
+		{PayloadType: "test.example", EnrollSecret: "abc", ServerURL: "https://test.example", PayloadName: "test.example"},
+		// markup in every field must round-trip as text, not inject keys
+		{ // #nosec G101 - test data
+			PayloadType:  `a"b'c&d`,
+			EnrollSecret: "</string><key>Injected</key><string>x",
+			ServerURL:    "https://automdm.example.com/?x=</string><key>Injected</key><string>yes&y=1",
+			PayloadName:  "<b>name</b>",
+		},
+	}
+
+	for _, c := range cases {
+		// execute template
+		var prof bytes.Buffer
+		err := AutoMDMdProfileTemplate.Execute(&prof, c)
+		require.NoError(t, err)
+
+		// unmarshal plist and check values
+		var out map[string]any
+		_, err = plist.Unmarshal(prof.Bytes(), &out)
+		require.NoError(t, err)
+		contents, ok := out["PayloadContent"].([]any)
+		require.True(t, ok)
+		pc, ok := contents[0].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, c.EnrollSecret, pc["EnrollSecret"])
+		require.Equal(t, c.ServerURL, pc["AutoMDMURL"])
+		require.Equal(t, c.PayloadType, pc["PayloadType"])
+		require.Equal(t, c.PayloadName, pc["PayloadDisplayName"])
+		require.NotContains(t, pc, "Injected")
+		// script execution is always enabled
+		enableScripts, ok := pc["EnableScripts"].(bool)
+		require.True(t, ok)
+		require.True(t, enableScripts)
+
+	}
+}

@@ -1,0 +1,3236 @@
+package config
+
+import (
+	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+	"time"
+
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/docker/go-units"
+
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/spf13/cast"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+const (
+	envPrefix = "AUTOMDM"
+)
+
+// MysqlConfig defines configs related to MySQL
+type MysqlConfig struct {
+	Protocol         string `yaml:"protocol"`
+	Address          string `yaml:"address"`
+	Username         string `yaml:"username"`
+	Password         string `yaml:"password"`
+	PasswordPath     string `yaml:"password_path"`
+	Database         string `yaml:"database"`
+	TLSCert          string `yaml:"tls_cert"`
+	TLSKey           string `yaml:"tls_key"`
+	TLSCA            string `yaml:"tls_ca"`
+	TLSServerName    string `yaml:"tls_server_name"`
+	TLSConfig        string `yaml:"tls_config"` // tls=customValue in DSN
+	MaxOpenConns     int    `yaml:"max_open_conns"`
+	MaxIdleConns     int    `yaml:"max_idle_conns"`
+	ConnMaxLifetime  int    `yaml:"conn_max_lifetime"`
+	SQLMode          string `yaml:"sql_mode"`
+	Region           string `yaml:"region"`
+	StsAssumeRoleArn string `yaml:"sts_assume_role_arn"`
+	StsExternalID    string `yaml:"sts_external_id"`
+}
+
+// RedisConfig defines configs related to Redis
+type RedisConfig struct {
+	Address                   string
+	Username                  string
+	Password                  string
+	Database                  int
+	Region                    string        `yaml:"region"`
+	CacheName                 string        `yaml:"cache_name"`
+	UseTLS                    bool          `yaml:"use_tls"`
+	StsAssumeRoleArn          string        `yaml:"sts_assume_role_arn"`
+	StsExternalID             string        `yaml:"sts_external_id"`
+	DuplicateResults          bool          `yaml:"duplicate_results"`
+	ConnectTimeout            time.Duration `yaml:"connect_timeout"`
+	KeepAlive                 time.Duration `yaml:"keep_alive"`
+	ConnectRetryAttempts      int           `yaml:"connect_retry_attempts"`
+	ClusterFollowRedirections bool          `yaml:"cluster_follow_redirections"`
+	ClusterReadFromReplica    bool          `yaml:"cluster_read_from_replica"`
+	TLSCert                   string        `yaml:"tls_cert"`
+	TLSKey                    string        `yaml:"tls_key"`
+	TLSCA                     string        `yaml:"tls_ca"`
+	TLSServerName             string        `yaml:"tls_server_name"`
+	TLSHandshakeTimeout       time.Duration `yaml:"tls_handshake_timeout"`
+	MaxIdleConns              int           `yaml:"max_idle_conns"`
+	MaxOpenConns              int           `yaml:"max_open_conns"`
+	// this config is an int on MysqlConfig, but it should be a time.Duration.
+	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
+	IdleTimeout     time.Duration `yaml:"idle_timeout"`
+	ConnWaitTimeout time.Duration `yaml:"conn_wait_timeout"`
+	WriteTimeout    time.Duration `yaml:"write_timeout"`
+	ReadTimeout     time.Duration `yaml:"read_timeout"`
+	// HostCacheEnabled turns on the Redis-backed cache that fronts
+	// LoadHostByNodeKey and LoadHostByOrbitNodeKey on the osquery and orbit
+	// authentication paths. When false, every authenticated request resolves the
+	// host from MySQL; when true (default), successful lookups are cached in
+	// Redis and invalidated on write paths. Hidden from --help: this is a
+	// feature flag, not an operator-facing tunable. See
+	// server/datastore/mysqlredis/host_cache.go.
+	HostCacheEnabled bool `yaml:"host_cache_enabled"`
+	// HostCacheTTL is the base TTL for cached host lookup entries. Actual
+	// per-entry TTL is jittered by ±10% to avoid synchronized expiry waves.
+	// Only meaningful when HostCacheEnabled is true. Hidden from --help.
+	HostCacheTTL time.Duration `yaml:"host_cache_ttl"`
+	// LiveQuerySmallTargetThreshold is the maximum number of targeted hosts for a
+	// live query to use the per-host reverse index instead of a fleet-wide
+	// bitfield. Storing small-target queries as a per-host set means a host
+	// checkin no longer issues one GETBIT per such query. Set to 0 to disable the
+	// reverse index entirely (kill-switch) and use the bitfield for all live
+	// queries.
+	LiveQuerySmallTargetThreshold int `yaml:"live_query_small_target_threshold"`
+}
+
+const (
+	TLSProfileKey          = "server.tls_compatibility"
+	TLSProfileModern       = "modern"
+	TLSProfileIntermediate = "intermediate"
+
+	EndpointRequestSizeOverridesKey = "server.endpoint_request_size_overrides"
+)
+
+// EndpointRequestSizeOverrides maps a literal registered endpoint path (e.g. "/api/_version_/automdm/...") to its maximum allowed body size.
+type EndpointRequestSizeOverrides map[string]int64
+
+// ServerConfig defines configs related to the AutoMDM server
+type ServerConfig struct {
+	Address                          string
+	Cert                             string
+	Key                              string
+	TLS                              bool
+	TLSProfile                       string        `yaml:"tls_compatibility"`
+	URLPrefix                        string        `yaml:"url_prefix"`
+	Keepalive                        bool          `yaml:"keepalive"`
+	SandboxEnabled                   bool          `yaml:"sandbox_enabled"`
+	WebsocketsAllowUnsafeOrigin      bool          `yaml:"websockets_allow_unsafe_origin"`
+	FrequentCleanupsEnabled          bool          `yaml:"frequent_cleanups_enabled"`
+	ForceH2C                         bool          `yaml:"force_h2c"`
+	PrivateKey                       string        `yaml:"private_key"`
+	PrivateKeySecretArn              string        `yaml:"private_key_arn"`
+	PrivateKeySecretRegion           string        `yaml:"private_key_region"`
+	PrivateKeySecretSTSAssumeRoleArn string        `yaml:"private_key_sts_assume_role_arn"`
+	PrivateKeySecretSTSExternalID    string        `yaml:"private_key_sts_external_id"`
+	VPPVerifyTimeout                 time.Duration `yaml:"vpp_verify_timeout"`
+	VPPVerifyRequestDelay            time.Duration `yaml:"vpp_verify_request_delay"`
+	VPPInstallReapTimeout            time.Duration `yaml:"vpp_install_reap_timeout"`
+	CleanupDistTargetsAge            time.Duration `yaml:"cleanup_dist_targets_age"`
+	ScriptResultsRetention           time.Duration `yaml:"script_results_retention"`
+	SoftwareInstallResultsRetention  time.Duration `yaml:"software_install_results_retention"`
+	DeletedHostCertificatesRetention time.Duration `yaml:"deleted_host_certificates_retention"`
+	MaxInstallerSizeBytes            int64         `yaml:"max_installer_size"`
+	TrustedProxies                   string        `yaml:"trusted_proxies"`
+	GzipResponses                    bool          `yaml:"gzip_responses"`
+	DefaultMaxRequestBodySize        int64         `yaml:"default_max_request_body_size"`
+	AllowPrivateNetworkIntegrations  bool          `yaml:"allow_private_network_integrations"`
+	BypassNetworkBlocking            bool          `yaml:"bypass_network_blocking"`
+	AllowRequestCertificateAnyIdP    bool          `yaml:"allow_request_certificate_any_idp"`
+	EndpointRequestSizeOverrides     EndpointRequestSizeOverrides
+}
+
+func (s *ServerConfig) DefaultHTTPServer(ctx context.Context, handler http.Handler) *http.Server {
+	// Create the base server configuration
+	server := &http.Server{
+		Addr:        s.Address,
+		ReadTimeout: 25 * time.Second,
+		// WriteTimeout is set for security purposes.
+		// If we don't set it, (bugy or malignant) clients making long running
+		// requests could DDOS AutoMDM.
+		WriteTimeout:      40 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       5 * time.Minute,
+		MaxHeaderBytes:    1 << 18, // 0.25 MB (262144 bytes)
+		BaseContext: func(l net.Listener) context.Context {
+			return ctx
+		},
+	}
+
+	// Check if H2C (HTTP/2 without TLS) is enabled
+	if s.ForceH2C && !s.TLS {
+		// Create an HTTP/2 server
+		h2s := &http2.Server{}
+
+		// Wrap the original handler with h2c handler
+		// This allows both HTTP/1.1 and HTTP/2 requests without TLS
+		server.Handler = h2c.NewHandler(handler, h2s)
+	} else {
+		// Use regular HTTP/1.1 handler
+		server.Handler = handler
+	}
+
+	return server
+}
+
+// allowedURLPrefixRegexp matches a non-empty slash-prefixed path made of
+// `/segment[/segment...]` where each segment is one or more URL-safe characters.
+var allowedURLPrefixRegexp = regexp.MustCompile("^(?:/[a-zA-Z0-9_.~-]+)+$")
+
+// Validate checks server-side private key configuration: private_key and
+// private_key_arn cannot both be set. Called early so a misconfigured server
+// fails before paying for an external Secrets Manager lookup.
+func (s ServerConfig) Validate(initFatal func(err error, msg string)) {
+	if s.PrivateKey != "" && s.PrivateKeySecretArn != "" {
+		initFatal(errors.New("cannot specify both private_key and private_key_arn"),
+			"validate private key configuration")
+	}
+}
+
+// ValidatePrivateKeyLength enforces a 32-byte minimum on the (possibly
+// Secrets-Manager-resolved) private key. Called after Secrets Manager
+// retrieval so an SM-provided short key is also caught.
+func (s ServerConfig) ValidatePrivateKeyLength(initFatal func(err error, msg string)) {
+	if len(s.PrivateKey) > 0 && len(s.PrivateKey) < 32 {
+		initFatal(errors.New("private key must be at least 32 bytes long"),
+			"validate private key")
+	}
+}
+
+// NormalizeURLPrefix trims a trailing slash and ensures a leading slash on
+// the configured URL prefix. Mutates the receiver; safe to call when empty.
+// Call before ValidateURLPrefix.
+//
+// A user-supplied "/" trims down to "" and would otherwise be indistinguishable
+// from "no prefix configured" by ValidateURLPrefix. Restore it to "/" so the
+// regex check rejects it instead of silently accepting a misconfiguration.
+func (s *ServerConfig) NormalizeURLPrefix() {
+	if len(s.URLPrefix) == 0 {
+		return
+	}
+	s.URLPrefix = strings.TrimSuffix(s.URLPrefix, "/")
+	if len(s.URLPrefix) == 0 {
+		s.URLPrefix = "/"
+		return
+	}
+	if !strings.HasPrefix(s.URLPrefix, "/") {
+		s.URLPrefix = "/" + s.URLPrefix
+	}
+}
+
+// ValidateURLPrefix checks the URL prefix against the allowed pattern.
+// Should be called after NormalizeURLPrefix; an empty prefix is allowed.
+func (s ServerConfig) ValidateURLPrefix(initFatal func(err error, msg string)) {
+	if len(s.URLPrefix) == 0 {
+		return
+	}
+	if !allowedURLPrefixRegexp.MatchString(s.URLPrefix) {
+		initFatal(fmt.Errorf("prefix must match regexp %q", allowedURLPrefixRegexp.String()),
+			"setting server URL prefix")
+	}
+}
+
+// AuthConfig defines configs related to user or host authorization
+type AuthConfig struct {
+	BcryptCost                           int           `yaml:"bcrypt_cost"`
+	SaltKeySize                          int           `yaml:"salt_key_size"`
+	SsoSessionValidityPeriod             time.Duration `yaml:"sso_session_validity_period"`
+	RequireHTTPMessageSignature          bool          `yaml:"require_http_message_signature"`
+	SSORateLimitPerMinute                int           `yaml:"sso_rate_limit_per_minute"`
+	RequireHostIdentityRenewalKeyBinding bool          `yaml:"require_host_identity_renewal_key_binding"`
+}
+
+// AppConfig defines configs related to HTTP
+type AppConfig struct {
+	TokenKeySize              int           `yaml:"token_key_size"`
+	InviteTokenValidityPeriod time.Duration `yaml:"invite_token_validity_period"`
+	EnableScheduledQueryStats bool          `yaml:"enable_scheduled_query_stats"`
+}
+
+// SessionConfig defines configs related to user sessions
+type SessionConfig struct {
+	KeySize  int `yaml:"key_size"`
+	Duration time.Duration
+}
+
+// OsqueryConfig defines configs related to osquery
+type OsqueryConfig struct {
+	NodeKeySize          int           `yaml:"node_key_size"`
+	HostIdentifier       string        `yaml:"host_identifier"`
+	EnrollCooldown       time.Duration `yaml:"enroll_cooldown"`
+	StatusLogPlugin      string        `yaml:"status_log_plugin"`
+	ResultLogPlugin      string        `yaml:"result_log_plugin"`
+	LabelUpdateInterval  time.Duration `yaml:"label_update_interval"`
+	PolicyUpdateInterval time.Duration `yaml:"policy_update_interval"`
+	DetailUpdateInterval time.Duration `yaml:"detail_update_interval"`
+
+	// StatusLogFile is deprecated. It was replaced by FilesystemConfig.StatusLogFile.
+	//
+	// TODO(lucas): We should at least add a warning if this field is populated.
+	StatusLogFile string `yaml:"status_log_file"`
+	// ResultLogFile is deprecated. It was replaced by FilesystemConfig.ResultLogFile.
+	//
+	// TODO(lucas): We should at least add a warning if this field is populated.
+	ResultLogFile string `yaml:"result_log_file"`
+
+	EnableLogRotation bool `yaml:"enable_log_rotation"`
+	MaxJitterPercent  int  `yaml:"max_jitter_percent"`
+	// AISessionMaxToolCalls is how many of an AI agent session's tool calls AutoMDM stores, its first ones. 0 stores the
+	// sessions without their tool calls.
+	AISessionMaxToolCalls int `yaml:"ai_session_max_tool_calls"`
+	// AISessionMaxToolCallsPerRefresh is how many new tool calls AutoMDM asks a host for per AI agent session at each
+	// refresh; 0 leaves it to what fits in the host's result.
+	AISessionMaxToolCallsPerRefresh int `yaml:"ai_session_max_tool_calls_per_refresh"`
+
+	// MaxLogWriteBodySize overrides the default request body size limit
+	// for the /api/osquery/log endpoint. A value of 0 means use the
+	// built-in default (DefaultMaxOsqueryLogWriteSize). This setting
+	// only takes effect when allow_body_auth_fallback is true (legacy
+	// body-auth mode). When allow_body_auth_fallback is false (header-
+	// auth mode) the route is not subject to any body size limit.
+	MaxLogWriteBodySize int64 `yaml:"max_log_write_body_size"`
+	// MaxDistributedWriteBodySize is the equivalent of MaxLogWriteBodySize
+	// for /api/osquery/distributed/write.
+	MaxDistributedWriteBodySize int64 `yaml:"max_distributed_write_body_size"`
+
+	// AllowBodyAuthFallback selects which authentication scheme is in
+	// effect for host-authenticated osquery requests.
+	//
+	//   - true (default): the Authorization: NodeKey header is ignored
+	//     entirely. The node_key extracted from the JSON body
+	//     is the sole authenticator.
+	//   - false: the Authorization: NodeKey header is required and the
+	//     body's node_key field is ignored. Pre-auth rejects
+	//     absent/invalid headers BEFORE the body is read.
+	AllowBodyAuthFallback bool `yaml:"allow_body_auth_fallback"`
+
+	// ConfigETags enables conditional osquery config requests: an agent that
+	// sends an "etag" field in its /api/osquery/config request body receives
+	// the config with an "etag" key added, and the constant {"etag":"ok"}
+	// body when its etag matches the current config.
+	//
+	// Default is FALSE: the request's etag field is ignored, every response
+	// is the full config with no "etag" key (byte-identical to the
+	// pre-feature behavior for every agent, opted-in or not), and no etag
+	// store I/O happens. Setting AUTOMDM_OSQUERY_CONFIG_ETAGS=true and
+	// restarting opts a deployment in. This gate is broader than
+	// RedisConfigETags below, which only disables the Redis short circuit
+	// while leaving the conditional request protocol active.
+	ConfigETags bool `yaml:"config_etags"`
+
+	// RedisConfigETags enables the Redis-backed osquery config ETag SHORT
+	// CIRCUIT: when a host's request body carries an "etag" field matching
+	// the stored validator, the /api/osquery/config response is the constant
+	// {"etag":"ok"} body served straight from Redis, WITHOUT building the
+	// config (zero database reads for that request). Requires Redis to be
+	// configured; silently has no effect without it.
+	//
+	// Default is FALSE: every config request takes the always-full-build
+	// path, byte-identical to the behavior without this feature. Setting
+	// AUTOMDM_OSQUERY_REDIS_CONFIG_ETAGS=true and restarting enables the short
+	// circuit, and requires ConfigETags above to be true as well (see
+	// effectiveRedisConfigETags). Toggling it back off is the A/B lever for
+	// ruling the feature out when debugging config delivery.
+	//
+	// See automdm.OsqueryService.GetClientConfigWithETag and the
+	// server/service/redis_config_etag package for the full contract.
+	RedisConfigETags bool `yaml:"redis_config_etags"`
+
+	// ConfigInMemoryCache enables the in-memory cache that serves the
+	// scheduled-report section of the osquery config — the response's
+	// "packs" key — for PackConfigCacheTTL, keyed by (team,
+	// discard_reports_data), instead of rebuilding it from the database on
+	// every check-in. It never covers the rest of the response: "options"
+	// and "decorators" are rebuilt from agent options every time.
+	//
+	// Default is FALSE: every check-in builds from the database, which is
+	// slower but immune to any staleness in the cache. Setting
+	// AUTOMDM_OSQUERY_CONFIG_IN_MEMORY_CACHE=true and restarting opts a
+	// deployment in. Independent of the config ETag options above.
+	ConfigInMemoryCache bool `yaml:"config_in_memory_cache"`
+
+	// MaxConcurrentQueryReportReads bounds, per AutoMDM server, how many
+	// /api/osquery/log requests read a host's stored report results from the
+	// replica at once. MaxConcurrentQueryReportWrites bounds, across all AutoMDM
+	// servers, how many write changed ones to the primary at once. Requests over
+	// a limit skip storing their report results (the host sends fresh ones on the
+	// report's next run) instead of queueing on the database. A value <= 0
+	// disables the limit.
+	MaxConcurrentQueryReportReads  int `yaml:"max_concurrent_query_report_reads"`
+	MaxConcurrentQueryReportWrites int `yaml:"max_concurrent_query_report_writes"`
+}
+
+// Validate checks that osquery_host_identifier is one of the supported values, and that
+// osquery_ai_session_max_tool_calls isn't negative.
+// The osquery agent uses the host identifier to determine which identifier is reported as the host UUID.
+func (o OsqueryConfig) Validate(initFatal func(err error, msg string)) {
+	allowed := map[string]struct{}{
+		"provided": {},
+		"instance": {},
+		"uuid":     {},
+		"hostname": {},
+	}
+	if _, ok := allowed[o.HostIdentifier]; !ok {
+		initFatal(fmt.Errorf("%s is not a valid value for osquery_host_identifier", o.HostIdentifier),
+			"set host identifier")
+	}
+	if o.AISessionMaxToolCalls < 0 {
+		initFatal(fmt.Errorf("%d is not a valid value for osquery_ai_session_max_tool_calls: it can't be negative", o.AISessionMaxToolCalls),
+			"set AI session max tool calls")
+	}
+}
+
+// LoggingConfig defines configs related to logging
+type LoggingConfig struct {
+	Debug                bool
+	JSON                 bool
+	DisableBanner        bool          `yaml:"disable_banner"`
+	ErrorRetentionPeriod time.Duration `yaml:"error_retention_period"`
+	TracingEnabled       bool          `yaml:"tracing_enabled"`
+	// TracingType selects the tracing backend. OpenTelemetry (OTEL) is the only one supported. The removed "elasticapm" value
+	// disables tracing at startup.
+	TracingType string `yaml:"tracing_type"`
+	// OtelLogsEnabled enables exporting logs to an OpenTelemetry collector.
+	// When enabled, logs are sent to both stderr and the OTLP endpoint.
+	OtelLogsEnabled  bool   `yaml:"otel_logs_enabled"`
+	EnableLogTopics  string `yaml:"enable_topics"`
+	DisableLogTopics string `yaml:"disable_topics"`
+}
+
+// Validate checks logging configuration consistency: OTEL log export requires
+// tracing to be enabled so log records carry trace IDs.
+func (l LoggingConfig) Validate(initFatal func(err error, msg string)) {
+	if l.OtelLogsEnabled && !l.TracingEnabled {
+		initFatal(errors.New("logging.otel_logs_enabled requires logging.tracing_enabled to be true"),
+			"OTEL logs require tracing for trace correlation")
+	}
+}
+
+// ActivityConfig defines configs related to activities.
+type ActivityConfig struct {
+	// EnableAuditLog enables logging for audit activities.
+	EnableAuditLog bool `yaml:"enable_audit_log"`
+	// AuditLogPlugin sets the plugin to use to log activities.
+	AuditLogPlugin string `yaml:"audit_log_plugin"`
+	// AutoMDMInitiatedReleasePerMinute caps how many hosts get an AutoMDM-initiated
+	// upcoming activity (policy-automation installs and scripts) activated per
+	// minute. AutoMDM-initiated activities are enqueued immediately but held
+	// unactivated until the release cron activates them within this budget,
+	// pacing the downstream execution and result-ingestion load. 0 disables the
+	// gate and activates inline at enqueue time.
+	AutoMDMInitiatedReleasePerMinute int `yaml:"automdm_initiated_release_per_minute"`
+}
+
+// FirehoseConfig defines configs for the AWS Firehose logging plugin
+type FirehoseConfig struct {
+	Region           string
+	EndpointURL      string `yaml:"endpoint_url"`
+	AccessKeyID      string `yaml:"access_key_id"`
+	SecretAccessKey  string `yaml:"secret_access_key"`
+	StsAssumeRoleArn string `yaml:"sts_assume_role_arn"`
+	StsExternalID    string `yaml:"sts_external_id"`
+	StatusStream     string `yaml:"status_stream"`
+	ResultStream     string `yaml:"result_stream"`
+	AuditStream      string `yaml:"audit_stream"`
+}
+
+// KinesisConfig defines configs for the AWS Kinesis logging plugin
+type KinesisConfig struct {
+	Region           string
+	EndpointURL      string `yaml:"endpoint_url"`
+	AccessKeyID      string `yaml:"access_key_id"`
+	SecretAccessKey  string `yaml:"secret_access_key"`
+	StsAssumeRoleArn string `yaml:"sts_assume_role_arn"`
+	StsExternalID    string `yaml:"sts_external_id"`
+	StatusStream     string `yaml:"status_stream"`
+	ResultStream     string `yaml:"result_stream"`
+	AuditStream      string `yaml:"audit_stream"`
+}
+
+// SESConfig defines configs for the AWS SES service for emailing
+type SESConfig struct {
+	Region           string
+	EndpointURL      string `yaml:"endpoint_url"`
+	AccessKeyID      string `yaml:"access_key_id"`
+	SecretAccessKey  string `yaml:"secret_access_key"`
+	StsAssumeRoleArn string `yaml:"sts_assume_role_arn"`
+	StsExternalID    string `yaml:"sts_external_id"`
+	SourceArn        string `yaml:"source_arn"`
+	SenderDomain     string `yaml:"sender_domain"`
+}
+
+type EmailConfig struct {
+	EmailBackend string `yaml:"backend"`
+}
+
+// LambdaConfig defines configs for the AWS Lambda logging plugin
+type LambdaConfig struct {
+	Region           string
+	AccessKeyID      string `yaml:"access_key_id"`
+	SecretAccessKey  string `yaml:"secret_access_key"`
+	StsAssumeRoleArn string `yaml:"sts_assume_role_arn"`
+	StsExternalID    string `yaml:"sts_external_id"`
+	StatusFunction   string `yaml:"status_function"`
+	ResultFunction   string `yaml:"result_function"`
+	AuditFunction    string `yaml:"audit_function"`
+}
+
+// CloudStorageConfig groups the configs of cloud object stores.
+type CloudStorageConfig struct {
+	Azure AzureConfig `yaml:"azure"`
+}
+
+// S3Config defines config to enable file carving storage to an S3 bucket
+type S3Config struct {
+	Bucket           string `yaml:"bucket"`
+	Prefix           string `yaml:"prefix"`
+	Region           string `yaml:"region"`
+	EndpointURL      string `yaml:"endpoint_url"`
+	AccessKeyID      string `yaml:"access_key_id"`
+	SecretAccessKey  string `yaml:"secret_access_key"`
+	StsAssumeRoleArn string `yaml:"sts_assume_role_arn"`
+	StsExternalID    string `yaml:"sts_external_id"`
+	DisableSSL       bool   `yaml:"disable_ssl"`
+	ForceS3PathStyle bool   `yaml:"force_s3_path_style"`
+
+	CarvesBucket             string `yaml:"carves_bucket"`
+	CarvesPrefix             string `yaml:"carves_prefix"`
+	CarvesRegion             string `yaml:"carves_region"`
+	CarvesEndpointURL        string `yaml:"carves_endpoint_url"`
+	CarvesAccessKeyID        string `yaml:"carves_access_key_id"`
+	CarvesSecretAccessKey    string `yaml:"carves_secret_access_key"`
+	CarvesStsAssumeRoleArn   string `yaml:"carves_sts_assume_role_arn"`
+	CarvesStsExternalID      string `yaml:"carves_sts_external_id"`
+	CarvesDisableSSL         bool   `yaml:"carves_disable_ssl"`
+	CarvesForceS3PathStyle   bool   `yaml:"carves_force_s3_path_style"`
+	CarvesGCSIAMAuth         bool   `yaml:"carves_gcs_iam_auth"`
+	CarvesCleanupDisabled    bool   `yaml:"carves_cleanup_disabled"`
+	CarvesCleanupMaxPerRun   int    `yaml:"carves_cleanup_max_per_run"`
+	CarvesCleanupConcurrency int    `yaml:"carves_cleanup_concurrency"`
+
+	SoftwareInstallersBucket                          string        `yaml:"software_installers_bucket"`
+	SoftwareInstallersPrefix                          string        `yaml:"software_installers_prefix"`
+	SoftwareInstallersRegion                          string        `yaml:"software_installers_region"`
+	SoftwareInstallersEndpointURL                     string        `yaml:"software_installers_endpoint_url"`
+	SoftwareInstallersAccessKeyID                     string        `yaml:"software_installers_access_key_id"`
+	SoftwareInstallersSecretAccessKey                 string        `yaml:"software_installers_secret_access_key"`
+	SoftwareInstallersStsAssumeRoleArn                string        `yaml:"software_installers_sts_assume_role_arn"`
+	SoftwareInstallersStsExternalID                   string        `yaml:"software_installers_sts_external_id"`
+	SoftwareInstallersDisableSSL                      bool          `yaml:"software_installers_disable_ssl"`
+	SoftwareInstallersForceS3PathStyle                bool          `yaml:"software_installers_force_s3_path_style"`
+	SoftwareInstallersGCSIAMAuth                      bool          `yaml:"software_installers_gcs_iam_auth"`
+	SoftwareInstallersCloudFrontURL                   string        `yaml:"software_installers_cloudfront_url"`
+	SoftwareInstallersCloudFrontURLSigningPublicKeyID string        `yaml:"software_installers_cloudfront_url_signing_public_key_id"`
+	SoftwareInstallersCloudFrontURLSigningPrivateKey  string        `yaml:"software_installers_cloudfront_url_signing_private_key"`
+	SoftwareInstallersCloudFrontSigner                crypto.Signer `yaml:"-"`
+	// SoftwareInstallersSignedURL, when true, makes AutoMDM hand out presigned
+	// URLs (instead of proxying the bytes) for software installer, in-house
+	// app and bootstrap package uploads and downloads, so clients talk directly
+	// to the object store. Only supported against a GCS (storage.googleapis.com)
+	// endpoint. This is the GCS counterpart to the CloudFront signing config.
+	SoftwareInstallersSignedURL bool `yaml:"software_installers_gcs_signed_url"`
+}
+
+func (s S3Config) ValidateCloudFrontURL(initFatal func(err error, msg string)) {
+	if s.SoftwareInstallersCloudFrontURL != "" {
+		cloudfrontURL, err := url.Parse(s.SoftwareInstallersCloudFrontURL)
+		if err != nil {
+			initFatal(err, "S3 software installers cloudfront URL")
+			return
+		}
+		if cloudfrontURL.Scheme != "https" {
+			initFatal(errors.New("cloudfront url scheme must be https"), "S3 software installers cloudfront URL")
+			return
+		}
+		if s.SoftwareInstallersCloudFrontURLSigningPrivateKey != "" && s.SoftwareInstallersCloudFrontURLSigningPublicKeyID == "" ||
+			s.SoftwareInstallersCloudFrontURLSigningPrivateKey == "" && s.SoftwareInstallersCloudFrontURLSigningPublicKeyID != "" {
+			initFatal(errors.New("Couldn't configure. Both `s3_software_installers_cloudfront_url_signing_public_key_id` and `s3_software_installers_cloudfront_url_signing_private_key` must be set for URL signing."),
+				"S3 software installers cloudfront URL")
+			return
+		}
+		if s.SoftwareInstallersCloudFrontURLSigningPrivateKey == "" && s.SoftwareInstallersCloudFrontURLSigningPublicKeyID == "" {
+			initFatal(errors.New("Couldn't configure. Both `s3_software_installers_cloudfront_url_signing_public_key_id` and `s3_software_installers_cloudfront_url_signing_private_key` must be set when CloudFront distribution URL is set."),
+				"S3 software installers cloudfront URL")
+			return
+		}
+	} else if s.SoftwareInstallersCloudFrontURLSigningPrivateKey != "" || s.SoftwareInstallersCloudFrontURLSigningPublicKeyID != "" {
+		initFatal(errors.New("Couldn't configure. `s3_software_installers_cloudfront_url` must be set to use `s3_software_installers_cloudfront_url_signing_public_key_id` and `s3_software_installers_cloudfront_url_signing_private_key`."),
+			"S3 software installers cloudfront URL")
+		return
+	}
+}
+
+// ValidateSoftwareInstallersSignedURL validates the GCS presigned-URL download
+// option. Presigned downloads are only supported against a GCS endpoint, so we
+// fail fast on any other endpoint to avoid silently proxying large files.
+func (s S3Config) ValidateSoftwareInstallersSignedURL(initFatal func(err error, msg string)) {
+	if !s.SoftwareInstallersSignedURL {
+		return
+	}
+	// Presigned URLs point clients straight at the object store, so require an
+	// https scheme (no plaintext, and newS3Store's resolver needs one) and match
+	// the parsed hostname, not a substring, so a look-alike host can't satisfy it.
+	u, err := url.Parse(s.SoftwareInstallersEndpointURL)
+	if err != nil {
+		initFatal(fmt.Errorf("invalid s3_software_installers_endpoint_url: %w", err),
+			"S3 software installers signed URL")
+		return
+	}
+	if u.Scheme != "https" {
+		initFatal(errors.New("Couldn't configure. `s3_software_installers_gcs_signed_url` requires `s3_software_installers_endpoint_url` to be an https URL (e.g. https://storage.googleapis.com)."),
+			"S3 software installers signed URL")
+		return
+	}
+	host := strings.ToLower(u.Hostname())
+	if host != "storage.googleapis.com" && !strings.HasSuffix(host, ".storage.googleapis.com") {
+		initFatal(errors.New("Couldn't configure. `s3_software_installers_gcs_signed_url` requires `s3_software_installers_endpoint_url` to point at a GCS endpoint (storage.googleapis.com)."),
+			"S3 software installers signed URL")
+		return
+	}
+	// Presigning needs HMAC credentials. Without them it fails at request time and
+	// AutoMDM silently proxies every download, which is what this check prevents.
+	// IAM auth doesn't use HMAC creds and is rejected at store init, so skip it then.
+	if !s.SoftwareInstallersGCSIAMAuth &&
+		(s.SoftwareInstallersAccessKeyID == "" || s.SoftwareInstallersSecretAccessKey == "") {
+		initFatal(errors.New("Couldn't configure. `s3_software_installers_gcs_signed_url` requires `s3_software_installers_access_key_id` and `s3_software_installers_secret_access_key` for presigning."),
+			"S3 software installers signed URL")
+		return
+	}
+}
+
+func (s S3Config) BucketsAndPrefixesMatch() bool {
+	cb := s.CarvesBucket
+	if cb == "" {
+		cb = s.Bucket
+	}
+
+	cp := s.CarvesPrefix
+	if cp == "" {
+		cp = s.Prefix
+	}
+
+	return s.SoftwareInstallersBucket == cb && s.SoftwareInstallersPrefix == cp
+}
+
+func (s S3Config) SoftwareInstallersToInternalCfg() S3ConfigInternal {
+	configInternal := S3ConfigInternal{
+		Bucket:           s.SoftwareInstallersBucket,
+		Prefix:           s.SoftwareInstallersPrefix,
+		Region:           s.SoftwareInstallersRegion,
+		EndpointURL:      s.SoftwareInstallersEndpointURL,
+		AccessKeyID:      s.SoftwareInstallersAccessKeyID,
+		SecretAccessKey:  s.SoftwareInstallersSecretAccessKey,
+		StsAssumeRoleArn: s.SoftwareInstallersStsAssumeRoleArn,
+		StsExternalID:    s.SoftwareInstallersStsExternalID,
+		DisableSSL:       s.SoftwareInstallersDisableSSL,
+		ForceS3PathStyle: s.SoftwareInstallersForceS3PathStyle,
+		GCSIAMAuth:       s.SoftwareInstallersGCSIAMAuth,
+		SignedURL:        s.SoftwareInstallersSignedURL,
+	}
+	if s.SoftwareInstallersCloudFrontSigner != nil {
+		configInternal.CloudFrontConfig = &S3CloudFrontConfig{
+			BaseURL:            s.SoftwareInstallersCloudFrontURL,
+			SigningPublicKeyID: s.SoftwareInstallersCloudFrontURLSigningPublicKeyID,
+			Signer:             s.SoftwareInstallersCloudFrontSigner,
+		}
+	}
+	return configInternal
+}
+
+// CarvesToInternalCfg creates an internal S3 config struct from the ingested S3 config. Note: we
+// fall back to the deprecated fields without the `carves_` prefix for backwards compatibility.
+func (s S3Config) CarvesToInternalCfg() S3ConfigInternal {
+	var internal S3ConfigInternal
+
+	internal.Bucket = s.CarvesBucket
+	if s.CarvesBucket == "" {
+		internal.Bucket = s.Bucket
+	}
+	internal.Prefix = s.CarvesPrefix
+	if s.CarvesPrefix == "" {
+		internal.Prefix = s.Prefix
+	}
+	internal.Region = s.CarvesRegion
+	if s.CarvesRegion == "" {
+		internal.Region = s.Region
+	}
+	internal.EndpointURL = s.CarvesEndpointURL
+	if s.CarvesEndpointURL == "" {
+		internal.EndpointURL = s.EndpointURL
+	}
+	internal.AccessKeyID = s.CarvesAccessKeyID
+	if s.CarvesAccessKeyID == "" {
+		internal.AccessKeyID = s.AccessKeyID
+	}
+	internal.SecretAccessKey = s.CarvesSecretAccessKey
+	if s.CarvesSecretAccessKey == "" {
+		internal.SecretAccessKey = s.SecretAccessKey
+	}
+	internal.StsAssumeRoleArn = s.CarvesStsAssumeRoleArn
+	if s.CarvesStsAssumeRoleArn == "" {
+		internal.StsAssumeRoleArn = s.StsAssumeRoleArn
+	}
+	internal.StsExternalID = s.CarvesStsExternalID
+	if s.CarvesStsExternalID == "" {
+		internal.StsExternalID = s.StsExternalID
+	}
+	internal.DisableSSL = s.CarvesDisableSSL
+	if !s.CarvesDisableSSL {
+		internal.DisableSSL = s.DisableSSL
+	}
+	internal.ForceS3PathStyle = s.CarvesForceS3PathStyle
+	if !s.CarvesForceS3PathStyle {
+		internal.ForceS3PathStyle = s.ForceS3PathStyle
+	}
+	internal.GCSIAMAuth = s.CarvesGCSIAMAuth
+
+	return internal
+}
+
+// S3ConfigInternal is used internally
+type S3ConfigInternal struct {
+	Bucket           string
+	Prefix           string
+	Region           string
+	EndpointURL      string
+	AccessKeyID      string
+	SecretAccessKey  string
+	StsAssumeRoleArn string
+	StsExternalID    string
+	DisableSSL       bool
+	ForceS3PathStyle bool
+	GCSIAMAuth       bool
+	CloudFrontConfig *S3CloudFrontConfig
+	SignedURL        bool
+}
+
+type S3CloudFrontConfig struct {
+	BaseURL            string
+	SigningPublicKeyID string
+	Signer             crypto.Signer
+}
+
+// AzureConfig defines config to enable Azure Blob Storage as an alternative
+// object store to S3 for the software installers group (installers,
+// bootstrap packages, software title icons, org logos). It is purely
+// additive: when unset, storage selection and behavior for S3/GCS deployments
+// are unchanged.
+type AzureConfig struct {
+	SoftwareInstallersAccountName string `yaml:"files_account_name"`
+	SoftwareInstallersAccountKey  string `yaml:"files_account_key"`
+	SoftwareInstallersContainer   string `yaml:"files_container"`
+	// SoftwareInstallersContainerURL overrides the default
+	// https://<account>.blob.core.windows.net endpoint, for Azurite or other
+	// Azure-compatible emulators in tests.
+	SoftwareInstallersContainerURL string `yaml:"files_container_url"`
+	// SoftwareInstallersSignedURL, when true, makes AutoMDM hand out a SAS-signed
+	// GET URL (instead of proxying the bytes) for software installer, in-house
+	// app and bootstrap package downloads. This is the Azure counterpart to the
+	// S3 CloudFront/GCS signed URL configs.
+	SoftwareInstallersSignedURL bool `yaml:"files_signed_url"`
+}
+
+// SoftwareInstallersToInternalCfg creates an internal Azure config struct from
+// the ingested Azure config for the software installers group (installers,
+// bootstrap packages, icons, org logos).
+func (a AzureConfig) SoftwareInstallersToInternalCfg() AzureConfigInternal {
+	return AzureConfigInternal{
+		AccountName:  a.SoftwareInstallersAccountName,
+		AccountKey:   a.SoftwareInstallersAccountKey,
+		Container:    a.SoftwareInstallersContainer,
+		ContainerURL: a.SoftwareInstallersContainerURL,
+		SignedURL:    a.SoftwareInstallersSignedURL,
+	}
+}
+
+// AzureConfigInternal is used internally to configure an Azure Blob Storage
+// client for a given purpose (e.g. software installers).
+type AzureConfigInternal struct {
+	AccountName  string
+	AccountKey   string
+	Container    string
+	ContainerURL string
+	SignedURL    bool
+}
+
+// StorageBackend identifies the object store backing the software installers
+// group (installers, bootstrap packages, software title icons, org logos).
+type StorageBackend string
+
+const (
+	// StorageBackendLocal means no object store is configured; AutoMDM falls back
+	// to the local filesystem/database stores.
+	StorageBackendLocal StorageBackend = ""
+	StorageBackendS3    StorageBackend = "s3"
+	StorageBackendAzure StorageBackend = "azure"
+)
+
+type storageBackendCandidate struct {
+	backend    StorageBackend
+	configured bool
+	// key is the name of the config key that selects this backend, used in
+	// error messages.
+	key string
+}
+
+// softwareInstallersBackendCandidates is the single place that knows where
+// each backend's selecting config lives. To add a backend (or to move S3 under
+// CloudStorage), only this list needs to change.
+func (f AutoMDMConfig) softwareInstallersBackendCandidates() []storageBackendCandidate {
+	return []storageBackendCandidate{
+		{StorageBackendS3, f.S3.SoftwareInstallersBucket != "", "s3_software_installers_bucket"},
+		{StorageBackendAzure, f.CloudStorage.Azure.SoftwareInstallersContainer != "", "cloud_storage.azure.files_container"},
+	}
+}
+
+// SoftwareInstallersBackend returns the object store configured for the
+// software installers group, or an error if more than one is configured since
+// only one backend can be selected.
+func (f AutoMDMConfig) SoftwareInstallersBackend() (StorageBackend, error) {
+	var keys []string
+	backend := StorageBackendLocal
+	for _, cand := range f.softwareInstallersBackendCandidates() {
+		if cand.configured {
+			backend = cand.backend
+			keys = append(keys, "`"+cand.key+"`")
+		}
+	}
+	switch {
+	case len(keys) > 2:
+		return StorageBackendLocal, fmt.Errorf("Couldn't configure. %s cannot all be set; choose one storage backend for software installers.", strings.Join(keys, ", "))
+	case len(keys) == 2:
+		return StorageBackendLocal, fmt.Errorf("Couldn't configure. %s and %s cannot both be set; choose one storage backend for software installers.", keys[0], keys[1])
+	}
+	return backend, nil
+}
+
+// ValidateSoftwareInstallersBackend fails initialization if more than one
+// object store is configured for the software installers group.
+func (f AutoMDMConfig) ValidateSoftwareInstallersBackend(initFatal func(err error, msg string)) {
+	if _, err := f.SoftwareInstallersBackend(); err != nil {
+		initFatal(err, "software installers storage")
+	}
+}
+
+// SoftwareInstallersSignedURLEnabled reports whether downloads of software
+// installers and in-house apps should be handed out as signed URLs (pointing
+// directly at the object store) instead of proxying the bytes through AutoMDM.
+// Only the signing settings of the selected storage backend are considered.
+func (f AutoMDMConfig) SoftwareInstallersSignedURLEnabled() bool {
+	backend, err := f.SoftwareInstallersBackend()
+	if err != nil {
+		return false
+	}
+	switch backend {
+	case StorageBackendS3:
+		return f.S3.SoftwareInstallersCloudFrontSigner != nil || f.S3.SoftwareInstallersSignedURL
+	case StorageBackendAzure:
+		return f.CloudStorage.Azure.SoftwareInstallersSignedURL
+	default:
+		return false
+	}
+}
+
+// StagedUploadAvailable reports whether clients can upload packages straight
+// to object storage. Only supported with S3-compatible storage for now.
+func (f AutoMDMConfig) StagedUploadAvailable() bool {
+	return f.S3.SoftwareInstallersSignedURL && f.S3.SoftwareInstallersBucket != ""
+}
+
+// PubSubConfig defines configs the for Google PubSub logging plugin
+type PubSubConfig struct {
+	Project       string `json:"project"`
+	StatusTopic   string `json:"status_topic" yaml:"status_topic"`
+	ResultTopic   string `json:"result_topic" yaml:"result_topic"`
+	AuditTopic    string `json:"audit_topic" yaml:"audit_topic"`
+	AddAttributes bool   `json:"add_attributes" yaml:"add_attributes"`
+}
+
+// FilesystemConfig defines configs for the Filesystem logging plugin
+type FilesystemConfig struct {
+	StatusLogFile        string `json:"status_log_file" yaml:"status_log_file"`
+	ResultLogFile        string `json:"result_log_file" yaml:"result_log_file"`
+	AuditLogFile         string `json:"audit_log_file" yaml:"audit_log_file"`
+	EnableLogRotation    bool   `json:"enable_log_rotation" yaml:"enable_log_rotation"`
+	EnableLogCompression bool   `json:"enable_log_compression" yaml:"enable_log_compression"`
+	MaxSize              int    `json:"max_size" yaml:"max_size"`
+	MaxAge               int    `json:"max_age" yaml:"max_age"`
+	MaxBackups           int    `json:"max_backups" yaml:"max_backups"`
+}
+
+type WebhookConfig struct {
+	StatusURL string `json:"status_url" yaml:"status_url"`
+	ResultURL string `json:"result_url" yaml:"result_url"`
+}
+
+// KafkaRESTConfig defines configs for the Kafka REST Proxy logging plugin.
+type KafkaRESTConfig struct {
+	StatusTopic      string `json:"status_topic" yaml:"status_topic"`
+	ResultTopic      string `json:"result_topic" yaml:"result_topic"`
+	AuditTopic       string `json:"audit_topic" yaml:"audit_topic"`
+	ProxyHost        string `json:"proxyhost" yaml:"proxyhost"`
+	ContentTypeValue string `json:"content_type_value" yaml:"content_type_value"`
+	Timeout          int    `json:"timeout" yaml:"timeout"`
+}
+
+// SplunkConfig defines configs for the Splunk HEC logging plugin.
+type SplunkConfig struct {
+	URL                string `json:"url" yaml:"url"`
+	Token              string `json:"token" yaml:"token"`
+	Index              string `json:"index" yaml:"index"`
+	Source             string `json:"source" yaml:"source"`
+	SourceType         string `json:"source_type" yaml:"source_type"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify" yaml:"insecure_skip_verify"`
+}
+
+// NatsConfig defines configs for the NATS logging plugin.
+type NatsConfig struct {
+	StatusSubject    string        `json:"status_subject" yaml:"status_subject"`
+	ResultSubject    string        `json:"result_subject" yaml:"result_subject"`
+	AuditSubject     string        `json:"audit_subject" yaml:"audit_subject"`
+	Server           string        `json:"server" yaml:"server"`
+	CredFile         string        `json:"cred_file" yaml:"cred_file"`
+	NKeyFile         string        `json:"nkey_file" yaml:"nkey_file"`
+	TLSClientCrtFile string        `json:"tls_client_crt_file" yaml:"tls_client_crt_file"`
+	TLSClientKeyFile string        `json:"tls_client_key_file" yaml:"tls_client_key_file"`
+	CACrtFile        string        `json:"ca_crt_file" yaml:"ca_crt_file"`
+	Compression      string        `json:"compression" yaml:"compression"`
+	JetStream        bool          `json:"jetstream" yaml:"jetstream"`
+	Timeout          time.Duration `json:"timeout" yaml:"timeout"`
+}
+
+// LicenseConfig defines configs related to licensing AutoMDM.
+type LicenseConfig struct {
+	Key              string `yaml:"key"`
+	EnforceHostLimit bool   `yaml:"enforce_host_limit"`
+}
+
+// VulnerabilitiesConfig defines configs related to vulnerability processing within AutoMDM.
+type VulnerabilitiesConfig struct {
+	DatabasesPath               string        `json:"databases_path" yaml:"databases_path"`
+	Periodicity                 time.Duration `json:"periodicity" yaml:"periodicity"`
+	CPEDatabaseURL              string        `json:"cpe_database_url" yaml:"cpe_database_url"`
+	CPETranslationsURL          string        `json:"cpe_translations_url" yaml:"cpe_translations_url"`
+	CVEFeedPrefixURL            string        `json:"cve_feed_prefix_url" yaml:"cve_feed_prefix_url"`
+	CISAKnownExploitsURL        string        `json:"cisa_known_exploits_url" yaml:"cisa_known_exploits_url"`
+	CurrentInstanceChecks       string        `json:"current_instance_checks" yaml:"current_instance_checks"`
+	DisableSchedule             bool          `json:"disable_schedule" yaml:"disable_schedule"`
+	DisableDataSync             bool          `json:"disable_data_sync" yaml:"disable_data_sync"`
+	RecentVulnerabilityMaxAge   time.Duration `json:"recent_vulnerability_max_age" yaml:"recent_vulnerability_max_age"`
+	DisableWinOSVulnerabilities bool          `json:"disable_win_os_vulnerabilities" yaml:"disable_win_os_vulnerabilities"`
+	OSVForVulnerabilities       bool          `json:"osv_for_vulnerabilities" yaml:"osv_for_vulnerabilities"`
+	MaxConcurrency              int           `json:"max_concurrency" yaml:"max_concurrency"`
+}
+
+// IsDisabledByInstanceCheck reports whether vulnerability processing is disabled
+// on this instance via the current_instance_checks setting ("no", or the legacy
+// "0"). It does not consider DisableSchedule, which disables processing globally.
+func (v VulnerabilitiesConfig) IsDisabledByInstanceCheck() bool {
+	return v.CurrentInstanceChecks == "no" || v.CurrentInstanceChecks == "0"
+}
+
+// UpgradesConfig defines configs related to automdm server upgrades.
+type UpgradesConfig struct {
+	AllowMissingMigrations bool `json:"allow_missing_migrations" yaml:"allow_missing_migrations"`
+}
+
+type SentryConfig struct {
+	Dsn string `json:"dsn"`
+}
+
+type GeoIPConfig struct {
+	DatabasePath string `json:"database_path" yaml:"database_path"`
+}
+
+// PrometheusConfig holds the configuration for AutoMDM's prometheus metrics.
+type PrometheusConfig struct {
+	// BasicAuth is the HTTP Basic BasicAuth configuration.
+	BasicAuth HTTPBasicAuthConfig `json:"basic_auth" yaml:"basic_auth"`
+}
+
+// HTTPBasicAuthConfig holds configuration for HTTP Basic Auth.
+type HTTPBasicAuthConfig struct {
+	// Username is the HTTP Basic Auth username.
+	Username string `json:"username" yaml:"username"`
+	// Password is the HTTP Basic Auth password.
+	Password string `json:"password" yaml:"password"`
+	// Disable allows running the Prometheus metrics endpoint without Basic Auth.
+	Disable bool `json:"disable" yaml:"disable"`
+}
+
+// PackagingConfig holds configuration to build and retrieve AutoMDM packages
+//
+// Deprecated: "packaging" fields were used for "AutoMDM Sandbox" which doesn't exist anymore.
+type PackagingConfig struct {
+	// GlobalEnrollSecret is the enroll secret that will be used to enroll
+	// hosts in the global scope
+	GlobalEnrollSecret string `yaml:"global_enroll_secret"`
+	// S3 configuration used to retrieve pre-built installers
+	S3 S3Config `yaml:"s3"`
+}
+
+// AutoMDMConfig stores the application configuration. Each subcategory is
+// broken up into it's own struct, defined above. When editing any of these
+// structs, Manager.addConfigs and Manager.LoadConfig should be
+// updated to set and retrieve the configurations as appropriate.
+type AutoMDMConfig struct {
+	Mysql                      MysqlConfig
+	MysqlReadReplica           MysqlConfig `yaml:"mysql_read_replica"`
+	Redis                      RedisConfig
+	Server                     ServerConfig
+	Auth                       AuthConfig
+	App                        AppConfig
+	Session                    SessionConfig
+	Osquery                    OsqueryConfig
+	Activity                   ActivityConfig
+	Logging                    LoggingConfig
+	Firehose                   FirehoseConfig
+	Kinesis                    KinesisConfig
+	Lambda                     LambdaConfig
+	S3                         S3Config
+	CloudStorage               CloudStorageConfig `yaml:"cloud_storage"`
+	Email                      EmailConfig
+	SES                        SESConfig
+	PubSub                     PubSubConfig
+	Filesystem                 FilesystemConfig
+	Webhook                    WebhookConfig
+	KafkaREST                  KafkaRESTConfig
+	Nats                       NatsConfig
+	Splunk                     SplunkConfig
+	License                    LicenseConfig
+	Vulnerabilities            VulnerabilitiesConfig
+	Upgrades                   UpgradesConfig
+	Sentry                     SentryConfig
+	GeoIP                      GeoIPConfig
+	Prometheus                 PrometheusConfig
+	MDM                        MDMConfig
+	Calendar                   CalendarConfig
+	GoogleWorkspace            GoogleWorkspaceConfig `yaml:"google_workspace"`
+	Partnerships               PartnershipsConfig
+	MicrosoftCompliancePartner MicrosoftCompliancePartnerConfig `yaml:"microsoft_compliance_partner"`
+	GoogleConditionalAccess    GoogleConditionalAccessConfig    `yaml:"google_conditional_access"`
+	ConditionalAccess          ConditionalAccessConfig          `yaml:"conditional_access"`
+	WebSocket                  WebSocketConfig                  `yaml:"websocket"`
+
+	// Deprecated: "packaging" fields were used for "AutoMDM Sandbox" which doesn't exist anymore.
+	Packaging PackagingConfig
+}
+
+func (f AutoMDMConfig) OTELEnabled() bool {
+	return f.Logging.TracingEnabled
+}
+
+type PartnershipsConfig struct {
+	EnableSecureframe bool `yaml:"enable_secureframe"`
+	EnablePrimo       bool `yaml:"enable_primo"`
+}
+
+// Certificate serial number format constants for conditional access
+const (
+	CertSerialFormatHex     = "hex"
+	CertSerialFormatDecimal = "decimal"
+)
+
+// ConditionalAccessConfig holds the server configuration for the Okta conditional access feature.
+type ConditionalAccessConfig struct {
+	// CertSerialFormat specifies the format for parsing certificate serial numbers from
+	// the X-Client-Cert-Serial header. AWS ALB sends hex format, while Caddy sends decimal.
+	// Valid values: "hex" (default), "decimal"
+	CertSerialFormat string `yaml:"cert_serial_format"`
+}
+
+// Validate checks that the ConditionalAccessConfig has valid values.
+func (c ConditionalAccessConfig) Validate(initFatal func(err error, msg string)) {
+	switch c.CertSerialFormat {
+	case CertSerialFormatHex, CertSerialFormatDecimal:
+		return
+	default:
+		initFatal(
+			fmt.Errorf("%q is not a valid value (must be %q or %q)", c.CertSerialFormat, CertSerialFormatHex, CertSerialFormatDecimal),
+			"conditional_access.cert_serial_format",
+		)
+	}
+}
+
+// WebSocketConfig holds the server configuration for the agent WebSocket
+// notification transport (ADR-0011). When TransportEnabled is false (the
+// default), the WebSocket endpoint is not registered and agents poll as usual.
+type WebSocketConfig struct {
+	TransportEnabled bool          `yaml:"transport_enabled"`
+	PingInterval     time.Duration `yaml:"ping_interval"`
+	PongTimeout      time.Duration `yaml:"pong_timeout"`
+	CheckInterval    time.Duration `yaml:"check_interval"`
+	CheckBatchSize   int           `yaml:"check_batch_size"`
+	// OrbitConfigEnabled turns on orbit/config nudges: connected agents are
+	// notified when their orbit config changes and poll it every
+	// OrbitConfigPollInterval as a fallback, instead of every 30s.
+	OrbitConfigEnabled      bool          `yaml:"orbit_config_enabled"`
+	OrbitConfigPollInterval time.Duration `yaml:"orbit_config_poll_interval"`
+	// OrbitConfigSpread is the window over which an instance paces the
+	// nudges of a fleet-wide or global change across the agents it holds.
+	OrbitConfigSpread time.Duration `yaml:"orbit_config_spread"`
+	// OsqueryConfigEnabled turns on osquery/config nudges: connected agents
+	// serve osquery its config from orbit, fetching it from the server when
+	// notified of a change and every OsqueryConfigPollInterval as a fallback.
+	OsqueryConfigEnabled      bool          `yaml:"osquery_config_enabled"`
+	OsqueryConfigPollInterval time.Duration `yaml:"osquery_config_poll_interval"`
+}
+
+// ScopedNotificationsEnabled reports whether any nudge type targeting a whole
+// team or every host is enabled.
+func (w WebSocketConfig) ScopedNotificationsEnabled() bool {
+	return w.OrbitConfigEnabled || w.OsqueryConfigEnabled
+}
+
+// minOrbitConfigPollInterval is orbit's default poll interval: a slower
+// fallback is the point of the setting.
+const minOrbitConfigPollInterval = 30 * time.Second
+
+// minOsqueryConfigPollInterval is osquery's default config refresh with automdmd.
+const minOsqueryConfigPollInterval = time.Minute
+
+// Validate checks that the WebSocketConfig has valid values. The values feed
+// tickers and batch loops, so zero or negative values would panic or spin.
+func (w WebSocketConfig) Validate(initFatal func(err error, msg string)) {
+	if !w.TransportEnabled {
+		if w.OrbitConfigEnabled {
+			initFatal(errors.New("requires websocket.transport_enabled"), "websocket.orbit_config_enabled")
+		}
+		if w.OsqueryConfigEnabled {
+			initFatal(errors.New("requires websocket.transport_enabled"), "websocket.osquery_config_enabled")
+		}
+		return
+	}
+	if w.OrbitConfigEnabled {
+		if w.OrbitConfigPollInterval < minOrbitConfigPollInterval {
+			initFatal(fmt.Errorf("must be at least %s", minOrbitConfigPollInterval), "websocket.orbit_config_poll_interval")
+		}
+	}
+	if w.OsqueryConfigEnabled {
+		if w.OsqueryConfigPollInterval < minOsqueryConfigPollInterval {
+			initFatal(fmt.Errorf("must be at least %s", minOsqueryConfigPollInterval), "websocket.osquery_config_poll_interval")
+		}
+	}
+	if w.ScopedNotificationsEnabled() && w.OrbitConfigSpread < 0 {
+		initFatal(errors.New("must not be negative"), "websocket.orbit_config_spread")
+	}
+	for name, ok := range map[string]bool{
+		"websocket.ping_interval":    w.PingInterval > 0,
+		"websocket.pong_timeout":     w.PongTimeout > 0,
+		"websocket.check_interval":   w.CheckInterval > 0,
+		"websocket.check_batch_size": w.CheckBatchSize > 0,
+	} {
+		if !ok {
+			initFatal(errors.New("must be greater than 0"), name)
+		}
+	}
+}
+
+// DefaultMicrosoftCompliancePartnerClientID is the client ID of AutoMDM's production
+// Microsoft Compliance Partner app (the one automdm.com's proxy uses).
+const DefaultMicrosoftCompliancePartnerClientID = "f505600d-d90e-4bd0-bea4-065e48377bd6"
+
+// MicrosoftCompliancePartnerConfig holds the server configuration for the "Conditional access" feature.
+type MicrosoftCompliancePartnerConfig struct {
+	// ProxyURI is the URI of the Microsoft Compliance Partner proxy (for development/testing).
+	ProxyURI string `yaml:"proxy_uri"`
+	// ClientID is the client ID of AutoMDM's multi-tenant Entra app, the audience of the
+	// device ID tokens reported by macOS hosts.
+	ClientID string `yaml:"client_id"`
+}
+
+// GoogleConditionalAccessConfig holds the server configuration for Google conditional access.
+type GoogleConditionalAccessConfig struct {
+	// ProxyURI is the URI of the automdm.com relay (for development/testing).
+	ProxyURI string `yaml:"proxy_uri"`
+}
+
+type MDMConfig struct {
+	AppleAPNsCert      string `yaml:"apple_apns_cert"`
+	AppleAPNsCertBytes string `yaml:"apple_apns_cert_bytes"`
+	AppleAPNsKey       string `yaml:"apple_apns_key"`
+	AppleAPNsKeyBytes  string `yaml:"apple_apns_key_bytes"`
+	AppleSCEPCert      string `yaml:"apple_scep_cert"`
+	AppleSCEPCertBytes string `yaml:"apple_scep_cert_bytes"`
+	AppleSCEPKey       string `yaml:"apple_scep_key"`
+	AppleSCEPKeyBytes  string `yaml:"apple_scep_key_bytes"`
+
+	// the following fields hold the parsed, validated TLS certificate set the
+	// first time AppleAPNs or AppleSCEP is called, as well as the PEM-encoded
+	// bytes for the certificate and private key.
+	appleAPNs        *tls.Certificate
+	appleAPNsPEMCert []byte
+	appleAPNsPEMKey  []byte
+	appleSCEP        *tls.Certificate
+	appleSCEPPEMCert []byte
+	appleSCEPPEMKey  []byte
+
+	AppleBMServerToken      string `yaml:"apple_business_server_token"`
+	AppleBMServerTokenBytes string `yaml:"apple_business_server_token_bytes"`
+	AppleBMCert             string `yaml:"apple_business_cert"`
+	AppleBMCertBytes        string `yaml:"apple_business_cert_bytes"`
+	AppleBMKey              string `yaml:"apple_business_key"`
+	AppleBMKeyBytes         string `yaml:"apple_business_key_bytes"`
+
+	// the following fields hold the PEM-encoded bytes for the certificate
+	// and private key set the first time AppleBM is called
+	appleBMPEMCert  []byte
+	appleBMPEMKey   []byte
+	appleBMRawToken []byte
+
+	// the following fields hold the decrypted, validated Apple BM token set the
+	// first time AppleBM is called.
+	appleBMToken *nanodep_client.OAuth1Tokens
+
+	// AppleEnable enables Apple MDM functionality on AutoMDM.
+	AppleEnable bool `yaml:"apple_enable"`
+	// AppleMachineInfoVerify controls whether the CMS/PKCS7 signature on Apple's
+	// x-apple-aspen-deviceinfo (MachineInfo) blob is verified during enrollment.
+	// Enabled by default; set to false to run verification in audit mode (log
+	// failures without blocking enrollment).
+	AppleMachineInfoVerify bool `yaml:"apple_machineinfo_verify"`
+	// AppleDEPSyncPeriodicity is the duration between DEP device syncing
+	// (fetching and setting of DEP profiles).
+	AppleDEPSyncPeriodicity time.Duration `yaml:"apple_dep_sync_periodicity"`
+	// AppleAPNsPushExpiration is the value used for the apns-expiration header
+	// on APNs push notifications, so APNs stores and retries delivery to
+	// offline devices until then. Zero or negative omits the header.
+	AppleAPNsPushExpiration time.Duration `yaml:"apple_apns_push_expiration"`
+	// AppleAPNsSweepInterval is the tick interval of the APNs sweep cron,
+	// which walks enabled enrollments in daily laps and re-pushes any silent
+	// for more than a day.
+	AppleAPNsSweepInterval time.Duration `yaml:"apple_apns_sweep_interval"`
+	// AppleCommandCleanupShortRetention is how long completed recurring Apple
+	// MDM commands (refetches, device renames, VPP verifications, DDM tickles)
+	// and inactive queue rows are kept before the hourly cleanup deletes them.
+	// Zero disables the tier; otherwise the floor is one hour.
+	AppleCommandCleanupShortRetention time.Duration `yaml:"apple_command_cleanup_short_retention"`
+	// AppleCommandCleanupStandardRetention is the same window for every other
+	// completed command type on the deletion allowlist.
+	AppleCommandCleanupStandardRetention time.Duration `yaml:"apple_command_cleanup_standard_retention"`
+	// AppleCommandCleanupMaxRowDeletionsPerRun caps queue/result pairs deleted
+	// per cleanup run; zero stops pair deletion.
+	AppleCommandCleanupMaxRowDeletionsPerRun int `yaml:"apple_command_cleanup_max_row_deletions_per_run"`
+	// AppleCommandCleanupMaxCmdDeletionsPerRun caps nano_commands rows deleted
+	// per cleanup run; zero stops command deletion.
+	AppleCommandCleanupMaxCmdDeletionsPerRun int `yaml:"apple_command_cleanup_max_command_deletions_per_run"`
+	// AppleSCEPChallenge is the SCEP challenge for SCEP enrollment requests.
+	AppleSCEPChallenge string `yaml:"apple_scep_challenge"`
+	// AppleSCEPSignerValidityDays are the days signed client certificates will
+	// be valid.
+	AppleSCEPSignerValidityDays int `yaml:"apple_scep_signer_validity_days"`
+	// AppleConnectJWT is the Apple Connect JWT used to access VPP app metadata.
+	// If supplied, AutoMDM will contact the Apple API directly rather than checking the AutoMDM proxy
+	AppleConnectJWT string `yaml:"apple_vpp_app_metadata_api_bearer_token"`
+
+	// WindowsWSTEPIdentityCert is the path to the certificate used to sign
+	// WSTEP responses.
+	WindowsWSTEPIdentityCert string `yaml:"windows_wstep_identity_cert"`
+	// WindowsWSTEPIdentityCertBytes is the content of the certificate used to sign
+	// WSTEP responses.
+	WindowsWSTEPIdentityCertBytes string `yaml:"windows_wstep_identity_cert_bytes"`
+	// WindowsWSTEPIdentityKey is the path to the private key used to sign
+	// WSTEP responses.
+	WindowsWSTEPIdentityKey string `yaml:"windows_wstep_identity_key"`
+	// WindowsWSTEPIdentityKey is the content of the private key used to sign
+	// WSTEP responses.
+	WindowsWSTEPIdentityKeyBytes string `yaml:"windows_wstep_identity_key_bytes"`
+	// WindowsEnrollmentRetention is how long an orphaned or superseded Windows
+	// MDM enrollment is kept after its host was deleted or it was last
+	// updated, whichever is later, before the hourly cleanup deletes it. Zero
+	// or negative disables the cleanup.
+	WindowsEnrollmentRetention time.Duration `yaml:"windows_enrollment_retention"`
+	// WindowsCommandRetention is the minimum age of Windows MDM command history
+	// (raw responses, results and commands) before the hourly cleanup deletes
+	// it, measured from when a row was recorded or, for results, last updated.
+	// Queued commands and the wipe a host's status depends on are kept
+	// regardless. Non-positive disables the cleanup.
+	WindowsCommandRetention time.Duration `yaml:"windows_command_retention"`
+
+	// the following fields hold the parsed, validated TLS certificate set the
+	// first time Microsoft WSTEP is called, as well as the PEM-encoded
+	// bytes for the certificate and private key.
+	microsoftWSTEP        *tls.Certificate
+	microsoftWSTEPCertPEM []byte
+	microsoftWSTEPKeyPEM  []byte
+
+	SSORateLimitPerMinute    int `yaml:"sso_rate_limit_per_minute"`
+	CertificateProfilesLimit int `yaml:"certificate_profiles_limit"`
+	// Deprecated: Use EnableCustomFileVault instead, as Custom OS updates is now allowed by default, and has no effect.
+	EnableCustomOSUpdatesAndFileVault bool `yaml:"enable_custom_os_updates_and_filevault"`
+	EnableCustomFileVault             bool `yaml:"enable_custom_filevault"`
+	// EnableCustomDiskEncryption is a cross-platform alias for EnableCustomFileVault.
+	EnableCustomDiskEncryption bool `yaml:"enable_custom_disk_encryption"`
+	AllowAllDeclarations       bool `yaml:"allow_all_declarations"`
+	// AllowCustomActivations opts in to custom DDM activations. Off by default
+	// because a predicate AutoMDM cannot validate can wedge a host's MDM
+	// subsystem beyond remote recovery -- see Apple FB24193230 and #50764.
+	AllowCustomActivations bool `yaml:"allow_custom_activations"`
+
+	// AllowOrbitEndUserAuthBypass controls whether an Orbit/automdmd host that does
+	// not complete end user authentication is allowed to enroll into a team that
+	// requires it. Defaults to true so that agents predating end user
+	// authentication, installers built with `automdmctl package
+	// --bypass-end-user-auth`, and macOS hosts enrolling automdmd before MDM can
+	// still enroll. Set to false to strictly enforce end user authentication for
+	// all Orbit enrollments on every platform.
+	AllowOrbitEndUserAuthBypass bool `yaml:"allow_orbit_end_user_auth_bypass"`
+
+	// AppleOneTimeEnrollSecrets delivers one-time, device-scoped enroll secrets
+	// to macOS MDM hosts in the automdmd configuration profile and rejects shared
+	// enroll secrets for hosts enrolled in AutoMDM or assigned in ABM.
+	AppleOneTimeEnrollSecrets bool `yaml:"apple_one_time_enroll_secrets"`
+	// WindowsOneTimeEnrollSecrets is the Windows counterpart of AppleOneTimeEnrollSecrets. The two are separate switches
+	// because the platforms deliver the secret by different mechanisms and can be rolled out independently.
+	WindowsOneTimeEnrollSecrets bool `yaml:"windows_one_time_enroll_secrets"`
+	// AndroidOneTimeEnrollSecrets is the Android counterpart: the AutoMDM Android agent gets its secret through the AMAPI managed
+	// configuration, and shared enroll secrets are rejected for Android hosts enrolled in AutoMDM.
+	AndroidOneTimeEnrollSecrets bool `yaml:"android_one_time_enroll_secrets"`
+
+	AndroidAgent     AndroidAgentConfig `yaml:"android_agent"`
+	AndroidBatchSize int                `yaml:"android_batch_size"`
+
+	// IOSIPadOSRefetchBatchSize caps how many iOS/iPadOS hosts the refetch
+	// cron sends refetch commands to per tick.
+	IOSIPadOSRefetchBatchSize int `yaml:"ios_ipados_refetch_batch_size"`
+
+	// AppleSCEPStaticChallengeEnabled controls whether static SCEP challenges are allowed alongside dynamic challenges.
+	AppleSCEPStaticChallengeEnabled bool `yaml:"apple_scep_static_challenge_enabled"`
+}
+
+// IsCustomDiskEncryptionEnabled reports whether custom disk encryption configuration profiles are allowed. Any of the equivalent
+// (and deprecated) options enables the behavior.
+// OneTimeEnrollSecretsEnabled reports whether any platform mints one-time enroll secrets. An enrolling agent presents a
+// secret without saying which platform minted it, so the lookup has to run whenever any switch is on.
+func (m MDMConfig) OneTimeEnrollSecretsEnabled() bool {
+	return m.AppleOneTimeEnrollSecrets || m.WindowsOneTimeEnrollSecrets || m.AndroidOneTimeEnrollSecrets
+}
+
+// OneTimeEnrollSecretsEnabledForPlatform reports whether one-time enroll secrets minted for the given platform are honored.
+func (m MDMConfig) OneTimeEnrollSecretsEnabledForPlatform(platform string) bool {
+	switch platform {
+	case "windows":
+		return m.WindowsOneTimeEnrollSecrets
+	case "android":
+		return m.AndroidOneTimeEnrollSecrets
+	}
+	return m.AppleOneTimeEnrollSecrets
+}
+
+func (m MDMConfig) IsCustomDiskEncryptionEnabled() bool {
+	return m.EnableCustomOSUpdatesAndFileVault || m.EnableCustomFileVault || m.EnableCustomDiskEncryption
+}
+
+// ValidateAndroidBatchSize checks that the configured batch size is non-negative.
+func (m MDMConfig) ValidateAndroidBatchSize(initFatal func(err error, msg string)) {
+	if m.AndroidBatchSize < 0 {
+		initFatal(errors.New("mdm.android_batch_size must be non-negative (0 = no limit)"),
+			"Android MDM configuration")
+	}
+}
+
+// ValidateAppleIOSIPadOSRefetchBatchSize checks that the configured batch size is positive.
+func (m MDMConfig) ValidateAppleIOSIPadOSRefetchBatchSize(initFatal func(err error, msg string)) {
+	if m.IOSIPadOSRefetchBatchSize <= 0 {
+		initFatal(errors.New("mdm.ios_ipados_refetch_batch_size must be positive"),
+			"Apple MDM configuration")
+	}
+}
+
+// appleCommandCleanupMinRetention is the floor for a non-zero retention window:
+// a mistyped short value must not sweep commands out from under in-flight
+// operations.
+const appleCommandCleanupMinRetention = time.Hour
+
+// ValidateAppleCommandCleanup checks the Apple MDM command cleanup knobs: a
+// retention window is either 0 (tier disabled) or at least one hour, and the
+// per-run deletion caps are non-negative.
+func (m MDMConfig) ValidateAppleCommandCleanup(initFatal func(err error, msg string)) {
+	const msg = "Apple MDM configuration"
+	retentions := []struct {
+		key string
+		val time.Duration
+	}{
+		{"mdm.apple_command_cleanup_short_retention", m.AppleCommandCleanupShortRetention},
+		{"mdm.apple_command_cleanup_standard_retention", m.AppleCommandCleanupStandardRetention},
+	}
+	for _, r := range retentions {
+		if r.val != 0 && r.val < appleCommandCleanupMinRetention {
+			initFatal(fmt.Errorf("%s must be 0 (disabled) or at least %s", r.key, appleCommandCleanupMinRetention), msg)
+		}
+	}
+	caps := []struct {
+		key string
+		val int
+	}{
+		{"mdm.apple_command_cleanup_max_row_deletions_per_run", m.AppleCommandCleanupMaxRowDeletionsPerRun},
+		{"mdm.apple_command_cleanup_max_command_deletions_per_run", m.AppleCommandCleanupMaxCmdDeletionsPerRun},
+	}
+	for _, c := range caps {
+		if c.val < 0 {
+			initFatal(fmt.Errorf("%s must be non-negative (0 = no deletions)", c.key), msg)
+		}
+	}
+}
+
+// AndroidAgentConfig holds configuration for the AutoMDM Android agent.
+type AndroidAgentConfig struct {
+	// Package is the package name for the AutoMDM Android agent.
+	// Default: com.fleetdm.agent
+	Package string `yaml:"package"`
+	// SigningSHA256 is the signing certificate SHA256 fingerprint for the AutoMDM Android agent.
+	SigningSHA256 string `yaml:"signing_sha256"`
+}
+
+// Validate checks that the AndroidAgentConfig is valid.
+// Both package and signing_sha256 must be set together, or both must be empty.
+func (c AndroidAgentConfig) Validate(initFatal func(err error, msg string)) {
+	if c.Package != "" && c.SigningSHA256 == "" {
+		initFatal(errors.New("mdm.android_agent.signing_sha256 must be set when mdm.android_agent.package is set"),
+			"Android agent configuration")
+	}
+	if c.SigningSHA256 != "" && c.Package == "" {
+		initFatal(errors.New("mdm.android_agent.package must be set when mdm.android_agent.signing_sha256 is set"),
+			"Android agent configuration")
+	}
+}
+
+type CalendarConfig struct {
+	Periodicity time.Duration
+	// Hide alwaysReloadEvent from YAML config
+	alwaysReloadEvent bool
+}
+
+func (c *CalendarConfig) AlwaysReloadEvent() bool {
+	return c.alwaysReloadEvent
+}
+
+func (c *CalendarConfig) SetAlwaysReloadEvent(value bool) {
+	c.alwaysReloadEvent = value
+}
+
+// Defaults for the Google Workspace directory sync limits. They are safety rails
+// against runaway pagination and unbounded memory growth, sized above what any real
+// tenant is expected to have, not tuning knobs:
+//
+//   - Users: Google publishes no per-account cap; 500,000 (1,000 pages of 500) is
+//     far above the largest directory AutoMDM expects to sync.
+//   - Groups: also uncapped by Google. 100,000 also bounds the per-group member
+//     fan-out, since members are fetched one group at a time (it does not bound how
+//     long a pass takes: 100,000 sequential member listings is already a long sync).
+//   - Members per group: Google itself enforces a hard limit of 50,000 direct
+//     members per group, so 60,000 sits just above a ceiling Google won't exceed.
+//   - Total memberships: every group's members are held until the pull is
+//     reconciled, so the sum is the dominant memory term.
+const (
+	DefaultGoogleWorkspaceMaxUsers            = 500_000
+	DefaultGoogleWorkspaceMaxGroups           = 100_000
+	DefaultGoogleWorkspaceMaxGroupMembers     = 60_000
+	DefaultGoogleWorkspaceMaxGroupMemberships = 5_000_000
+)
+
+// GoogleWorkspaceConfig holds the limits applied to one directory sync pass. These
+// are hidden settings: they exist so an operator with a directory larger than the
+// defaults can be unblocked without waiting for an AutoMDM release. A value of 0
+// disables the corresponding limit.
+type GoogleWorkspaceConfig struct {
+	MaxUsers            int `yaml:"max_users"`
+	MaxGroups           int `yaml:"max_groups"`
+	MaxGroupMembers     int `yaml:"max_group_members"`
+	MaxGroupMemberships int `yaml:"max_group_memberships"`
+}
+
+// Validate checks that the sync limits are non-negative, so a typo can't silently
+// disable a safety rail.
+func (g GoogleWorkspaceConfig) Validate(initFatal func(err error, msg string)) {
+	for setting, value := range map[string]int{
+		"google_workspace.max_users":             g.MaxUsers,
+		"google_workspace.max_groups":            g.MaxGroups,
+		"google_workspace.max_group_members":     g.MaxGroupMembers,
+		"google_workspace.max_group_memberships": g.MaxGroupMemberships,
+	} {
+		if value < 0 {
+			initFatal(fmt.Errorf("%s must be non-negative (0 = no limit), got %d", setting, value),
+				"Google Workspace configuration")
+		}
+	}
+}
+
+type x509KeyPairConfig struct {
+	certPath  string
+	certBytes []byte
+	keyPath   string
+	keyBytes  []byte
+}
+
+func (x *x509KeyPairConfig) IsSet() bool {
+	// if any setting is provided, then the key pair is considered set
+	return x.certPath != "" || len(x.certBytes) != 0 || x.keyPath != "" || len(x.keyBytes) != 0
+}
+
+func (x *x509KeyPairConfig) Parse(keepLeaf bool) (*tls.Certificate, error) {
+	if x.certPath == "" && len(x.certBytes) == 0 {
+		return nil, errors.New("no certificate provided")
+	}
+	if x.certPath != "" && len(x.certBytes) != 0 {
+		return nil, errors.New("only one of the certificate path or bytes must be provided")
+	}
+	if x.keyPath == "" && len(x.keyBytes) == 0 {
+		return nil, errors.New("no key provided")
+	}
+	if x.keyPath != "" && len(x.keyBytes) != 0 {
+		return nil, errors.New("only one of the key path or bytes must be provided")
+	}
+
+	if len(x.certBytes) == 0 {
+		b, err := os.ReadFile(x.certPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading certificate file: %w", err)
+		}
+		x.certBytes = b
+	}
+	if len(x.keyBytes) == 0 {
+		b, err := os.ReadFile(x.keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading key file: %w", err)
+		}
+		x.keyBytes = b
+	}
+
+	cert, err := tls.X509KeyPair(x.certBytes, x.keyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse key pair: %w", err)
+	}
+
+	if keepLeaf {
+		// X509KeyPair does not store the parsed certificate leaf
+		parsed, err := x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return nil, fmt.Errorf("parse leaf certificate: %w", err)
+		}
+		cert.Leaf = parsed
+	}
+	return &cert, nil
+}
+
+func (m *MDMConfig) IsAppleAPNsSet() bool {
+	pair := x509KeyPairConfig{
+		m.AppleAPNsCert,
+		[]byte(m.AppleAPNsCertBytes),
+		m.AppleAPNsKey,
+		[]byte(m.AppleAPNsKeyBytes),
+	}
+	return pair.IsSet()
+}
+
+func (m *MDMConfig) IsAppleSCEPSet() bool {
+	pair := x509KeyPairConfig{
+		m.AppleSCEPCert,
+		[]byte(m.AppleSCEPCertBytes),
+		m.AppleSCEPKey,
+		[]byte(m.AppleSCEPKeyBytes),
+	}
+	return pair.IsSet()
+}
+
+func (m *MDMConfig) IsAppleBMSet() bool {
+	pair := x509KeyPairConfig{
+		m.AppleBMCert,
+		[]byte(m.AppleBMCertBytes),
+		m.AppleBMKey,
+		[]byte(m.AppleBMKeyBytes),
+	}
+	// the BM token options is not taken into account by pair.IsSet
+	return pair.IsSet() || m.AppleBMServerToken != "" || m.AppleBMServerTokenBytes != ""
+}
+
+// ValidateAppleAPNSAndSCEPPair enforces that Apple APNs and SCEP are
+// configured together — neither half of the pair is usable on its own.
+// Callers should gate this on a precondition that at least one side is set
+// (the outer Apple-MDM init flow handles that today).
+func (m *MDMConfig) ValidateAppleAPNSAndSCEPPair(initFatal func(err error, msg string)) {
+	if !m.IsAppleAPNsSet() {
+		initFatal(errors.New("Apple APNs MDM configuration must be provided when Apple SCEP is provided"),
+			"validate Apple MDM")
+	} else if !m.IsAppleSCEPSet() {
+		initFatal(errors.New("Apple SCEP MDM configuration must be provided when Apple APNs is provided"),
+			"validate Apple MDM")
+	}
+}
+
+// AppleAPNs returns the parsed TLS certificate for Apple APNs.
+func (m *MDMConfig) AppleAPNs() (cert *tls.Certificate, pemCert, pemKey []byte, err error) {
+	if m.appleAPNs == nil {
+		pair := x509KeyPairConfig{
+			m.AppleAPNsCert,
+			[]byte(m.AppleAPNsCertBytes),
+			m.AppleAPNsKey,
+			[]byte(m.AppleAPNsKeyBytes),
+		}
+		cert, err := pair.Parse(true)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("Apple MDM APNs configuration: %w", err)
+		}
+		m.appleAPNs = cert
+		m.appleAPNsPEMCert = pair.certBytes
+		m.appleAPNsPEMKey = pair.keyBytes
+	}
+	return m.appleAPNs, m.appleAPNsPEMCert, m.appleAPNsPEMKey, nil
+}
+
+// AppleSCEP returns the parsed TLS certificate for Apple SCEP.
+func (m *MDMConfig) AppleSCEP() (cert *tls.Certificate, pemCert, pemKey []byte, err error) {
+	if m.appleSCEP == nil {
+		pair := x509KeyPairConfig{
+			m.AppleSCEPCert,
+			[]byte(m.AppleSCEPCertBytes),
+			m.AppleSCEPKey,
+			[]byte(m.AppleSCEPKeyBytes),
+		}
+		cert, err := pair.Parse(true)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("Apple MDM SCEP configuration: %w", err)
+		}
+		m.appleSCEP = cert
+		m.appleSCEPPEMCert = pair.certBytes
+		m.appleSCEPPEMKey = pair.keyBytes
+	}
+	return m.appleSCEP, m.appleSCEPPEMCert, m.appleSCEPPEMKey, nil
+}
+
+type ParsedAppleBM struct {
+	CertPEM        []byte
+	KeyPEM         []byte
+	EncryptedToken []byte
+	Token          *nanodep_client.OAuth1Tokens
+}
+
+func decryptABMToken(tokenBytes []byte, cert *x509.Certificate, keyPEM []byte) (*nanodep_client.OAuth1Tokens, error) {
+	bmKey, err := tokenpki.RSAKeyFromPEM(keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("Apple BM configuration: parse private key: %w", err)
+	}
+	token, err := tokenpki.DecryptTokenJSON(tokenBytes, cert, bmKey)
+	if err != nil {
+		return nil, fmt.Errorf("Apple BM configuration: decrypt token: %w", err)
+	}
+	var jsonTok nanodep_client.OAuth1Tokens
+	if err := json.Unmarshal(token, &jsonTok); err != nil {
+		return nil, fmt.Errorf("Apple BM configuration: unmarshal JSON token: %w", err)
+	}
+	return &jsonTok, nil
+}
+
+// AppleBM returns the parsed and decrypted server token for Apple
+// Business Manager. It also parses the Apple BM certificate and
+// private key in the process, in order to decrypt the token.
+func (m *MDMConfig) AppleBM() (*ParsedAppleBM, error) {
+	if m.appleBMToken == nil {
+		pair := x509KeyPairConfig{
+			m.AppleBMCert,
+			[]byte(m.AppleBMCertBytes),
+			m.AppleBMKey,
+			[]byte(m.AppleBMKeyBytes),
+		}
+		cert, err := pair.Parse(true)
+		if err != nil {
+			return nil, fmt.Errorf("Apple BM configuration: %w", err)
+		}
+		encToken, err := m.loadAppleBMEncryptedToken()
+		if err != nil {
+			return nil, fmt.Errorf("Apple BM configuration: %w", err)
+		}
+		jsonTok, err := decryptABMToken(encToken, cert.Leaf, pair.keyBytes)
+		if err != nil {
+			return nil, err
+		}
+		m.appleBMToken = jsonTok
+		m.appleBMPEMCert = pair.certBytes
+		m.appleBMPEMKey = pair.keyBytes
+		m.appleBMRawToken = encToken
+	}
+
+	return &ParsedAppleBM{
+		CertPEM:        m.appleBMPEMCert,
+		KeyPEM:         m.appleBMPEMKey,
+		EncryptedToken: m.appleBMRawToken,
+		Token:          m.appleBMToken,
+	}, nil
+}
+
+func (m *MDMConfig) loadAppleBMEncryptedToken() ([]byte, error) {
+	if m.AppleBMServerToken == "" && m.AppleBMServerTokenBytes == "" {
+		return nil, errors.New("no token provided")
+	}
+	if m.AppleBMServerToken != "" && m.AppleBMServerTokenBytes != "" {
+		return nil, errors.New("only one of the token path or bytes must be provided")
+	}
+
+	tokBytes := []byte(m.AppleBMServerTokenBytes)
+	if m.AppleBMServerTokenBytes == "" {
+		b, err := os.ReadFile(m.AppleBMServerToken)
+		if err != nil {
+			return nil, fmt.Errorf("reading token file: %w", err)
+		}
+		tokBytes = b
+	}
+	return tokBytes, nil
+}
+
+// MicrosoftWSTEP returns the parsed and validated TLS certificate for Microsoft WSTEP.
+// It parses and validates it if it hasn't been done yet.
+func (m *MDMConfig) MicrosoftWSTEP() (cert *tls.Certificate, pemCert, pemKey []byte, err error) {
+	if m.microsoftWSTEP == nil {
+		pair := x509KeyPairConfig{
+			m.WindowsWSTEPIdentityCert,
+			[]byte(m.WindowsWSTEPIdentityCertBytes),
+			m.WindowsWSTEPIdentityKey,
+			[]byte(m.WindowsWSTEPIdentityKeyBytes),
+		}
+		cert, err := pair.Parse(true)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("Microsoft MDM WSTEP configuration: %w", err)
+		}
+		m.microsoftWSTEP = cert
+		m.microsoftWSTEPCertPEM = pair.certBytes
+		m.microsoftWSTEPKeyPEM = pair.keyBytes
+	}
+	return m.microsoftWSTEP, m.microsoftWSTEPCertPEM, m.microsoftWSTEPKeyPEM, nil
+}
+
+func (m *MDMConfig) IsMicrosoftWSTEPSet() bool {
+	pair := x509KeyPairConfig{
+		m.WindowsWSTEPIdentityCert,
+		[]byte(m.WindowsWSTEPIdentityCertBytes),
+		m.WindowsWSTEPIdentityKey,
+		[]byte(m.WindowsWSTEPIdentityKeyBytes),
+	}
+	return pair.IsSet()
+}
+
+type TLS struct {
+	TLSCert       string
+	TLSKey        string
+	TLSCA         string
+	TLSServerName string
+}
+
+func (t *TLS) ToTLSConfig() (*tls.Config, error) {
+	var rootCertPool *x509.CertPool
+	if t.TLSCA != "" {
+		rootCertPool = x509.NewCertPool()
+		pem, err := os.ReadFile(t.TLSCA)
+		if err != nil {
+			return nil, fmt.Errorf("read server-ca pem: %w", err)
+		}
+		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+			return nil, errors.New("failed to append PEM.")
+		}
+	}
+
+	cfg := &tls.Config{
+		RootCAs: rootCertPool,
+	}
+	if t.TLSCert != "" {
+		clientCert := make([]tls.Certificate, 0, 1)
+		certs, err := tls.LoadX509KeyPair(t.TLSCert, t.TLSKey)
+		if err != nil {
+			return nil, fmt.Errorf("load client cert and key: %w", err)
+		}
+		clientCert = append(clientCert, certs)
+		cfg.Certificates = clientCert
+	}
+
+	if t.TLSServerName != "" {
+		cfg.ServerName = t.TLSServerName
+	}
+	return cfg, nil
+}
+
+// addConfigs adds the configuration keys and default values that will be
+// filled into the AutoMDMConfig struct
+func (man Manager) addConfigs() {
+	addMysqlConfig := func(prefix, defaultAddr, usageSuffix string) {
+		man.addConfigString(prefix+".protocol", "tcp",
+			"MySQL server communication protocol (tcp,unix,...)"+usageSuffix)
+		man.addConfigString(prefix+".address", defaultAddr,
+			"MySQL server address (host:port)"+usageSuffix)
+		man.addConfigString(prefix+".username", "automdm",
+			"MySQL server username"+usageSuffix)
+		man.addConfigString(prefix+".password", "",
+			"MySQL server password (prefer env variable for security)"+usageSuffix)
+		man.addConfigString(prefix+".password_path", "",
+			"Path to file containg MySQL server password"+usageSuffix)
+		man.addConfigString(prefix+".database", "automdm",
+			"MySQL database name"+usageSuffix)
+		man.addConfigString(prefix+".tls_cert", "",
+			"MySQL TLS client certificate path"+usageSuffix)
+		man.addConfigString(prefix+".tls_key", "",
+			"MySQL TLS client key path"+usageSuffix)
+		man.addConfigString(prefix+".tls_ca", "",
+			"MySQL TLS server CA"+usageSuffix)
+		man.addConfigString(prefix+".tls_server_name", "",
+			"MySQL TLS server name"+usageSuffix)
+		man.addConfigString(prefix+".tls_config", "",
+			"MySQL TLS config value"+usageSuffix+" Use skip-verify, true, false or custom key.")
+		man.addConfigInt(prefix+".max_open_conns", 50, "MySQL maximum open connection handles"+usageSuffix)
+		man.addConfigInt(prefix+".max_idle_conns", 50, "MySQL maximum idle connection handles"+usageSuffix)
+		man.addConfigInt(prefix+".conn_max_lifetime", 0, "MySQL maximum amount of time a connection may be reused"+usageSuffix)
+		man.addConfigString(prefix+".sql_mode", "", "MySQL sql_mode"+usageSuffix)
+		man.addConfigString(prefix+".region", "", "RDS region for AWS authentication"+usageSuffix)
+		man.addConfigString(prefix+".sts_assume_role_arn", "", "ARN of role to assume for AWS authentication"+usageSuffix)
+		man.addConfigString(prefix+".sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity"+usageSuffix)
+	}
+	// MySQL
+	addMysqlConfig("mysql", "localhost:3306", ".")
+	addMysqlConfig("mysql_read_replica", "", " for the read replica.")
+
+	// Redis
+	man.addConfigString("redis.address", "localhost:6379",
+		"Redis server address (host:port)")
+	man.addConfigString("redis.username", "",
+		"Redis server username")
+	man.addConfigString("redis.password", "",
+		"Redis server password (prefer env variable for security)")
+	man.addConfigString("redis.cache_name", "",
+		"Redis server Elasticache cache name")
+	man.addConfigString("redis.region", "",
+		"Redis server Elasticache region")
+	man.addConfigInt("redis.database", 0,
+		"Redis server database number")
+	man.addConfigBool("redis.use_tls", false, "Redis server enable TLS")
+	man.addConfigBool("redis.duplicate_results", false, "Duplicate Live Query results to another Redis channel")
+	man.addConfigDuration("redis.connect_timeout", 5*time.Second, "Timeout at connection time")
+	man.addConfigDuration("redis.keep_alive", 10*time.Second, "Interval between keep alive probes")
+	man.addConfigInt("redis.connect_retry_attempts", 0, "Number of attempts to retry a failed connection")
+	man.addConfigBool("redis.cluster_follow_redirections", true, "Automatically follow Redis Cluster redirections")
+	man.addConfigBool("redis.cluster_read_from_replica", false, "Prefer reading from a replica when possible (for Redis Cluster)")
+	man.addConfigString("redis.tls_cert", "", "Redis TLS client certificate path")
+	man.addConfigString("redis.tls_key", "", "Redis TLS client key path")
+	man.addConfigString("redis.tls_ca", "", "Redis TLS server CA")
+	man.addConfigString("redis.tls_server_name", "", "Redis TLS server name")
+	man.addConfigDuration("redis.tls_handshake_timeout", 10*time.Second, "Redis TLS handshake timeout")
+	man.addConfigInt("redis.max_idle_conns", 3, "Redis maximum idle connections")
+	man.addConfigInt("redis.max_open_conns", 0, "Redis maximum open connections, 0 means no limit")
+	man.addConfigDuration("redis.conn_max_lifetime", 0, "Redis maximum amount of time a connection may be reused, 0 means no limit")
+	man.addConfigDuration("redis.idle_timeout", 240*time.Second, "Redis maximum amount of time a connection may stay idle, 0 means no limit")
+	man.addConfigDuration("redis.conn_wait_timeout", 0, "Redis maximum amount of time to wait for a connection if the maximum is reached (0 for no wait)")
+	man.addConfigDuration("redis.write_timeout", 10*time.Second, "Redis maximum amount of time to wait for a write (send) on a connection")
+	man.addConfigDuration("redis.read_timeout", 10*time.Second, "Redis maximum amount of time to wait for a read (receive) on a connection")
+	man.addConfigString("redis.sts_assume_role_arn", "", "ARN of role to assume for AWS authentication")
+	man.addConfigString("redis.sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity")
+	man.addConfigBool("redis.host_cache_enabled", true,
+		"Enable Redis-backed cache for host lookups on the osquery and orbit auth paths. Disable to bypass the cache "+
+			"and serve every check-in from MySQL.")
+	man.addConfigDuration("redis.host_cache_ttl", 180*time.Second,
+		"Base TTL for Redis-backed host lookup cache entries. Actual per-entry TTL is jittered by ±10% to avoid "+
+			"synchronized expiry waves. Must be > 0 when redis.host_cache_enabled is true; set "+
+			"redis.host_cache_enabled=false to disable the cache.")
+	man.addConfigInt("redis.live_query_small_target_threshold", 1000,
+		"Maximum number of targeted hosts for a live query to use the per-host reverse index instead of a "+
+			"fleet-wide bitfield, avoiding one GETBIT per query on every host check-in. Set to 0 to disable "+
+			"the reverse index and use the bitfield for all live queries.")
+
+	// Server
+	man.addConfigString("server.address", "0.0.0.0:8080",
+		"AutoMDM server address (host:port)")
+	man.addConfigString("server.cert", "./tools/osquery/automdm.crt",
+		"AutoMDM TLS certificate path")
+	man.addConfigString("server.key", "./tools/osquery/automdm.key",
+		"AutoMDM TLS key path")
+	man.addConfigBool("server.tls", true,
+		"Enable TLS (required for osqueryd communication)")
+	man.addConfigString(TLSProfileKey, TLSProfileIntermediate,
+		fmt.Sprintf("TLS security profile choose one of %s or %s",
+			TLSProfileModern, TLSProfileIntermediate))
+	man.addConfigString("server.url_prefix", "",
+		"URL prefix used on server and frontend endpoints")
+	man.addConfigBool("server.keepalive", true,
+		"Controls whether HTTP keep-alives are enabled.")
+	man.addConfigBool("server.sandbox_enabled", false,
+		"When enabled, AutoMDM limits some features for the Sandbox")
+	man.addConfigBool("server.websockets_allow_unsafe_origin", false, "Disable checking the origin header on websocket connections, this is sometimes necessary when proxies rewrite origin headers between the client and the AutoMDM webserver")
+	man.addConfigBool("server.frequent_cleanups_enabled", false, "Enable frequent cleanups of expired data (15 minute interval)")
+	man.addConfigBool("server.force_h2c", false, "Force the automdm server to use HTTP2 cleartext aka h2c (ignored if using TLS)")
+	man.addConfigString("server.private_key", "", "Used for encrypting sensitive data, such as MDM certificates.")
+	man.addConfigString("server.private_key_region", "", "AWS region of the Secrets Manager secret containing server private key")
+	man.addConfigString("server.private_key_arn", "", "ARN of AWS Secrets Manager secret containing server private key")
+	man.addConfigString("server.private_key_sts_assume_role_arn", "", "ARN of role to assume for accessing private key secret")
+	man.addConfigString("server.private_key_sts_external_id", "", "External ID for STS role assumption when accessing private key secret")
+	man.addConfigDuration("server.vpp_verify_timeout", 10*time.Minute, "Maximum amount of time to wait for VPP app install verification")
+	man.addConfigDuration("server.vpp_verify_request_delay", 5*time.Second, "Delay in between requests to verify VPP app installs")
+	man.addConfigDuration("server.vpp_install_reap_timeout", 24*time.Hour,
+		"Minimum time a stuck App Store or in-house app install must have been activated before AutoMDM fails it to release the host's activity queue. Zero or less turns the reaper off, and a value below server.vpp_verify_timeout is raised to it. Android setup experience app installs the device hasn't reported for this long are also failed; for those, zero or less keeps them pending and the vpp_verify_timeout floor doesn't apply")
+	man.addConfigDuration("server.cleanup_dist_targets_age", 24*time.Hour, "Specifies the cleanup age for completed live query distributed targets.")
+	man.addConfigDuration("server.script_results_retention", 30*24*time.Hour, "Minimum time since a script run recorded its result before the hourly cleanup deletes it. Runs still waiting on a host, and those a host lock, wipe, unlock, setup experience, software uninstall or batch run depends on, are kept regardless (0 disables the cleanup)")
+	man.addConfigDuration("server.software_install_results_retention", 30*24*time.Hour, "Minimum time since a software install or uninstall finished before the hourly cleanup deletes its record. Records a host is still working on, those setup experience depends on, and the most recent install and uninstall per host and package, are kept regardless (0 disables the cleanup)")
+	man.addConfigDuration("server.deleted_host_certificates_retention", 30*24*time.Hour, "Minimum time since a certificate was removed from a host before the hourly cleanup permanently deletes AutoMDM's record of it (0 disables the cleanup)")
+	man.addConfigByteSize("server.max_installer_size", installersize.Human(installersize.MaxSoftwareInstallerSize), "Maximum size in bytes for software installer uploads (e.g. 10GiB, 500MB, 1G)")
+	man.addConfigString("server.trusted_proxies", "",
+		"Trusted proxy configuration for client IP extraction: 'none' (RemoteAddr only), a header name (e.g., 'True-Client-IP'), a hop count (e.g., '2'), or comma-separated IP/CIDR ranges")
+	man.addConfigBool("server.gzip_responses", false, "Enable gzip-compressed responses for supported clients")
+	man.addConfigBool("server.allow_private_network_integrations", false, "Allow integration HTTP requests to private network addresses (RFC 1918). Loopback and cloud metadata addresses are always blocked regardless of this setting.")
+	man.addConfigBool("server.bypass_network_blocking", false, "Disable all outbound network blocking protections for integration HTTP requests (loopback, cloud metadata, and private network addresses). Only intended for environments where egress is already constrained by external infrastructure (e.g. an egress proxy or firewall) that AutoMDM's own checks would otherwise conflict with. This is an infrastructure-level setting and cannot be changed at runtime.")
+	man.addConfigBool("server.allow_request_certificate_any_idp", false,
+		"Disable the request certificate API identity safeguards: accept IdP credentials for any introspection endpoint and do not bind device-authenticated requests to the host's end user")
+	man.addConfigByteSize("server.default_max_request_body_size", installersize.Human(platform_http.MaxRequestBodySize), "Default maximum size in bytes for request bodies, certain endpoints will have higher limits (e.g. 10MiB, 500KB, 1G)")
+	man.addConfigString(EndpointRequestSizeOverridesKey, "", "Per-endpoint max request body size overrides, as a list of {endpoint, max_request_size} objects")
+
+	// Hide the sandbox flag as we don't want it to be discoverable for users for now
+	man.hideConfig("server.sandbox_enabled")
+
+	// Auth
+	man.addConfigInt("auth.bcrypt_cost", 12,
+		"Bcrypt iterations")
+	man.addConfigInt("auth.salt_key_size", 24,
+		"Size of salt for passwords")
+	man.addConfigDuration("auth.sso_session_validity_period", 15*time.Minute,
+		"Timeout from SSO start to SSO callback")
+	man.addConfigBool("auth.require_http_message_signature", false,
+		"Require HTTP message signatures for automdmd requests (Premium feature)")
+	man.addConfigBool("auth.require_host_identity_renewal_key_binding", false,
+		"Reject host identity certificate renewals from automdmd that doesn't sign over the new key (Premium feature)")
+	man.addConfigInt("auth.sso_rate_limit_per_minute", 0,
+		"Number of allowed requests per minute to the SSO callback and AutoMDM Desktop device SSO endpoints (each in its own bucket; defaults to the login rate limit value)")
+
+	// App
+	man.addConfigString("app.token_key", "CHANGEME",
+		"Secret key for generating invite and reset tokens")
+	man.addConfigDuration("app.invite_token_validity_period", 5*24*time.Hour,
+		"Duration invite tokens remain valid (i.e. 1h)")
+	man.addConfigInt("app.token_key_size", 24,
+		"Size of generated tokens")
+	man.addConfigBool("app.enable_scheduled_query_stats", true,
+		"If true (default) it gets scheduled query stats from hosts")
+
+	// Session
+	man.addConfigInt("session.key_size", 64,
+		"Size of generated session keys")
+	man.addConfigDuration("session.duration", 24*5*time.Hour,
+		"Duration session keys remain valid (i.e. 4h)")
+
+	// Osquery
+	man.addConfigInt("osquery.node_key_size", 24,
+		"Size of generated osqueryd node keys")
+	man.addConfigString("osquery.host_identifier", "provided",
+		"Identifier used to uniquely determine osquery clients")
+	man.addConfigDuration("osquery.enroll_cooldown", 0,
+		"Cooldown period for duplicate host enrollment (default off)")
+	man.addConfigString("osquery.status_log_plugin", "filesystem",
+		"Log plugin to use for status logs")
+	man.addConfigString("osquery.result_log_plugin", "filesystem",
+		"Log plugin to use for result logs")
+	man.addConfigDuration("osquery.label_update_interval", 1*time.Hour,
+		"Interval to update host label membership (i.e. 1h)")
+	man.addConfigDuration("osquery.policy_update_interval", 1*time.Hour,
+		"Interval to update host policy membership (i.e. 1h)")
+	man.addConfigDuration("osquery.detail_update_interval", 1*time.Hour,
+		"Interval to update host details (i.e. 1h)")
+	man.addConfigString("osquery.status_log_file", "",
+		"(DEPRECATED: Use filesystem.status_log_file) Path for osqueryd status logs")
+	man.addConfigString("osquery.result_log_file", "",
+		"(DEPRECATED: Use filesystem.result_log_file) Path for osqueryd result logs")
+	man.addConfigBool("osquery.enable_log_rotation", false,
+		"(DEPRECATED: Use filesystem.enable_log_rotation) Enable automatic rotation for osquery log files")
+	man.addConfigInt("osquery.max_jitter_percent", 10,
+		"Maximum percentage of the interval to add as jitter")
+	man.addConfigInt("osquery.ai_session_max_tool_calls", 10000,
+		"Maximum number of tool calls stored per host AI agent session (the first ones are kept)")
+	man.addConfigInt("osquery.ai_session_max_tool_calls_per_refresh", 0,
+		"Maximum number of new tool calls requested per host AI agent session at each detail refresh (0 for no limit)")
+	man.addConfigByteSize("osquery.max_log_write_body_size", "0",
+		"Maximum body size for the osquery/log endpoint (e.g. 10MiB, 500KB). 0 means use the built-in default (10MiB). Only applied when osquery.allow_body_auth_fallback is true. In header-auth mode (false) the route is not subject to any body size limit; this value is ignored.")
+	man.addConfigByteSize("osquery.max_distributed_write_body_size", "0",
+		"Maximum body size for the osquery/distributed/write endpoint (e.g. 10MiB, 500KB). 0 means use the built-in default (5MiB). Only applied when osquery.allow_body_auth_fallback is true. In header-auth mode (false) the route is not subject to any body size limit; this value is ignored.")
+	man.addConfigBool("osquery.config_etags", false,
+		"Enable conditional osquery config requests: agents that send an etag receive the minimal 'unchanged' body when their config is current. Off by default; while off, every response is the full config with no etag, identical to the behavior before this feature existed.")
+	man.addConfigBool("osquery.redis_config_etags", false,
+		"Answer osquery config requests whose etag matches with the minimal 'unchanged' body straight from a Redis-backed ETag store, skipping the config build (and its database reads) entirely. Off by default; requires Redis (no effect without it) and requires osquery.config_etags to be enabled as well. While off, every config request takes the always-full-build path.")
+	man.addConfigBool("osquery.config_in_memory_cache", false,
+		"Cache the scheduled-report section of the osquery config (the response's 'packs' key) in memory, keyed by team and the discard_reports_data setting, instead of rebuilding it from the database on every config check-in. Off by default; while off, every check-in builds from the database. The rest of the response is never cached, and the cache is bypassed entirely for teams with label-scoped reports, whose config differs per host.")
+	man.addConfigInt("osquery.max_concurrent_query_report_reads", 40,
+		"Maximum number of osquery log requests per AutoMDM server that read a host's stored report results from the database at once, to skip writing results that haven't changed. Requests over the limit skip storing report results (log destinations are unaffected). 0 disables the limit.")
+	man.addConfigInt("osquery.max_concurrent_query_report_writes", 20,
+		"Maximum number of osquery log requests across all AutoMDM servers that write changed report results to the database at once. Requests over the limit skip storing their changed report results (log destinations are unaffected). 0 disables the limit.")
+	man.addConfigBool("osquery.allow_body_auth_fallback", true,
+		"Selects how host-authenticated osquery requests are authenticated. When true (default), only body-based node_key is used for authentication. When false, the nodey_key header is required for authentication and the body's node_key is ignored; pre-auth rejects absent/invalid headers before the body is read.")
+
+	// Activities
+	man.addConfigBool("activity.enable_audit_log", false,
+		"Enable audit logs")
+	man.addConfigString("activity.audit_log_plugin", "filesystem",
+		"Log plugin to use for audit logs")
+	man.addConfigInt("activity.automdm_initiated_release_per_minute", 1000,
+		"Maximum number of hosts whose AutoMDM-initiated activities (policy automation installs/scripts) are released for execution per minute (0 = unlimited)")
+
+	// Logging
+	man.addConfigBool("logging.debug", false,
+		"Enable debug logging")
+	man.addConfigBool("logging.json", false,
+		"Log in JSON format")
+	man.addConfigBool("logging.disable_banner", false,
+		"Disable startup banner")
+	man.addConfigDuration("logging.error_retention_period", 24*time.Hour,
+		"Amount of time to keep errors, 0 means no expiration, < 0 means disable storage of errors")
+	man.addConfigBool("logging.tracing_enabled", false,
+		"Enable Tracing, further configured via standard env variables")
+	man.addConfigString("logging.tracing_type", "",
+		"Select the kind of tracing, only OpenTelemetry is supported")
+	man.addConfigBool("logging.otel_logs_enabled", false,
+		"Enable exporting logs to an OpenTelemetry collector (requires tracing_enabled)")
+	man.addConfigString("logging.enable_topics", "",
+		"Comma-separated log topics to enable (overrides code defaults)")
+	man.addConfigString("logging.disable_topics", "",
+		"Comma-separated log topics to disable (overrides code defaults)")
+
+	// Email
+	man.addConfigString("email.backend", "", "Provide the email backend type, acceptable values are currently \"ses\" and \"default\" or empty string which will default to SMTP")
+
+	// SES
+	man.addConfigString("ses.region", "", "AWS Region to use")
+	man.addConfigString("ses.endpoint_url", "", "AWS Service Endpoint to use (leave empty for default service endpoints)")
+	man.addConfigString("ses.access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("ses.secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("ses.sts_assume_role_arn", "", "ARN of role to assume for AWS")
+	man.addConfigString("ses.sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigString("ses.source_arn", "", "ARN of the identity that is associated with the sending authorization policy that permits you to send for the email address specified in the Source parameter")
+	man.addConfigString("ses.sender_domain", "", "Optional domain to use in the From address for SES emails. If empty, AutoMDM uses the hostname from the AutoMDM Web Address (server_settings.server_url)")
+
+	// Firehose
+	man.addConfigString("firehose.region", "", "AWS Region to use")
+	man.addConfigString("firehose.endpoint_url", "",
+		"AWS Service Endpoint to use (leave empty for default service endpoints)")
+	man.addConfigString("firehose.access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("firehose.secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("firehose.sts_assume_role_arn", "",
+		"ARN of role to assume for AWS")
+	man.addConfigString("firehose.sts_external_id", "",
+		"Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigString("firehose.status_stream", "",
+		"Firehose stream name for status logs")
+	man.addConfigString("firehose.result_stream", "",
+		"Firehose stream name for result logs")
+	man.addConfigString("firehose.audit_stream", "",
+		"Firehose stream name for audit logs")
+
+	// Kinesis
+	man.addConfigString("kinesis.region", "", "AWS Region to use")
+	man.addConfigString("kinesis.endpoint_url", "",
+		"AWS Service Endpoint to use (leave empty for default service endpoints)")
+	man.addConfigString("kinesis.access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("kinesis.secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("kinesis.sts_assume_role_arn", "",
+		"ARN of role to assume for AWS")
+	man.addConfigString("kinesis.sts_external_id", "",
+		"Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigString("kinesis.status_stream", "",
+		"Kinesis stream name for status logs")
+	man.addConfigString("kinesis.result_stream", "",
+		"Kinesis stream name for result logs")
+	man.addConfigString("kinesis.audit_stream", "",
+		"Kinesis stream name for audit logs")
+
+	// Lambda
+	man.addConfigString("lambda.region", "", "AWS Region to use")
+	man.addConfigString("lambda.access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("lambda.secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("lambda.sts_assume_role_arn", "",
+		"ARN of role to assume for AWS")
+	man.addConfigString("lambda.sts_external_id", "",
+		"Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigString("lambda.status_function", "",
+		"Lambda function name for status logs")
+	man.addConfigString("lambda.result_function", "",
+		"Lambda function name for result logs")
+	man.addConfigString("lambda.audit_function", "",
+		"Lambda function name for audit logs")
+
+	// S3 for file carving: Deprecated
+	man.addConfigString("s3.bucket", "", "Deprecated: Bucket where to store file carves")
+	man.addConfigString("s3.prefix", "", "Deprecated: Prefix under which carves are stored")
+	man.addConfigString("s3.region", "", "Deprecated: AWS Region (if blank region is derived)")
+	man.addConfigString("s3.endpoint_url", "", "Deprecated: AWS Service Endpoint to use (leave blank for default service endpoints)")
+	man.addConfigString("s3.access_key_id", "", "Deprecated: Access Key ID for AWS authentication")
+	man.addConfigString("s3.secret_access_key", "", "Deprecated: Secret Access Key for AWS authentication")
+	man.addConfigString("s3.sts_assume_role_arn", "", "Deprecated: ARN of role to assume for AWS")
+	man.addConfigString("s3.sts_external_id", "", "Deprecated: Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigBool("s3.disable_ssl", false, "Deprecated: Disable SSL (typically for local testing)")
+	man.addConfigBool("s3.force_s3_path_style", false, "Deprecated: Set this to true to force path-style addressing, i.e., `http://s3.amazonaws.com/BUCKET/KEY`")
+
+	// Hide deprecated S3 config options
+	for _, c := range []string{
+		"s3.bucket",
+		"s3.prefix",
+		"s3.region",
+		"s3.endpoint_url",
+		"s3.access_key_id",
+		"s3.secret_access_key",
+		"s3.sts_assume_role_arn",
+		"s3.sts_external_id",
+		"s3.disable_ssl",
+		"s3.force_s3_path_style",
+	} {
+		man.hideConfig(c)
+	}
+
+	// S3 for file carving
+	man.addConfigString("s3.carves_bucket", "", "Bucket where to store file carves")
+	man.addConfigString("s3.carves_prefix", "", "Prefix under which carves are stored")
+	man.addConfigString("s3.carves_region", "", "AWS Region (if blank region is derived)")
+	man.addConfigString("s3.carves_endpoint_url", "", "AWS Service Endpoint to use (leave blank for default service endpoints)")
+	man.addConfigString("s3.carves_access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("s3.carves_secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("s3.carves_sts_assume_role_arn", "", "ARN of role to assume for AWS")
+	man.addConfigString("s3.carves_sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigBool("s3.carves_disable_ssl", false, "Disable SSL (typically for local testing)")
+	man.addConfigBool("s3.carves_force_s3_path_style", false, "Set this to true to force path-style addressing, i.e., `http://s3.amazonaws.com/BUCKET/KEY`")
+	man.addConfigBool("s3.carves_gcs_iam_auth", false, "Use Google ADC bearer tokens for GCS endpoint authentication instead of S3 HMAC keys")
+	man.addConfigBool("s3.carves_cleanup_disabled", false, "Disable the periodic cleanup that marks carves whose S3 object no longer exists as expired")
+	man.addConfigInt("s3.carves_cleanup_max_per_run", 1000, "Maximum number of carves the S3 cleanup reconciles (and S3 HeadObject requests it makes) per run")
+	man.addConfigInt("s3.carves_cleanup_concurrency", 32, "Number of concurrent S3 HeadObject probes the carve cleanup performs")
+
+	// S3 for software installers
+	man.addConfigString("s3.software_installers_bucket", "", "Bucket where to store uploaded software installers")
+	man.addConfigString("s3.software_installers_prefix", "", "Prefix under which software installers are stored")
+	man.addConfigString("s3.software_installers_region", "", "AWS Region (if blank region is derived)")
+	man.addConfigString("s3.software_installers_endpoint_url", "", "AWS Service Endpoint to use (leave blank for default service endpoints)")
+	man.addConfigString("s3.software_installers_access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("s3.software_installers_secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("s3.software_installers_sts_assume_role_arn", "", "ARN of role to assume for AWS")
+	man.addConfigString("s3.software_installers_sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigBool("s3.software_installers_disable_ssl", false, "Disable SSL (typically for local testing)")
+	man.addConfigBool("s3.software_installers_force_s3_path_style", false, "Set this to true to force path-style addressing, i.e., `http://s3.amazonaws.com/BUCKET/KEY`")
+	man.addConfigBool("s3.software_installers_gcs_iam_auth", false, "Use Google ADC bearer tokens for GCS endpoint authentication instead of S3 HMAC keys")
+	man.addConfigString("s3.software_installers_cloudfront_url", "", "CloudFront URL for software installers")
+	man.addConfigString("s3.software_installers_cloudfront_url_signing_public_key_id", "", "CloudFront public key ID for URL signing")
+	man.addConfigString("s3.software_installers_cloudfront_url_signing_private_key", "", "CloudFront private key for URL signing")
+	man.addConfigBool("s3.software_installers_gcs_signed_url", false, "Hand out presigned GCS URLs for installer/in-house app/bootstrap uploads and downloads instead of proxying bytes (requires a storage.googleapis.com endpoint)")
+	man.addConfigBool("s3.software_installers_signed_url", false, "Deprecated: use s3.software_installers_gcs_signed_url")
+
+	// Azure Blob Storage for software installers
+	man.addConfigString("cloud_storage.azure.files_account_name", "", "Azure Storage account name")
+	man.addConfigString("cloud_storage.azure.files_account_key", "", "Azure Storage account shared key")
+	man.addConfigString("cloud_storage.azure.files_container", "", "Azure Storage container where to store uploaded software installers")
+	man.addConfigString("cloud_storage.azure.files_container_url", "", "Azure Blob Storage endpoint override (leave blank for the default https://<account>.blob.core.windows.net; used for Azurite/testing)")
+	man.addConfigBool("cloud_storage.azure.files_signed_url", false, "Hand out SAS-signed URLs for installer/in-house app/bootstrap downloads instead of proxying bytes")
+
+	// PubSub
+	man.addConfigString("pubsub.project", "", "Google Cloud Project to use")
+	man.addConfigString("pubsub.status_topic", "", "PubSub topic for status logs")
+	man.addConfigString("pubsub.result_topic", "", "PubSub topic for result logs")
+	man.addConfigString("pubsub.audit_topic", "", "PubSub topic for audit logs")
+	man.addConfigBool("pubsub.add_attributes", false, "Add PubSub attributes in addition to the message body")
+
+	// Filesystem
+	man.addConfigString("filesystem.status_log_file", filepath.Join(os.TempDir(), "osquery_status"),
+		"Log file path to use for status logs")
+	man.addConfigString("filesystem.result_log_file", filepath.Join(os.TempDir(), "osquery_result"),
+		"Log file path to use for result logs")
+	man.addConfigString("filesystem.audit_log_file", filepath.Join(os.TempDir(), "audit"),
+		"Log file path to use for audit logs")
+	man.addConfigBool("filesystem.enable_log_rotation", false,
+		"Enable automatic rotation for osquery log files")
+	man.addConfigBool("filesystem.enable_log_compression", false,
+		"Enable compression for the rotated osquery log files")
+	man.addConfigInt("filesystem.max_size", 500, "Maximum size in megabytes log files will grow until rotated (only valid if enable_log_rotation is true) default is 500MB")
+	man.addConfigInt("filesystem.max_age", 28, "Maximum number of days to retain old log files based on the timestamp encoded in their filename. Setting to zero wil retain old log files indefinitely (only valid if enable_log_rotation is true) default is 28 days")
+	man.addConfigInt("filesystem.max_backups", 3, "Maximum number of old log files to retain. Setting to zero will retain all old log files (only valid if enable_log_rotation is true) default is 3")
+
+	// Webhook
+	man.addConfigString("webhook.status_url", "", "Webhook URL for osquery status logs")
+	man.addConfigString("webhook.result_url", "", "Webhook URL for osquery result logs")
+
+	// KafkaREST
+	man.addConfigString("kafkarest.status_topic", "", "Kafka REST topic for status logs")
+	man.addConfigString("kafkarest.result_topic", "", "Kafka REST topic for result logs")
+	man.addConfigString("kafkarest.audit_topic", "", "Kafka REST topic for audit logs")
+	man.addConfigString("kafkarest.proxyhost", "", "Kafka REST proxy host url")
+	man.addConfigString("kafkarest.content_type_value", "application/vnd.kafka.json.v1+json",
+		"Kafka REST proxy content type header (defaults to \"application/vnd.kafka.json.v1+json\"")
+	man.addConfigInt("kafkarest.timeout", 5, "Kafka REST proxy json post timeout")
+
+	// NATS
+	man.addConfigString("nats.status_subject", "", "NATS subject for status logs")
+	man.addConfigString("nats.result_subject", "", "NATS subject for result logs")
+	man.addConfigString("nats.audit_subject", "", "NATS subject for audit logs")
+	man.addConfigString("nats.server", "", "NATS server URL")
+	man.addConfigString("nats.cred_file", "", "NATS credentials file")
+	man.addConfigString("nats.nkey_file", "", "NATS NKey file")
+	man.addConfigString("nats.tls_client_crt_file", "", "NATS TLS client certificate file")
+	man.addConfigString("nats.tls_client_key_file", "", "NATS TLS client key file")
+	man.addConfigString("nats.ca_crt_file", "", "NATS CA certificate file")
+	man.addConfigString("nats.compression", "", "NATS compression algorithm (gzip, snappy, zstd)")
+	man.addConfigBool("nats.jetstream", false, "NATS JetStream publish")
+	man.addConfigDuration("nats.timeout", 30*time.Second, "NATS timeout")
+
+	// Splunk
+	man.addConfigString("splunk.url", "", "Splunk HEC URL (e.g. https://splunk.example.com:8088)")
+	man.addConfigString("splunk.token", "", "Splunk HEC authentication token")
+	man.addConfigString("splunk.index", "", "Splunk index to send events to")
+	man.addConfigString("splunk.source", "", "Splunk source value for events")
+	man.addConfigString("splunk.source_type", "", "Splunk sourcetype value for events")
+	man.addConfigBool("splunk.insecure_skip_verify", false, "Skip TLS certificate verification for Splunk HEC (for self-signed certs)")
+
+	// License
+	man.addConfigString("license.key", "", "AutoMDM license key (to enable AutoMDM Premium features)")
+	man.addConfigBool("license.enforce_host_limit", false, "Enforce license limit of enrolled hosts")
+
+	// Vulnerability processing
+	man.addConfigString("vulnerabilities.databases_path", "/tmp/vulndbs",
+		"Path where AutoMDM will download the data feeds to check CVEs")
+	man.addConfigDuration("vulnerabilities.periodicity", 1*time.Hour,
+		"How much time to wait between processing software for vulnerabilities.")
+	man.addConfigString("vulnerabilities.cpe_database_url", "",
+		"URL from which to get the latest CPE database. If empty, it will be downloaded from the latest release available at https://github.com/fleetdm/nvd/releases.")
+	man.addConfigString("vulnerabilities.cpe_translations_url", "",
+		"URL from which to get the latest CPE translations. If empty, it will be downloaded from the latest release available at https://github.com/fleetdm/nvd/releases.")
+	man.addConfigString("vulnerabilities.cve_feed_prefix_url", "",
+		"Prefix URL for the CVE data feed. If empty, default to https://nvd.nist.gov/")
+	man.addConfigString("vulnerabilities.cisa_known_exploits_url", "",
+		"URL from which to get the latest CISA (Known exploited vulnerabilities) database. If empty, it will be downloaded from https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")
+	man.addConfigString("vulnerabilities.current_instance_checks", "auto",
+		"Allows to manually select an instance to do the vulnerability processing.")
+	man.addConfigBool("vulnerabilities.disable_schedule", false,
+		"Set this to true when the vulnerability processing job is scheduled by an external mechanism")
+	man.addConfigBool("vulnerabilities.disable_data_sync", false,
+		"Skips synchronizing data streams and expects them to be available in the databases_path.")
+	man.addConfigDuration("vulnerabilities.recent_vulnerability_max_age", 30*24*time.Hour,
+		"Maximum age of the published date of a vulnerability (CVE) to be considered 'recent'.")
+	man.addConfigBool(
+		"vulnerabilities.disable_win_os_vulnerabilities",
+		false,
+		"Don't sync installed Windows updates nor perform Windows OS vulnerability processing.",
+	)
+	man.addConfigBool(
+		"vulnerabilities.osv_for_vulnerabilities",
+		true,
+		"Use OSV (osv.dev) format for vulnerability detection instead of OVAL where supported.",
+	)
+	man.addConfigInt(
+		"vulnerabilities.max_concurrency",
+		1,
+		"Maximum number of concurrent database queries to use for processing vulnerabilities.",
+	)
+
+	// Upgrades
+	man.addConfigBool("upgrades.allow_missing_migrations", false,
+		"Allow serve to run even if migrations are missing.")
+
+	// Sentry
+	man.addConfigString("sentry.dsn", "", "DSN for Sentry")
+
+	// GeoIP
+	man.addConfigString("geoip.database_path", "", "path to mmdb file")
+
+	// Prometheus
+	man.addConfigString("prometheus.basic_auth.username", "", "Prometheus username for HTTP Basic Auth")
+	man.addConfigString("prometheus.basic_auth.password", "", "Prometheus password for HTTP Basic Auth")
+	man.addConfigBool("prometheus.basic_auth.disable", false, "Disable HTTP Basic Auth for Prometheus")
+
+	// Packaging config
+	//
+	// DEPRECATED: "packaging" fields were used for "AutoMDM Sandbox" which doesn't exist anymore.
+	man.addConfigString("packaging.global_enroll_secret", "", "Enroll secret to be used for the global domain (instead of randomly generating one)")
+	man.addConfigString("packaging.s3.bucket", "", "Bucket where to retrieve installers")
+	man.addConfigString("packaging.s3.prefix", "", "Prefix under which installers are stored")
+	man.addConfigString("packaging.s3.region", "", "AWS Region (if blank region is derived)")
+	man.addConfigString("packaging.s3.endpoint_url", "", "AWS Service Endpoint to use (leave blank for default service endpoints)")
+	man.addConfigString("packaging.s3.access_key_id", "", "Access Key ID for AWS authentication")
+	man.addConfigString("packaging.s3.secret_access_key", "", "Secret Access Key for AWS authentication")
+	man.addConfigString("packaging.s3.sts_assume_role_arn", "", "ARN of role to assume for AWS")
+	man.addConfigString("packaging.s3.sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
+	man.addConfigBool("packaging.s3.disable_ssl", false, "Disable SSL (typically for local testing)")
+	man.addConfigBool("packaging.s3.force_s3_path_style", false, "Set this to true to force path-style addressing, i.e., `http://s3.amazonaws.com/BUCKET/KEY`")
+
+	// MDM config
+	man.addConfigString("mdm.apple_apns_cert", "", "Apple APNs PEM-encoded certificate path")
+	man.addConfigString("mdm.apple_apns_cert_bytes", "", "Apple APNs PEM-encoded certificate bytes")
+	man.addConfigString("mdm.apple_apns_key", "", "Apple APNs PEM-encoded private key path")
+	man.addConfigString("mdm.apple_apns_key_bytes", "", "Apple APNs PEM-encoded private key bytes")
+	man.addConfigString("mdm.apple_scep_cert", "", "Apple SCEP PEM-encoded certificate path")
+	man.addConfigString("mdm.apple_scep_cert_bytes", "", "Apple SCEP PEM-encoded certificate bytes")
+	man.addConfigString("mdm.apple_scep_key", "", "Apple SCEP PEM-encoded private key path")
+	man.addConfigString("mdm.apple_scep_key_bytes", "", "Apple SCEP PEM-encoded private key bytes")
+	man.addConfigString("mdm.apple_business_server_token", "", "Apple Business encrypted server token path (.p7m file)")
+	man.addConfigString("mdm.apple_business_server_token_bytes", "", "Apple Business encrypted server token bytes")
+	man.addConfigString("mdm.apple_business_cert", "", "Apple Business PEM-encoded certificate path")
+	man.addConfigString("mdm.apple_business_cert_bytes", "", "Apple Business PEM-encoded certificate bytes")
+	man.addConfigString("mdm.apple_business_key", "", "Apple Business PEM-encoded private key path")
+	man.addConfigString("mdm.apple_business_key_bytes", "", "Apple Business PEM-encoded private key bytes")
+	man.addConfigBool("mdm.apple_enable", false, "Enable MDM Apple functionality")
+	man.addConfigBool("mdm.apple_machineinfo_verify", true, "Verify the signature on Apple's x-apple-aspen-deviceinfo (MachineInfo) blob during enrollment")
+	man.addConfigInt("mdm.apple_scep_signer_validity_days", 365, "Days signed client certificates will be valid")
+	man.addConfigString("mdm.apple_vpp_app_metadata_api_bearer_token", "", "Apple Connect JWT, used for accessing VPP app metadata directly from Apple")
+	man.addConfigString("mdm.apple_scep_challenge", "", "SCEP static challenge for enrollment")
+	man.addConfigDuration("mdm.apple_dep_sync_periodicity", 1*time.Minute, "How much time to wait for DEP profile assignment")
+	man.addConfigDuration("mdm.apple_apns_push_expiration", 30*24*time.Hour, "How long APNs should store and retry delivering push notifications to offline devices (apns-expiration header, 30 days is APNs' documented maximum); zero or negative omits the header")
+	man.hideConfig("mdm.apple_apns_push_expiration")
+	man.addConfigDuration("mdm.apple_apns_sweep_interval", 1*time.Minute, "Tick interval of the APNs sweep cron, which re-pushes Apple MDM enrollments that have been silent for more than a day")
+	man.hideConfig("mdm.apple_apns_sweep_interval")
+	man.addConfigDuration("mdm.apple_command_cleanup_short_retention", 24*time.Hour, "How long completed recurring Apple MDM commands (refetches, device renames, VPP verifications, DeclarativeManagement) and inactive queue rows are kept before deletion (0 = disabled, minimum 1h)")
+	man.addConfigDuration("mdm.apple_command_cleanup_standard_retention", 30*24*time.Hour, "How long other completed Apple MDM commands on the deletion allowlist are kept before deletion (0 = disabled, minimum 1h)")
+	man.addConfigInt("mdm.apple_command_cleanup_max_row_deletions_per_run", 1000, "Maximum Apple MDM command queue entries (one command to one host, with its result) deleted per hourly cleanup run (0 = none)")
+	man.addConfigInt("mdm.apple_command_cleanup_max_command_deletions_per_run", 1000, "Maximum unreferenced Apple MDM commands deleted per hourly cleanup run (0 = none)")
+	man.addConfigString("mdm.windows_wstep_identity_cert", "", "Microsoft WSTEP PEM-encoded certificate path")
+	man.addConfigString("mdm.windows_wstep_identity_key", "", "Microsoft WSTEP PEM-encoded private key path")
+	man.addConfigString("mdm.windows_wstep_identity_cert_bytes", "", "Microsoft WSTEP PEM-encoded certificate bytes")
+	man.addConfigString("mdm.windows_wstep_identity_key_bytes", "", "Microsoft WSTEP PEM-encoded private key bytes")
+	man.addConfigDuration("mdm.windows_enrollment_retention", 30*24*time.Hour, "How long an orphaned or superseded Windows MDM enrollment is kept after its host was deleted or it was last updated, before the hourly cleanup deletes it (0 disables the cleanup)")
+	man.addConfigDuration("mdm.windows_command_retention", 30*24*time.Hour, "Minimum time since Windows MDM command history (responses, results, commands) was recorded or last updated before the hourly cleanup deletes it (0 disables the cleanup)")
+	man.addConfigInt("mdm.sso_rate_limit_per_minute", 0, "Number of allowed requests per minute to MDM SSO endpoints (default is sharing login rate limit bucket)")
+	man.addConfigInt("mdm.certificate_profiles_limit", 100, "Maximum number of CA certificate profile installations per batch (0 = unlimited)")
+	man.addConfigBool("mdm.enable_custom_os_updates_and_filevault", false, "Allows usage of custom Apple MDM profiles for FileVault (AutoMDM Premium required)")
+	man.addConfigBool("mdm.enable_custom_filevault", false, "Allows usage of custom Apple MDM profiles for FileVault (AutoMDM Premium required)")
+	man.addConfigBool("mdm.enable_custom_disk_encryption", false, "Allows usage of custom Apple MDM profiles for FileVault and custom Windows profiles for BitLocker (AutoMDM Premium required)")
+	man.addConfigBool("mdm.allow_all_declarations", false, "Allows all MDM declaration types to be sent, bypassing safety checks")
+	man.addConfigBool("mdm.allow_custom_activations", false, "Allows custom activations to be uploaded for Apple declaration (DDM) profiles")
+	man.addConfigBool("mdm.apple_one_time_enroll_secrets", false,
+		"Deliver one-time, device-scoped enroll secrets to macOS MDM hosts instead of shared enroll secrets")
+	man.addConfigBool("mdm.windows_one_time_enroll_secrets", false,
+		"Deliver one-time, device-scoped enroll secrets to Windows MDM hosts instead of shared enroll secrets")
+	man.addConfigBool("mdm.android_one_time_enroll_secrets", false,
+		"Deliver one-time, device-scoped enroll secrets to the AutoMDM Android agent instead of shared enroll secrets")
+	man.addConfigBool("mdm.allow_orbit_end_user_auth_bypass", true, "Allow Orbit hosts that do not complete end user authentication to enroll into teams that require it; set to false to strictly enforce end user authentication for Orbit enrollments")
+	man.addConfigString("mdm.android_agent.package", "com.fleetdm.agent", "Package name for the AutoMDM Android agent")
+	man.addConfigString("mdm.android_agent.signing_sha256", "x+IyvrwVbQEBYV/ojWmLavJE0VIZE1RAT2JmxeI5sFw=", "Signing certificate SHA256 fingerprint for the AutoMDM Android agent")
+	man.hideConfig("mdm.android_agent.package")
+	man.hideConfig("mdm.android_agent.signing_sha256")
+	man.addConfigInt("mdm.android_batch_size", 100, "Maximum number of hosts per batch for Android MDM API operations (100 default; 0 = no limit)")
+	man.hideConfig("mdm.android_batch_size")
+	man.addConfigInt("mdm.ios_ipados_refetch_batch_size", 1000, "Maximum number of iOS/iPadOS hosts sent refetch commands per refetch cron tick (runs every minute)")
+	man.hideConfig("mdm.ios_ipados_refetch_batch_size")
+	man.addConfigBool("mdm.apple_scep_static_challenge_enabled", false, "Allows static SCEP challenges to be used alongside dynamic challenges for Apple MDM SCEP")
+
+	// Calendar integration
+	man.addConfigDuration(
+		"calendar.periodicity", 0,
+		"How much time to wait between processing calendar integration.",
+	)
+
+	// Google Workspace directory sync limits (hidden; safety rails, not tuning knobs)
+	man.addConfigInt("google_workspace.max_users", DefaultGoogleWorkspaceMaxUsers,
+		"Maximum users pulled from a Google Workspace directory in one sync (0 = no limit)")
+	man.addConfigInt("google_workspace.max_groups", DefaultGoogleWorkspaceMaxGroups,
+		"Maximum groups pulled from a Google Workspace directory in one sync (0 = no limit)")
+	man.addConfigInt("google_workspace.max_group_members", DefaultGoogleWorkspaceMaxGroupMembers,
+		"Maximum members pulled for a single Google Workspace group (0 = no limit)")
+	man.addConfigInt("google_workspace.max_group_memberships", DefaultGoogleWorkspaceMaxGroupMemberships,
+		"Maximum total group memberships pulled from a Google Workspace directory in one sync (0 = no limit)")
+	man.hideConfig("google_workspace.max_users")
+	man.hideConfig("google_workspace.max_groups")
+	man.hideConfig("google_workspace.max_group_members")
+	man.hideConfig("google_workspace.max_group_memberships")
+
+	// Partnerships
+	man.addConfigBool("partnerships.enable_secureframe", false, "Point transparency URL at Secureframe landing page")
+
+	// Microsoft Compliance Partner
+	man.addConfigString("microsoft_compliance_partner.proxy_uri", "https://automdm.com", "URI of the Microsoft Compliance Partner proxy (for development/testing)")
+	man.addConfigString("microsoft_compliance_partner.client_id", DefaultMicrosoftCompliancePartnerClientID, "Client ID of AutoMDM's Microsoft Compliance Partner Entra app (for development/testing)")
+	man.addConfigString("google_conditional_access.proxy_uri", "https://automdm.com", "URI of the Google conditional access relay (for development/testing)")
+
+	man.addConfigBool("partnerships.enable_primo", false, "Disables the ability to manage multiple teams in an instance, even in premium tier")
+
+	// Conditional Access
+	man.addConfigString("conditional_access.cert_serial_format", "hex",
+		"Format for parsing certificate serial numbers from X-Client-Cert-Serial header: 'hex' (default, used by AWS ALB) or 'decimal' (used by Caddy)")
+
+	// WebSocket agent transport
+	man.addConfigBool("websocket.transport_enabled", false,
+		"Enable the agent WebSocket notification transport (experimental)")
+	man.addConfigDuration("websocket.ping_interval", 5*time.Minute,
+		"Interval between WebSocket keepalive pings sent to connected agents")
+	man.addConfigDuration("websocket.pong_timeout", 30*time.Second,
+		"Time to wait for a pong before considering an agent WebSocket connection dead")
+	man.addConfigDuration("websocket.check_interval", 30*time.Second,
+		"Interval of the per-instance job that notifies connected agents with due interval work")
+	man.addConfigInt("websocket.check_batch_size", 500,
+		"Number of connected agents checked per batch by the interval notification job")
+	man.addConfigBool("websocket.orbit_config_enabled", false,
+		"Notify connected agents of orbit config changes so they can poll it less often (requires websocket.transport_enabled)")
+	man.addConfigDuration("websocket.orbit_config_poll_interval", 5*time.Minute,
+		"Fallback orbit config poll interval of connected agents with no pending work, when websocket.orbit_config_enabled is set")
+	man.addConfigDuration("websocket.orbit_config_spread", 30*time.Second,
+		"Window over which each instance spreads the orbit and osquery config notifications of a fleet-wide or global change")
+	man.addConfigBool("websocket.osquery_config_enabled", false,
+		"Notify connected agents of osquery config changes so they can poll it less often (requires websocket.transport_enabled)")
+	man.addConfigDuration("websocket.osquery_config_poll_interval", 10*time.Minute,
+		"Fallback osquery config poll interval of connected agents, when websocket.osquery_config_enabled is set")
+
+	for _, e := range removednames.Filter(removednames.KindConfigKey, 0) {
+		man.addConfigString(e.Old, "", "Removed in AutoMDM 5") // need to register it to see the --flag format come through and show the AutoMDM 5 message.
+		man.hideConfig(e.Old)
+	}
+}
+
+func (man Manager) hideConfig(name string) {
+	flag := man.command.PersistentFlags().Lookup(flagNameFromConfigKey(name))
+	if flag != nil {
+		flag.Hidden = true
+	}
+}
+
+// removedConfigMessage names the removed key the way it was set: as a flag, an environment variable, or a config file key. Viper
+// doesn't say which source set a key, so this checks them in viper's precedence order.
+func (man Manager) removedConfigMessage(e removednames.Entry) string {
+	kind, convert := removednames.KindYAMLKey, func(s string) string { return s }
+	if f := man.command.PersistentFlags().Lookup(flagNameFromConfigKey(e.Old)); f != nil && f.Changed {
+		kind, convert = removednames.KindFlag, flagNameFromConfigKey
+	} else if _, ok := os.LookupEnv(envNameFromConfigKey(e.Old)); ok {
+		kind, convert = removednames.KindEnvVar, envNameFromConfigKey
+	}
+	newName := e.New
+	if newName != "" {
+		newName = convert(newName)
+	}
+	return removednames.Entry{Kind: kind, Old: convert(e.Old), New: newName, Format: removednames.ReplacedFormat{}}.Message()
+}
+
+// LoadConfig will load the config variables into a fully initialized
+// AutoMDMConfig struct
+func (man Manager) LoadConfig() (AutoMDMConfig, error) {
+	man.loadConfigFile()
+
+	for _, removedKey := range removednames.Filter(removednames.KindConfigKey, 0) {
+		if man.IsSet(removedKey.Old) {
+			return AutoMDMConfig{}, errors.New(man.removedConfigMessage(removedKey))
+		}
+	}
+
+	loadMysqlConfig := func(prefix string) MysqlConfig {
+		return MysqlConfig{
+			Protocol:         man.getConfigString(prefix + ".protocol"),
+			Address:          man.getConfigString(prefix + ".address"),
+			Username:         man.getConfigString(prefix + ".username"),
+			Password:         man.getConfigString(prefix + ".password"),
+			PasswordPath:     man.getConfigString(prefix + ".password_path"),
+			Database:         man.getConfigString(prefix + ".database"),
+			TLSCert:          man.getConfigString(prefix + ".tls_cert"),
+			TLSKey:           man.getConfigString(prefix + ".tls_key"),
+			TLSCA:            man.getConfigString(prefix + ".tls_ca"),
+			TLSServerName:    man.getConfigString(prefix + ".tls_server_name"),
+			TLSConfig:        man.getConfigString(prefix + ".tls_config"),
+			MaxOpenConns:     man.getConfigInt(prefix + ".max_open_conns"),
+			MaxIdleConns:     man.getConfigInt(prefix + ".max_idle_conns"),
+			ConnMaxLifetime:  man.getConfigInt(prefix + ".conn_max_lifetime"),
+			SQLMode:          man.getConfigString(prefix + ".sql_mode"),
+			Region:           man.getConfigString(prefix + ".region"),
+			StsAssumeRoleArn: man.getConfigString(prefix + ".sts_assume_role_arn"),
+			StsExternalID:    man.getConfigString(prefix + ".sts_external_id"),
+		}
+	}
+
+	cfg := AutoMDMConfig{
+		Mysql:            loadMysqlConfig("mysql"),
+		MysqlReadReplica: loadMysqlConfig("mysql_read_replica"),
+		Redis: RedisConfig{
+			Address:                       man.getConfigString("redis.address"),
+			Username:                      man.getConfigString("redis.username"),
+			Password:                      man.getConfigString("redis.password"),
+			Database:                      man.getConfigInt("redis.database"),
+			Region:                        man.getConfigString("redis.region"),
+			CacheName:                     man.getConfigString("redis.cache_name"),
+			UseTLS:                        man.getConfigBool("redis.use_tls"),
+			DuplicateResults:              man.getConfigBool("redis.duplicate_results"),
+			ConnectTimeout:                man.getConfigDuration("redis.connect_timeout"),
+			KeepAlive:                     man.getConfigDuration("redis.keep_alive"),
+			ConnectRetryAttempts:          man.getConfigInt("redis.connect_retry_attempts"),
+			ClusterFollowRedirections:     man.getConfigBool("redis.cluster_follow_redirections"),
+			ClusterReadFromReplica:        man.getConfigBool("redis.cluster_read_from_replica"),
+			TLSCert:                       man.getConfigString("redis.tls_cert"),
+			TLSKey:                        man.getConfigString("redis.tls_key"),
+			TLSCA:                         man.getConfigString("redis.tls_ca"),
+			TLSServerName:                 man.getConfigString("redis.tls_server_name"),
+			TLSHandshakeTimeout:           man.getConfigDuration("redis.tls_handshake_timeout"),
+			MaxIdleConns:                  man.getConfigInt("redis.max_idle_conns"),
+			MaxOpenConns:                  man.getConfigInt("redis.max_open_conns"),
+			ConnMaxLifetime:               man.getConfigDuration("redis.conn_max_lifetime"),
+			IdleTimeout:                   man.getConfigDuration("redis.idle_timeout"),
+			ConnWaitTimeout:               man.getConfigDuration("redis.conn_wait_timeout"),
+			WriteTimeout:                  man.getConfigDuration("redis.write_timeout"),
+			ReadTimeout:                   man.getConfigDuration("redis.read_timeout"),
+			StsAssumeRoleArn:              man.getConfigString("redis.sts_assume_role_arn"),
+			StsExternalID:                 man.getConfigString("redis.sts_external_id"),
+			HostCacheEnabled:              man.getConfigBool("redis.host_cache_enabled"),
+			HostCacheTTL:                  man.getConfigDuration("redis.host_cache_ttl"),
+			LiveQuerySmallTargetThreshold: man.getConfigInt("redis.live_query_small_target_threshold"),
+		},
+		Server: ServerConfig{
+			Address:                          man.getConfigString("server.address"),
+			Cert:                             man.getConfigString("server.cert"),
+			Key:                              man.getConfigString("server.key"),
+			TLS:                              man.getConfigBool("server.tls"),
+			TLSProfile:                       man.getConfigTLSProfile(),
+			URLPrefix:                        man.getConfigString("server.url_prefix"),
+			Keepalive:                        man.getConfigBool("server.keepalive"),
+			SandboxEnabled:                   man.getConfigBool("server.sandbox_enabled"),
+			WebsocketsAllowUnsafeOrigin:      man.getConfigBool("server.websockets_allow_unsafe_origin"),
+			FrequentCleanupsEnabled:          man.getConfigBool("server.frequent_cleanups_enabled"),
+			ForceH2C:                         man.getConfigBool("server.force_h2c"),
+			PrivateKey:                       man.getConfigString("server.private_key"),
+			PrivateKeySecretArn:              man.getConfigString("server.private_key_arn"),
+			PrivateKeySecretRegion:           man.getConfigString("server.private_key_region"),
+			PrivateKeySecretSTSAssumeRoleArn: man.getConfigString("server.private_key_sts_assume_role_arn"),
+			PrivateKeySecretSTSExternalID:    man.getConfigString("server.private_key_sts_external_id"),
+			VPPVerifyTimeout:                 man.getConfigDuration("server.vpp_verify_timeout"),
+			VPPVerifyRequestDelay:            man.getConfigDuration("server.vpp_verify_request_delay"),
+			VPPInstallReapTimeout:            man.getConfigDuration("server.vpp_install_reap_timeout"),
+			CleanupDistTargetsAge:            man.getConfigDuration("server.cleanup_dist_targets_age"),
+			ScriptResultsRetention:           man.getConfigDuration("server.script_results_retention"),
+			SoftwareInstallResultsRetention:  man.getConfigDuration("server.software_install_results_retention"),
+			DeletedHostCertificatesRetention: man.getConfigDuration("server.deleted_host_certificates_retention"),
+			MaxInstallerSizeBytes:            man.getConfigByteSize("server.max_installer_size"),
+			TrustedProxies:                   man.getConfigString("server.trusted_proxies"),
+			GzipResponses:                    man.getConfigBool("server.gzip_responses"),
+			DefaultMaxRequestBodySize:        man.getConfigByteSize("server.default_max_request_body_size"),
+			AllowPrivateNetworkIntegrations:  man.getConfigBool("server.allow_private_network_integrations"),
+			BypassNetworkBlocking:            man.getConfigBool("server.bypass_network_blocking"),
+			AllowRequestCertificateAnyIdP:    man.getConfigBool("server.allow_request_certificate_any_idp"),
+			EndpointRequestSizeOverrides:     man.getConfigEndpointRequestSizeOverrides(),
+		},
+		Auth: AuthConfig{
+			BcryptCost:                           man.getConfigInt("auth.bcrypt_cost"),
+			SaltKeySize:                          man.getConfigInt("auth.salt_key_size"),
+			SsoSessionValidityPeriod:             man.getConfigDuration("auth.sso_session_validity_period"),
+			RequireHTTPMessageSignature:          man.getConfigBool("auth.require_http_message_signature"),
+			SSORateLimitPerMinute:                man.getConfigInt("auth.sso_rate_limit_per_minute"),
+			RequireHostIdentityRenewalKeyBinding: man.getConfigBool("auth.require_host_identity_renewal_key_binding"),
+		},
+		App: AppConfig{
+			TokenKeySize:              man.getConfigInt("app.token_key_size"),
+			InviteTokenValidityPeriod: man.getConfigDuration("app.invite_token_validity_period"),
+			EnableScheduledQueryStats: man.getConfigBool("app.enable_scheduled_query_stats"),
+		},
+		Session: SessionConfig{
+			KeySize:  man.getConfigInt("session.key_size"),
+			Duration: man.getConfigDuration("session.duration"),
+		},
+		Osquery: OsqueryConfig{
+			NodeKeySize:     man.getConfigInt("osquery.node_key_size"),
+			HostIdentifier:  man.getConfigString("osquery.host_identifier"),
+			EnrollCooldown:  man.getConfigDuration("osquery.enroll_cooldown"),
+			StatusLogPlugin: man.getConfigString("osquery.status_log_plugin"),
+			ResultLogPlugin: man.getConfigString("osquery.result_log_plugin"),
+			// StatusLogFile is deprecated. FilesystemConfig.StatusLogFile is used instead.
+			StatusLogFile: man.getConfigString("osquery.status_log_file"),
+			// ResultLogFile is deprecated. FilesystemConfig.ResultLogFile is used instead.
+			ResultLogFile:                   man.getConfigString("osquery.result_log_file"),
+			LabelUpdateInterval:             man.getConfigDuration("osquery.label_update_interval"),
+			PolicyUpdateInterval:            man.getConfigDuration("osquery.policy_update_interval"),
+			DetailUpdateInterval:            man.getConfigDuration("osquery.detail_update_interval"),
+			EnableLogRotation:               man.getConfigBool("osquery.enable_log_rotation"),
+			MaxJitterPercent:                man.getConfigInt("osquery.max_jitter_percent"),
+			AISessionMaxToolCalls:           man.getConfigInt("osquery.ai_session_max_tool_calls"),
+			AISessionMaxToolCallsPerRefresh: man.getConfigInt("osquery.ai_session_max_tool_calls_per_refresh"),
+			MaxLogWriteBodySize:             man.getConfigByteSize("osquery.max_log_write_body_size"),
+			MaxDistributedWriteBodySize:     man.getConfigByteSize("osquery.max_distributed_write_body_size"),
+			AllowBodyAuthFallback:           man.getConfigBool("osquery.allow_body_auth_fallback"),
+			ConfigETags:                     man.getConfigBool("osquery.config_etags"),
+			RedisConfigETags:                man.getConfigBool("osquery.redis_config_etags"),
+			ConfigInMemoryCache:             man.getConfigBool("osquery.config_in_memory_cache"),
+			MaxConcurrentQueryReportReads:   man.getConfigInt("osquery.max_concurrent_query_report_reads"),
+			MaxConcurrentQueryReportWrites:  man.getConfigInt("osquery.max_concurrent_query_report_writes"),
+		},
+		Activity: ActivityConfig{
+			EnableAuditLog:                   man.getConfigBool("activity.enable_audit_log"),
+			AuditLogPlugin:                   man.getConfigString("activity.audit_log_plugin"),
+			AutoMDMInitiatedReleasePerMinute: man.getConfigNonNegativeInt("activity.automdm_initiated_release_per_minute"),
+		},
+		Logging: LoggingConfig{
+			Debug:                man.getConfigBool("logging.debug"),
+			JSON:                 man.getConfigBool("logging.json"),
+			DisableBanner:        man.getConfigBool("logging.disable_banner"),
+			ErrorRetentionPeriod: man.getConfigDuration("logging.error_retention_period"),
+			TracingEnabled:       man.getConfigBool("logging.tracing_enabled"),
+			TracingType:          man.getConfigString("logging.tracing_type"),
+			OtelLogsEnabled:      man.getConfigBool("logging.otel_logs_enabled"),
+			EnableLogTopics:      man.getConfigString("logging.enable_topics"),
+			DisableLogTopics:     man.getConfigString("logging.disable_topics"),
+		},
+		Firehose: FirehoseConfig{
+			Region:           man.getConfigString("firehose.region"),
+			EndpointURL:      man.getConfigString("firehose.endpoint_url"),
+			AccessKeyID:      man.getConfigString("firehose.access_key_id"),
+			SecretAccessKey:  man.getConfigString("firehose.secret_access_key"),
+			StsAssumeRoleArn: man.getConfigString("firehose.sts_assume_role_arn"),
+			StsExternalID:    man.getConfigString("firehose.sts_external_id"),
+			StatusStream:     man.getConfigString("firehose.status_stream"),
+			ResultStream:     man.getConfigString("firehose.result_stream"),
+			AuditStream:      man.getConfigString("firehose.audit_stream"),
+		},
+		Kinesis: KinesisConfig{
+			Region:           man.getConfigString("kinesis.region"),
+			EndpointURL:      man.getConfigString("kinesis.endpoint_url"),
+			AccessKeyID:      man.getConfigString("kinesis.access_key_id"),
+			SecretAccessKey:  man.getConfigString("kinesis.secret_access_key"),
+			StatusStream:     man.getConfigString("kinesis.status_stream"),
+			ResultStream:     man.getConfigString("kinesis.result_stream"),
+			AuditStream:      man.getConfigString("kinesis.audit_stream"),
+			StsAssumeRoleArn: man.getConfigString("kinesis.sts_assume_role_arn"),
+			StsExternalID:    man.getConfigString("kinesis.sts_external_id"),
+		},
+		Lambda: LambdaConfig{
+			Region:           man.getConfigString("lambda.region"),
+			AccessKeyID:      man.getConfigString("lambda.access_key_id"),
+			SecretAccessKey:  man.getConfigString("lambda.secret_access_key"),
+			StatusFunction:   man.getConfigString("lambda.status_function"),
+			ResultFunction:   man.getConfigString("lambda.result_function"),
+			AuditFunction:    man.getConfigString("lambda.audit_function"),
+			StsAssumeRoleArn: man.getConfigString("lambda.sts_assume_role_arn"),
+			StsExternalID:    man.getConfigString("lambda.sts_external_id"),
+		},
+		S3: man.loadS3Config(),
+		CloudStorage: CloudStorageConfig{Azure: AzureConfig{
+			SoftwareInstallersAccountName:  man.getConfigString("cloud_storage.azure.files_account_name"),
+			SoftwareInstallersAccountKey:   man.getConfigString("cloud_storage.azure.files_account_key"),
+			SoftwareInstallersContainer:    man.getConfigString("cloud_storage.azure.files_container"),
+			SoftwareInstallersContainerURL: man.getConfigString("cloud_storage.azure.files_container_url"),
+			SoftwareInstallersSignedURL:    man.getConfigBool("cloud_storage.azure.files_signed_url"),
+		}},
+		Email: EmailConfig{
+			EmailBackend: man.getConfigString("email.backend"),
+		},
+		SES: SESConfig{
+			Region:           man.getConfigString("ses.region"),
+			EndpointURL:      man.getConfigString("ses.endpoint_url"),
+			AccessKeyID:      man.getConfigString("ses.access_key_id"),
+			SecretAccessKey:  man.getConfigString("ses.secret_access_key"),
+			StsAssumeRoleArn: man.getConfigString("ses.sts_assume_role_arn"),
+			StsExternalID:    man.getConfigString("ses.sts_external_id"),
+			SourceArn:        man.getConfigString("ses.source_arn"),
+			SenderDomain:     man.getConfigString("ses.sender_domain"),
+		},
+		PubSub: PubSubConfig{
+			Project:       man.getConfigString("pubsub.project"),
+			StatusTopic:   man.getConfigString("pubsub.status_topic"),
+			ResultTopic:   man.getConfigString("pubsub.result_topic"),
+			AuditTopic:    man.getConfigString("pubsub.audit_topic"),
+			AddAttributes: man.getConfigBool("pubsub.add_attributes"),
+		},
+		Filesystem: FilesystemConfig{
+			StatusLogFile:        man.getConfigString("filesystem.status_log_file"),
+			ResultLogFile:        man.getConfigString("filesystem.result_log_file"),
+			AuditLogFile:         man.getConfigString("filesystem.audit_log_file"),
+			EnableLogRotation:    man.getConfigBool("filesystem.enable_log_rotation"),
+			EnableLogCompression: man.getConfigBool("filesystem.enable_log_compression"),
+			MaxSize:              man.getConfigInt("filesystem.max_size"),
+			MaxAge:               man.getConfigInt("filesystem.max_age"),
+			MaxBackups:           man.getConfigInt("filesystem.max_backups"),
+		},
+		Webhook: WebhookConfig{
+			StatusURL: man.getConfigString("webhook.status_url"),
+			ResultURL: man.getConfigString("webhook.result_url"),
+		},
+		KafkaREST: KafkaRESTConfig{
+			StatusTopic:      man.getConfigString("kafkarest.status_topic"),
+			ResultTopic:      man.getConfigString("kafkarest.result_topic"),
+			AuditTopic:       man.getConfigString("kafkarest.audit_topic"),
+			ProxyHost:        man.getConfigString("kafkarest.proxyhost"),
+			ContentTypeValue: man.getConfigString("kafkarest.content_type_value"),
+			Timeout:          man.getConfigInt("kafkarest.timeout"),
+		},
+		Nats: NatsConfig{
+			StatusSubject:    man.getConfigString("nats.status_subject"),
+			ResultSubject:    man.getConfigString("nats.result_subject"),
+			AuditSubject:     man.getConfigString("nats.audit_subject"),
+			Server:           man.getConfigString("nats.server"),
+			CredFile:         man.getConfigString("nats.cred_file"),
+			NKeyFile:         man.getConfigString("nats.nkey_file"),
+			TLSClientCrtFile: man.getConfigString("nats.tls_client_crt_file"),
+			TLSClientKeyFile: man.getConfigString("nats.tls_client_key_file"),
+			CACrtFile:        man.getConfigString("nats.ca_crt_file"),
+			Compression:      man.getConfigString("nats.compression"),
+			JetStream:        man.getConfigBool("nats.jetstream"),
+			Timeout:          man.getConfigDuration("nats.timeout"),
+		},
+		Splunk: SplunkConfig{
+			URL:                man.getConfigString("splunk.url"),
+			Token:              man.getConfigString("splunk.token"),
+			Index:              man.getConfigString("splunk.index"),
+			Source:             man.getConfigString("splunk.source"),
+			SourceType:         man.getConfigString("splunk.source_type"),
+			InsecureSkipVerify: man.getConfigBool("splunk.insecure_skip_verify"),
+		},
+		License: LicenseConfig{
+			Key:              man.getConfigString("license.key"),
+			EnforceHostLimit: man.getConfigBool("license.enforce_host_limit"),
+		},
+		Vulnerabilities: VulnerabilitiesConfig{
+			DatabasesPath:               man.getConfigString("vulnerabilities.databases_path"),
+			Periodicity:                 man.getConfigDuration("vulnerabilities.periodicity"),
+			CPEDatabaseURL:              man.getConfigString("vulnerabilities.cpe_database_url"),
+			CPETranslationsURL:          man.getConfigString("vulnerabilities.cpe_translations_url"),
+			CVEFeedPrefixURL:            man.getConfigString("vulnerabilities.cve_feed_prefix_url"),
+			CISAKnownExploitsURL:        man.getConfigString("vulnerabilities.cisa_known_exploits_url"),
+			CurrentInstanceChecks:       man.getConfigString("vulnerabilities.current_instance_checks"),
+			DisableSchedule:             man.getConfigBool("vulnerabilities.disable_schedule"),
+			DisableDataSync:             man.getConfigBool("vulnerabilities.disable_data_sync"),
+			RecentVulnerabilityMaxAge:   man.getConfigDuration("vulnerabilities.recent_vulnerability_max_age"),
+			DisableWinOSVulnerabilities: man.getConfigBool("vulnerabilities.disable_win_os_vulnerabilities"),
+			OSVForVulnerabilities:       man.getConfigBool("vulnerabilities.osv_for_vulnerabilities"),
+			MaxConcurrency:              man.getConfigInt("vulnerabilities.max_concurrency"),
+		},
+		Upgrades: UpgradesConfig{
+			AllowMissingMigrations: man.getConfigBool("upgrades.allow_missing_migrations"),
+		},
+		Sentry: SentryConfig{
+			Dsn: man.getConfigString("sentry.dsn"),
+		},
+		GeoIP: GeoIPConfig{
+			DatabasePath: man.getConfigString("geoip.database_path"),
+		},
+		Prometheus: PrometheusConfig{
+			BasicAuth: HTTPBasicAuthConfig{
+				Username: man.getConfigString("prometheus.basic_auth.username"),
+				Password: man.getConfigString("prometheus.basic_auth.password"),
+				Disable:  man.getConfigBool("prometheus.basic_auth.disable"),
+			},
+		},
+		MDM: MDMConfig{
+			AppleAPNsCert:                     man.getConfigString("mdm.apple_apns_cert"),
+			AppleAPNsCertBytes:                man.getConfigString("mdm.apple_apns_cert_bytes"),
+			AppleAPNsKey:                      man.getConfigString("mdm.apple_apns_key"),
+			AppleAPNsKeyBytes:                 man.getConfigString("mdm.apple_apns_key_bytes"),
+			AppleSCEPCert:                     man.getConfigString("mdm.apple_scep_cert"),
+			AppleSCEPCertBytes:                man.getConfigString("mdm.apple_scep_cert_bytes"),
+			AppleSCEPKey:                      man.getConfigString("mdm.apple_scep_key"),
+			AppleSCEPKeyBytes:                 man.getConfigString("mdm.apple_scep_key_bytes"),
+			AppleBMServerToken:                man.getConfigString("mdm.apple_business_server_token"),
+			AppleBMServerTokenBytes:           man.getConfigString("mdm.apple_business_server_token_bytes"),
+			AppleBMCert:                       man.getConfigString("mdm.apple_business_cert"),
+			AppleBMCertBytes:                  man.getConfigString("mdm.apple_business_cert_bytes"),
+			AppleBMKey:                        man.getConfigString("mdm.apple_business_key"),
+			AppleBMKeyBytes:                   man.getConfigString("mdm.apple_business_key_bytes"),
+			AppleEnable:                       man.getConfigBool("mdm.apple_enable"),
+			AppleMachineInfoVerify:            man.getConfigBool("mdm.apple_machineinfo_verify"),
+			AppleSCEPSignerValidityDays:       man.getConfigInt("mdm.apple_scep_signer_validity_days"),
+			AppleConnectJWT:                   man.getConfigString("mdm.apple_vpp_app_metadata_api_bearer_token"),
+			AppleSCEPChallenge:                man.getConfigString("mdm.apple_scep_challenge"),
+			AppleDEPSyncPeriodicity:           man.getConfigDuration("mdm.apple_dep_sync_periodicity"),
+			AppleAPNsPushExpiration:           man.getConfigDuration("mdm.apple_apns_push_expiration"),
+			AppleAPNsSweepInterval:            man.getConfigDuration("mdm.apple_apns_sweep_interval"),
+			WindowsWSTEPIdentityCert:          man.getConfigString("mdm.windows_wstep_identity_cert"),
+			WindowsWSTEPIdentityKey:           man.getConfigString("mdm.windows_wstep_identity_key"),
+			WindowsWSTEPIdentityCertBytes:     man.getConfigString("mdm.windows_wstep_identity_cert_bytes"),
+			WindowsWSTEPIdentityKeyBytes:      man.getConfigString("mdm.windows_wstep_identity_key_bytes"),
+			WindowsEnrollmentRetention:        man.getConfigDuration("mdm.windows_enrollment_retention"),
+			WindowsCommandRetention:           man.getConfigDuration("mdm.windows_command_retention"),
+			SSORateLimitPerMinute:             man.getConfigInt("mdm.sso_rate_limit_per_minute"),
+			CertificateProfilesLimit:          man.getConfigInt("mdm.certificate_profiles_limit"),
+			EnableCustomOSUpdatesAndFileVault: man.getConfigBool("mdm.enable_custom_os_updates_and_filevault"),
+			EnableCustomFileVault:             man.getConfigBool("mdm.enable_custom_filevault"),
+			EnableCustomDiskEncryption:        man.getConfigBool("mdm.enable_custom_disk_encryption"),
+			AllowAllDeclarations:              man.getConfigBool("mdm.allow_all_declarations"),
+			AllowCustomActivations:            man.getConfigBool("mdm.allow_custom_activations"),
+			AllowOrbitEndUserAuthBypass:       man.getConfigBool("mdm.allow_orbit_end_user_auth_bypass"),
+			AppleOneTimeEnrollSecrets:         man.getConfigBool("mdm.apple_one_time_enroll_secrets"),
+			WindowsOneTimeEnrollSecrets:       man.getConfigBool("mdm.windows_one_time_enroll_secrets"),
+			AndroidOneTimeEnrollSecrets:       man.getConfigBool("mdm.android_one_time_enroll_secrets"),
+			AndroidAgent: AndroidAgentConfig{
+				Package:       man.getConfigString("mdm.android_agent.package"),
+				SigningSHA256: man.getConfigString("mdm.android_agent.signing_sha256"),
+			},
+			AndroidBatchSize:                         man.getConfigInt("mdm.android_batch_size"),
+			IOSIPadOSRefetchBatchSize:                man.getConfigInt("mdm.ios_ipados_refetch_batch_size"),
+			AppleSCEPStaticChallengeEnabled:          man.getConfigBool("mdm.apple_scep_static_challenge_enabled"),
+			AppleCommandCleanupShortRetention:        man.getConfigDuration("mdm.apple_command_cleanup_short_retention"),
+			AppleCommandCleanupStandardRetention:     man.getConfigDuration("mdm.apple_command_cleanup_standard_retention"),
+			AppleCommandCleanupMaxRowDeletionsPerRun: man.getConfigInt("mdm.apple_command_cleanup_max_row_deletions_per_run"),
+			AppleCommandCleanupMaxCmdDeletionsPerRun: man.getConfigInt("mdm.apple_command_cleanup_max_command_deletions_per_run"),
+		},
+		Calendar: CalendarConfig{
+			Periodicity: man.getConfigDuration("calendar.periodicity"),
+		},
+		GoogleWorkspace: GoogleWorkspaceConfig{
+			MaxUsers:            man.getConfigInt("google_workspace.max_users"),
+			MaxGroups:           man.getConfigInt("google_workspace.max_groups"),
+			MaxGroupMembers:     man.getConfigInt("google_workspace.max_group_members"),
+			MaxGroupMemberships: man.getConfigInt("google_workspace.max_group_memberships"),
+		},
+		Partnerships: PartnershipsConfig{
+			EnableSecureframe: man.getConfigBool("partnerships.enable_secureframe"),
+			EnablePrimo:       man.getConfigBool("partnerships.enable_primo"),
+		},
+		MicrosoftCompliancePartner: MicrosoftCompliancePartnerConfig{
+			ProxyURI: man.getConfigString("microsoft_compliance_partner.proxy_uri"),
+			ClientID: man.getConfigString("microsoft_compliance_partner.client_id"),
+		},
+		GoogleConditionalAccess: GoogleConditionalAccessConfig{
+			ProxyURI: man.getConfigString("google_conditional_access.proxy_uri"),
+		},
+		ConditionalAccess: ConditionalAccessConfig{
+			CertSerialFormat: man.getConfigString("conditional_access.cert_serial_format"),
+		},
+		WebSocket: WebSocketConfig{
+			TransportEnabled: man.getConfigBool("websocket.transport_enabled"),
+			PingInterval:     man.getConfigDuration("websocket.ping_interval"),
+			PongTimeout:      man.getConfigDuration("websocket.pong_timeout"),
+			CheckInterval:    man.getConfigDuration("websocket.check_interval"),
+			CheckBatchSize:   man.getConfigInt("websocket.check_batch_size"),
+
+			OrbitConfigEnabled:      man.getConfigBool("websocket.orbit_config_enabled"),
+			OrbitConfigPollInterval: man.getConfigDuration("websocket.orbit_config_poll_interval"),
+			OrbitConfigSpread:       man.getConfigDuration("websocket.orbit_config_spread"),
+
+			OsqueryConfigEnabled:      man.getConfigBool("websocket.osquery_config_enabled"),
+			OsqueryConfigPollInterval: man.getConfigDuration("websocket.osquery_config_poll_interval"),
+		},
+	}
+
+	return cfg, nil
+}
+
+func (man Manager) loadS3Config() S3Config {
+	return S3Config{
+		CarvesBucket:             man.getConfigString("s3.carves_bucket"),
+		CarvesPrefix:             man.getConfigString("s3.carves_prefix"),
+		CarvesRegion:             man.getConfigString("s3.carves_region"),
+		CarvesEndpointURL:        man.getConfigString("s3.carves_endpoint_url"),
+		CarvesAccessKeyID:        man.getConfigString("s3.carves_access_key_id"),
+		CarvesSecretAccessKey:    man.getConfigString("s3.carves_secret_access_key"),
+		CarvesStsAssumeRoleArn:   man.getConfigString("s3.carves_sts_assume_role_arn"),
+		CarvesStsExternalID:      man.getConfigString("s3.carves_sts_external_id"),
+		CarvesDisableSSL:         man.getConfigBool("s3.carves_disable_ssl"),
+		CarvesForceS3PathStyle:   man.getConfigBool("s3.carves_force_s3_path_style"),
+		CarvesGCSIAMAuth:         man.getConfigBool("s3.carves_gcs_iam_auth"),
+		CarvesCleanupDisabled:    man.getConfigBool("s3.carves_cleanup_disabled"),
+		CarvesCleanupMaxPerRun:   man.getConfigInt("s3.carves_cleanup_max_per_run"),
+		CarvesCleanupConcurrency: man.getConfigInt("s3.carves_cleanup_concurrency"),
+
+		Bucket:           man.getConfigString("s3.bucket"),
+		Prefix:           man.getConfigString("s3.prefix"),
+		Region:           man.getConfigString("s3.region"),
+		EndpointURL:      man.getConfigString("s3.endpoint_url"),
+		AccessKeyID:      man.getConfigString("s3.access_key_id"),
+		SecretAccessKey:  man.getConfigString("s3.secret_access_key"),
+		StsAssumeRoleArn: man.getConfigString("s3.sts_assume_role_arn"),
+		StsExternalID:    man.getConfigString("s3.sts_external_id"),
+		DisableSSL:       man.getConfigBool("s3.disable_ssl"),
+		ForceS3PathStyle: man.getConfigBool("s3.force_s3_path_style"),
+
+		SoftwareInstallersBucket:                          man.getConfigString("s3.software_installers_bucket"),
+		SoftwareInstallersPrefix:                          man.getConfigString("s3.software_installers_prefix"),
+		SoftwareInstallersRegion:                          man.getConfigString("s3.software_installers_region"),
+		SoftwareInstallersEndpointURL:                     man.getConfigString("s3.software_installers_endpoint_url"),
+		SoftwareInstallersAccessKeyID:                     man.getConfigString("s3.software_installers_access_key_id"),
+		SoftwareInstallersSecretAccessKey:                 man.getConfigString("s3.software_installers_secret_access_key"),
+		SoftwareInstallersStsAssumeRoleArn:                man.getConfigString("s3.software_installers_sts_assume_role_arn"),
+		SoftwareInstallersStsExternalID:                   man.getConfigString("s3.software_installers_sts_external_id"),
+		SoftwareInstallersDisableSSL:                      man.getConfigBool("s3.software_installers_disable_ssl"),
+		SoftwareInstallersForceS3PathStyle:                man.getConfigBool("s3.software_installers_force_s3_path_style"),
+		SoftwareInstallersGCSIAMAuth:                      man.getConfigBool("s3.software_installers_gcs_iam_auth"),
+		SoftwareInstallersCloudFrontURL:                   man.getConfigString("s3.software_installers_cloudfront_url"),
+		SoftwareInstallersCloudFrontURLSigningPublicKeyID: man.getConfigString("s3.software_installers_cloudfront_url_signing_public_key_id"),
+		SoftwareInstallersCloudFrontURLSigningPrivateKey:  man.getConfigString("s3.software_installers_cloudfront_url_signing_private_key"),
+		SoftwareInstallersSignedURL:                       man.getConfigBool("s3.software_installers_gcs_signed_url") || man.getConfigBool("s3.software_installers_signed_url"),
+	}
+}
+
+// IsSet determines whether a given config key has been explicitly set by any
+// of the configuration sources. If false, the default value is being used.
+func (man Manager) IsSet(key string) bool {
+	return man.viper.IsSet(key)
+}
+
+// envNameFromConfigKey converts a config key into the corresponding
+// environment variable name
+func envNameFromConfigKey(key string) string {
+	return envPrefix + "_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_"))
+}
+
+// flagNameFromConfigKey converts a config key into the corresponding flag name
+func flagNameFromConfigKey(key string) string {
+	return strings.ReplaceAll(key, ".", "_")
+}
+
+// Manager manages the addition and retrieval of config values for AutoMDM
+// configs. It's only public API method is LoadConfig, which will return the
+// populated AutoMDMConfig struct.
+type Manager struct {
+	viper    *viper.Viper
+	command  *cobra.Command
+	defaults map[string]interface{}
+}
+
+// NewManager initializes a Manager wrapping the provided cobra
+// command. All config flags will be attached to that command (and inherited by
+// the subcommands). Typically this should be called just once, with the root
+// command.
+func NewManager(command *cobra.Command) Manager {
+	man := Manager{
+		viper:    viper.New(),
+		command:  command,
+		defaults: map[string]interface{}{},
+	}
+	man.addConfigs()
+	return man
+}
+
+// addDefault will check for duplication, then add a default value to the
+// defaults map
+func (man Manager) addDefault(key string, defVal interface{}) {
+	if _, exists := man.defaults[key]; exists {
+		panic("Trying to add duplicate config for key " + key)
+	}
+
+	man.defaults[key] = defVal
+}
+
+func getFlagUsage(key string, usage string) string {
+	return fmt.Sprintf("Env: %s\n\t\t%s", envNameFromConfigKey(key), usage)
+}
+
+// getInterfaceVal is a helper function used by the getConfig* functions to
+// retrieve the config value as interface{}, which will then be cast to the
+// appropriate type by the getConfig* function.
+func (man Manager) getInterfaceVal(key string) interface{} {
+	interfaceVal := man.viper.Get(key)
+	if interfaceVal == nil {
+		var ok bool
+		interfaceVal, ok = man.defaults[key]
+		if !ok {
+			panic("Tried to look up default value for nonexistent config option: " + key)
+		}
+	}
+	return interfaceVal
+}
+
+// addConfigString adds a string config to the config options
+func (man Manager) addConfigString(key, defVal, usage string) {
+	man.command.PersistentFlags().String(flagNameFromConfigKey(key), defVal, getFlagUsage(key, usage))
+	man.viper.BindPFlag(key, man.command.PersistentFlags().Lookup(flagNameFromConfigKey(key))) //nolint:errcheck
+	man.viper.BindEnv(key, envNameFromConfigKey(key))                                          //nolint:errcheck
+
+	// Add default
+	man.addDefault(key, defVal)
+}
+
+// getConfigString retrieves a string from the loaded config
+func (man Manager) getConfigString(key string) string {
+	interfaceVal := man.getInterfaceVal(key)
+	stringVal, err := cast.ToStringE(interfaceVal)
+	if err != nil {
+		panic("Unable to cast to string for key " + key + ": " + err.Error())
+	}
+
+	return stringVal
+}
+
+// getConfigNonNegativeInt is like getConfigInt but panics on negative values,
+// for keys where a negative would silently disable a protection (0 is the
+// documented "disabled" value; below that is an operator error).
+func (man Manager) getConfigNonNegativeInt(key string) int {
+	val := man.getConfigInt(key)
+	if val < 0 {
+		panic(fmt.Sprintf("%s cannot be negative (0 disables it): %d", key, val))
+	}
+	return val
+}
+
+// Custom handling for TLSProfile which can only accept specific values
+// for the argument
+func (man Manager) getConfigTLSProfile() string {
+	ival := man.getInterfaceVal(TLSProfileKey)
+	sval, err := cast.ToStringE(ival)
+	if err != nil {
+		panic(fmt.Sprintf("%s requires a string value: %s", TLSProfileKey, err.Error()))
+	}
+	switch sval {
+	case TLSProfileModern, TLSProfileIntermediate:
+	default:
+		panic(fmt.Sprintf("%s must be one of %s or %s", TLSProfileKey,
+			TLSProfileModern, TLSProfileIntermediate))
+	}
+	return sval
+}
+
+// addConfigInt adds a int config to the config options
+func (man Manager) addConfigInt(key string, defVal int, usage string) {
+	man.command.PersistentFlags().Int(flagNameFromConfigKey(key), defVal, getFlagUsage(key, usage))
+	man.viper.BindPFlag(key, man.command.PersistentFlags().Lookup(flagNameFromConfigKey(key))) //nolint:errcheck
+	man.viper.BindEnv(key, envNameFromConfigKey(key))                                          //nolint:errcheck
+
+	// Add default
+	man.addDefault(key, defVal)
+}
+
+// getConfigInt retrieves a int from the loaded config
+func (man Manager) getConfigInt(key string) int {
+	interfaceVal := man.getInterfaceVal(key)
+	intVal, err := cast.ToIntE(interfaceVal)
+	if err != nil {
+		panic("Unable to cast to int for key " + key + ": " + err.Error())
+	}
+
+	return intVal
+}
+
+// addConfigBool adds a bool config to the config options
+func (man Manager) addConfigBool(key string, defVal bool, usage string) {
+	man.command.PersistentFlags().Bool(flagNameFromConfigKey(key), defVal, getFlagUsage(key, usage))
+	man.viper.BindPFlag(key, man.command.PersistentFlags().Lookup(flagNameFromConfigKey(key))) //nolint:errcheck
+	man.viper.BindEnv(key, envNameFromConfigKey(key))                                          //nolint:errcheck
+
+	// Add default
+	man.addDefault(key, defVal)
+}
+
+// getConfigBool retrieves a bool from the loaded config
+func (man Manager) getConfigBool(key string) bool {
+	interfaceVal := man.getInterfaceVal(key)
+	boolVal, err := cast.ToBoolE(interfaceVal)
+	if err != nil {
+		panic("Unable to cast to bool for key " + key + ": " + err.Error())
+	}
+
+	return boolVal
+}
+
+// addConfigDuration adds a duration config to the config options
+func (man Manager) addConfigDuration(key string, defVal time.Duration, usage string) {
+	man.command.PersistentFlags().Duration(flagNameFromConfigKey(key), defVal, getFlagUsage(key, usage))
+	man.viper.BindPFlag(key, man.command.PersistentFlags().Lookup(flagNameFromConfigKey(key))) //nolint:errcheck
+	man.viper.BindEnv(key, envNameFromConfigKey(key))                                          //nolint:errcheck
+
+	// Add default
+	man.addDefault(key, defVal)
+}
+
+// getConfigDuration retrieves a duration from the loaded config
+func (man Manager) getConfigDuration(key string) time.Duration {
+	interfaceVal := man.getInterfaceVal(key)
+	durationVal, err := cast.ToDurationE(interfaceVal)
+	if err != nil {
+		panic("Unable to cast to duration for key " + key + ": " + err.Error())
+	}
+
+	return durationVal
+}
+
+// addConfigByteSize adds a byte size config that accepts human-readable values like "10GiB", "500MB", "1G"
+func (man Manager) addConfigByteSize(key string, defVal string, usage string) {
+	man.command.PersistentFlags().String(flagNameFromConfigKey(key), defVal, getFlagUsage(key, usage))
+	man.viper.BindPFlag(key, man.command.PersistentFlags().Lookup(flagNameFromConfigKey(key))) //nolint:errcheck
+	man.viper.BindEnv(key, envNameFromConfigKey(key))                                          //nolint:errcheck
+
+	// Add default
+	man.addDefault(key, defVal)
+}
+
+// getConfigByteSize retrieves a byte size from the loaded config, parsing human-readable strings
+// like "10GiB", "500MB", "1G" into int64 byte values
+func (man Manager) getConfigByteSize(key string) int64 {
+	interfaceVal := man.getInterfaceVal(key)
+	stringVal, err := cast.ToStringE(interfaceVal)
+	if err != nil {
+		panic("Unable to cast to string for key " + key + ": " + err.Error())
+	}
+
+	byteSize, err := units.RAMInBytes(stringVal)
+	if err != nil {
+		panic("Unable to parse byte size for key " + key + ": " + err.Error())
+	}
+
+	return byteSize
+}
+
+// getConfigEndpointRequestSizeOverrides retrieves and parses server.endpoint_request_size_overrides.
+func (man Manager) getConfigEndpointRequestSizeOverrides() EndpointRequestSizeOverrides {
+	interfaceVal := man.getInterfaceVal(EndpointRequestSizeOverridesKey)
+
+	// Raw shape of the config
+	var rawConfig []struct {
+		Endpoint       string `json:"endpoint" yaml:"endpoint"`
+		MaxRequestSize string `json:"max_request_size" yaml:"max_request_size"`
+	}
+
+	switch v := interfaceVal.(type) {
+	case string: // Viper returns a string when the value is from env variable or CLI flag.
+		if v == "" {
+			return nil
+		}
+		if err := json.Unmarshal([]byte(v), &rawConfig); err != nil {
+			panic(fmt.Sprintf("Unable to parse %s: %s", EndpointRequestSizeOverridesKey, err.Error()))
+		}
+	case []any: // Viper returns a native []any when the value is from YAML config file.
+		if len(v) == 0 {
+			return nil
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			panic(fmt.Sprintf("Unable to encode value for key %s: %s", EndpointRequestSizeOverridesKey, err.Error()))
+		}
+		if err := json.Unmarshal(b, &rawConfig); err != nil {
+			panic(fmt.Sprintf("Unable to encode value for key %s: %s", EndpointRequestSizeOverridesKey, err.Error()))
+		}
+	case nil:
+		return nil
+	default:
+		panic(fmt.Sprintf("Unexpected type %T for key %s", interfaceVal, EndpointRequestSizeOverridesKey))
+	}
+
+	cfgOverrides := make(EndpointRequestSizeOverrides, len(rawConfig))
+
+	for _, o := range rawConfig {
+		if o.Endpoint == "" {
+			panic(fmt.Sprintf("Empty endpoint in %s", EndpointRequestSizeOverridesKey))
+		}
+
+		size, err := units.RAMInBytes(o.MaxRequestSize)
+		if err != nil {
+			panic(fmt.Sprintf("Unable to parse byte size for key %s, endpoint %s: %s", EndpointRequestSizeOverridesKey, o.Endpoint, err.Error()))
+		}
+
+		if _, ok := cfgOverrides[o.Endpoint]; ok {
+			panic(fmt.Sprintf("Duplicate config entry found for endpoint %s in %s", o.Endpoint, EndpointRequestSizeOverridesKey))
+		}
+
+		cfgOverrides[o.Endpoint] = size
+	}
+
+	return cfgOverrides
+}
+
+// loadConfigFile handles the loading of the config file.
+func (man Manager) loadConfigFile() {
+	man.viper.SetConfigType("yaml")
+
+	configFile := man.command.PersistentFlags().Lookup("config").Value.String()
+
+	if configFile == "" {
+		// No config file set, only use configs from env
+		// vars/flags/defaults
+		return
+	}
+
+	man.viper.SetConfigFile(configFile)
+	err := man.viper.ReadInConfig()
+	if err != nil {
+		fmt.Println("Error loading config file:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Using config file:", man.viper.ConfigFileUsed())
+}
+
+// TestConfig returns a barebones configuration suitable for use in tests.
+// Individual tests may want to override some of the values provided.
+func TestConfig() AutoMDMConfig {
+	testLogFile := "/dev/null"
+	if runtime.GOOS == "windows" {
+		testLogFile = "NUL"
+	}
+	return AutoMDMConfig{
+		App: AppConfig{
+			TokenKeySize:              24,
+			InviteTokenValidityPeriod: 5 * 24 * time.Hour,
+		},
+		Auth: AuthConfig{
+			BcryptCost:                  6, // Low cost keeps tests fast
+			SaltKeySize:                 24,
+			SsoSessionValidityPeriod:    5 * time.Minute,
+			RequireHTTPMessageSignature: false,
+		},
+		Session: SessionConfig{
+			KeySize:  64,
+			Duration: 24 * 5 * time.Hour,
+		},
+		Osquery: OsqueryConfig{
+			NodeKeySize:           24,
+			HostIdentifier:        "instance",
+			EnrollCooldown:        42 * time.Minute,
+			StatusLogPlugin:       "filesystem",
+			ResultLogPlugin:       "filesystem",
+			LabelUpdateInterval:   1 * time.Hour,
+			PolicyUpdateInterval:  1 * time.Hour,
+			DetailUpdateInterval:  1 * time.Hour,
+			MaxJitterPercent:      0,
+			AllowBodyAuthFallback: true,
+			ConfigETags:           true,
+			ConfigInMemoryCache:   true, // off in production; on here to cover the cache paths
+			AISessionMaxToolCalls: 10000,
+		},
+		Activity: ActivityConfig{
+			EnableAuditLog: true,
+			AuditLogPlugin: "filesystem",
+		},
+		Logging: LoggingConfig{
+			Debug:         true,
+			DisableBanner: true,
+		},
+		Filesystem: FilesystemConfig{
+			StatusLogFile: testLogFile,
+			ResultLogFile: testLogFile,
+			AuditLogFile:  testLogFile,
+			MaxSize:       500,
+		},
+		Server: ServerConfig{
+			PrivateKey: "72414F4A688151F75D032F5CDA095FC4",
+			// smaller than normal max to allow for testing max in CI, while being above the multipart chunk size
+			MaxInstallerSizeBytes: 513 * units.MiB,
+		},
+		Vulnerabilities: VulnerabilitiesConfig{
+			OSVForVulnerabilities: true,
+		},
+		MDM: MDMConfig{
+			AllowOrbitEndUserAuthBypass: true,
+		},
+		WebSocket: WebSocketConfig{
+			TransportEnabled: false,
+			PingInterval:     5 * time.Minute,
+			PongTimeout:      30 * time.Second,
+			CheckInterval:    30 * time.Second,
+			CheckBatchSize:   500,
+
+			OrbitConfigPollInterval: 5 * time.Minute,
+			OrbitConfigSpread:       30 * time.Second,
+
+			OsqueryConfigPollInterval: 10 * time.Minute,
+		},
+	}
+}
+
+// TestingT is the subset of *testing.T that SetTestMDMConfig needs.
+// *testing.T (and testing.TB) satisfy it without an explicit conversion, so
+// callers continue to pass `t` as-is. Defining this interface locally keeps
+// the "testing" package out of this package's production import graph.
+type TestingT interface {
+	Fatal(args ...any)
+}
+
+// SetTestMDMConfig modifies the provided cfg so that MDM is enabled and
+// configured properly. The provided certificate and private key are used for
+// all required pairs and the Apple BM token is used as-is, instead of
+// decrypting the encrypted value that is usually provided via the team
+// server's flags.
+func SetTestMDMConfig(t TestingT, cfg *AutoMDMConfig, cert, key []byte, wstepCertAndKeyDir string) {
+	cfg.MDM.AppleSCEPSignerValidityDays = 365
+
+	if wstepCertAndKeyDir == "" {
+		wstepCertAndKeyDir = "testdata"
+	}
+	certPath := filepath.Join(wstepCertAndKeyDir, "server.pem")
+	keyPath := filepath.Join(wstepCertAndKeyDir, "server.key")
+
+	cfg.MDM.WindowsWSTEPIdentityCert = certPath
+	cfg.MDM.WindowsWSTEPIdentityKey = keyPath
+	if _, _, _, err := cfg.MDM.MicrosoftWSTEP(); err != nil {
+		t.Fatal(err)
+	}
+}

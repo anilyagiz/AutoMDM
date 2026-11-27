@@ -1,0 +1,381 @@
+package service_test
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/WatchBeam/clock"
+	eeservice "github.com/anilyagiz/automdm/v4/ee/server/service"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+)
+
+func setupMockDatastorePremiumService(t testing.TB) (*mock.Store, *eeservice.Service, context.Context) {
+	ds := new(mock.Store)
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+	ctx := license.NewContext(context.Background(), lic)
+
+	logger := slog.New(slog.DiscardHandler)
+	automdmConfig := config.AutoMDMConfig{
+		MDM: config.MDMConfig{
+			AppleSCEPCertBytes: eeservice.TestCert,
+			AppleSCEPKeyBytes:  eeservice.TestKey,
+		},
+		Server: config.ServerConfig{
+			PrivateKey: "foo",
+		},
+	}
+	depStorage := &nanodep_mock.Storage{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/server/devices"):
+			_, err := w.Write([]byte("{}"))
+			require.NoError(t, err)
+		case strings.Contains(r.URL.Path, "/session"):
+			_, err := w.Write([]byte(`{"auth_session_token": "yoo"}`))
+			require.NoError(t, err)
+		case strings.Contains(r.URL.Path, "/profile"):
+			_, err := w.Write([]byte(`{"profile_uuid": "profile123"}`))
+			require.NoError(t, err)
+		}
+	}))
+	depStorage.RetrieveConfigFunc = func(context.Context, string) (*nanodep_client.Config, error) {
+		return &nanodep_client.Config{
+			BaseURL: ts.URL,
+		}, nil
+	}
+	depStorage.RetrieveAuthTokensFunc = func(ctx context.Context, name string) (*nanodep_client.OAuth1Tokens, error) {
+		return &nanodep_client.OAuth1Tokens{}, nil
+	}
+	t.Cleanup(func() { ts.Close() })
+
+	freeSvc, err := service.NewService(
+		ctx,
+		ds,
+		nil,
+		nil,
+		logger,
+		nil,
+		automdmConfig,
+		nil,
+		clock.C,
+		nil,
+		nil,
+		ds,
+		nil,
+		&automdm.NoOpGeoIP{},
+		nil,
+		depStorage,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		panic(err)
+	}
+	// Using a noop activity service since this test does not currently verify activity creation.
+	freeSvc.SetActivityService(&mock.MockActivityService{
+		NewActivityFunc: mock.NoopNewActivityFunc,
+	})
+	svc, err := eeservice.NewService(
+		freeSvc,
+		ds,
+		logger,
+		automdmConfig,
+		nil,
+		clock.C,
+		depStorage,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		noopGraphClientFactory,
+	)
+	if err != nil {
+		panic(err)
+	}
+	return ds, svc, ctx
+}
+
+func noopGraphClientFactory(*automdm.MicrosoftGraphCredential) (msgraph.Client, error) {
+	return nil, nil
+}
+
+func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
+	ds, svc, ctx := setupMockDatastorePremiumService(t)
+
+	ssoSettings := automdm.SSOProviderSettings{
+		EntityID:    "foo",
+		MetadataURL: "https://example.com/metadata.xml",
+	}
+	appConfig := &automdm.AppConfig{MDM: automdm.MDM{
+		EnabledAndConfigured:  true,
+		EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: ssoSettings},
+		MacOSSetup: automdm.MacOSSetup{
+			EnableEndUserAuthentication: true,
+			EnableReleaseDeviceManually: optjson.SetBool(true),
+		},
+	}}
+	team1 := &automdm.Team{
+		ID:   1,
+		Name: "one",
+	}
+	team2 := &automdm.Team{
+		ID:   2,
+		Name: "two",
+	}
+	teamStore := map[uint]*automdm.Team{1: team1, 2: team2}
+
+	resetInvoked := func() {
+		ds.TeamByNameFuncInvoked = false
+		ds.NewTeamFuncInvoked = false
+		ds.SaveTeamFuncInvoked = false
+		ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked = false
+		ds.AppConfigFuncInvoked = false
+		ds.NewJobFuncInvoked = false
+		ds.LabelIDsByNameFuncInvoked = false
+		ds.SetOrUpdateMDMAppleDeclarationFuncInvoked = false
+		ds.BulkSetPendingMDMHostProfilesFuncInvoked = false
+	}
+	setupDS := func(t *testing.T) {
+		resetInvoked()
+
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return appConfig, nil
+		}
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+			for _, team := range teamStore {
+				if team.Name == name {
+					return team, nil
+				}
+			}
+			return nil, ctxerr.Wrap(ctx, &eeservice.NotFoundError{})
+		}
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
+			for _, team := range teamStore {
+				if team.ID == excludeID {
+					continue
+				}
+				if strings.EqualFold(team.Name, name) {
+					return team, nil
+				}
+			}
+			return nil, nil
+		}
+		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+			tm, ok := teamStore[id]
+			if !ok {
+				return nil, errors.New("team id not found")
+			}
+			if id != tm.ID {
+				// sanity chec
+				return nil, errors.New("team id mismatch")
+			}
+			return tm, nil
+		}
+		ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			return nil, errors.New("not implemented")
+		}
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			return nil, errors.New("not implemented")
+		}
+		ds.HasAppleUpdateConfigProfileConfiguredFunc = func(ctx context.Context, teamID uint) (bool, error) {
+			return false, nil
+		}
+		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]uint, error) {
+			require.Len(t, names, 1)
+			require.ElementsMatch(t, names, []string{automdm.BuiltinLabelMacOS14Plus})
+			return map[string]uint{names[0]: 1}, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, declaration *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
+			declaration.DeclarationUUID = uuid.NewString()
+			return declaration, nil
+		}
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hostIDs, teamIDs []uint, profileUUIDs, hostUUIDs []string,
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
+		}
+	}
+
+	authzCtx := &authz_ctx.AuthorizationContext{}
+	ctx = authz_ctx.NewContext(ctx, authzCtx)
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: test.UserAdmin})
+	actx, _ := authz_ctx.FromContext(ctx)
+	actx.SetChecked()
+
+	t.Run("modify team via apply team spec", func(t *testing.T) {
+		setupDS(t)
+
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			tm, ok := teamStore[team.ID]
+			if !ok {
+				return nil, errors.New("invalid team id")
+			}
+			require.Equal(t, tm.ID, team.ID)                                               // sanity check
+			require.Equal(t, tm.Name, team.Name)                                           // sanity check
+			require.Empty(t, team.Config.MDM.MacOSSetup.EnableEndUserAuthentication)       // not modified
+			require.False(t, team.Config.MDM.MacOSSetup.EnableReleaseDeviceManually.Value) // not modified
+			return teamStore[tm.ID], nil
+		}
+
+		// apply team spec does not apply defaults
+		spec := &automdm.TeamSpec{
+			Name: team2.Name,
+		}
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
+		require.NoError(t, err)
+		require.True(t, ds.SaveTeamFuncInvoked)
+		require.True(t, ds.AppConfigFuncInvoked)
+		require.True(t, ds.TeamByNameFuncInvoked)
+		require.False(t, ds.NewTeamFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+		require.False(t, ds.NewJobFuncInvoked)
+		resetInvoked()
+	})
+
+	t.Run("new team", func(t *testing.T) {
+		setupDS(t)
+
+		ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			for _, tm := range teamStore {
+				if tm.Name == team.Name {
+					return nil, errors.New("team name already exists")
+				}
+			}
+			id := uint(len(teamStore) + 1) //nolint:gosec // dismiss G115
+			_, ok := teamStore[id]
+			require.False(t, ok) // sanity check
+			require.Equal(t, "new team", team.Name)
+			require.Equal(t, "new description", team.Description)
+			require.False(t, team.Config.MDM.MacOSSetup.EnableEndUserAuthentication)       // not set
+			require.False(t, team.Config.MDM.MacOSSetup.EnableReleaseDeviceManually.Value) // not set
+			team.ID = id
+			teamStore[id] = team
+			return team, nil
+		}
+
+		// new team does not apply defaults
+		_, err := svc.NewTeam(ctx, automdm.TeamPayload{
+			Name:        ptr.String("new team"),
+			Description: ptr.String("new description"),
+		})
+		require.NoError(t, err)
+		require.True(t, ds.NewTeamFuncInvoked)
+		require.True(t, ds.AppConfigFuncInvoked)
+		require.False(t, ds.TeamByNameFuncInvoked)
+		require.False(t, ds.SaveTeamFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+		require.False(t, ds.NewJobFuncInvoked)
+		resetInvoked()
+	})
+
+	t.Run("apply team spec", func(t *testing.T) {
+		setupDS(t)
+
+		ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			for _, tm := range teamStore {
+				if tm.Name == team.Name {
+					return nil, errors.New("team name already exists")
+				}
+			}
+			id := uint(len(teamStore) + 1) //nolint:gosec // dismiss G115
+			_, ok := teamStore[id]
+			require.False(t, ok)                                                           // sanity check
+			require.Equal(t, "new team spec", team.Name)                                   // set
+			require.Equal(t, "12.0", team.Config.MDM.MacOSUpdates.MinimumVersion.Value)    // set
+			require.Equal(t, "2024-01-01", team.Config.MDM.MacOSUpdates.Deadline.Value)    // set
+			require.False(t, team.Config.MDM.MacOSSetup.EnableEndUserAuthentication)       // not set
+			require.False(t, team.Config.MDM.MacOSSetup.EnableReleaseDeviceManually.Value) // not set
+			team.ID = id
+			teamStore[id] = team
+			return team, nil
+		}
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+			tm, ok := teamStore[team.ID]
+			if !ok {
+				return nil, errors.New("invalid team id")
+			}
+			require.Equal(t, tm.ID, team.ID)                                               // sanity check
+			require.Equal(t, tm.Name, team.Name)                                           // sanity check
+			require.Equal(t, "12.0", team.Config.MDM.MacOSUpdates.MinimumVersion.Value)    // unchanged
+			require.Equal(t, "2025-01-01", team.Config.MDM.MacOSUpdates.Deadline.Value)    // modified
+			require.Empty(t, team.Config.MDM.MacOSSetup.EnableEndUserAuthentication)       // not set
+			require.False(t, team.Config.MDM.MacOSSetup.EnableReleaseDeviceManually.Value) // not set
+
+			return teamStore[tm.ID], nil
+		}
+
+		spec := &automdm.TeamSpec{
+			Name: "new team spec",
+			MDM: automdm.TeamSpecMDM{
+				MacOSUpdates: automdm.AppleOSUpdateSettings{
+					MinimumVersion: optjson.SetString("12.0"),
+					Deadline:       optjson.SetString("2024-01-01"),
+				},
+			},
+		}
+
+		// apply team spec creates new team without defaults
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
+		require.NoError(t, err)
+		require.True(t, ds.NewTeamFuncInvoked)
+		require.True(t, ds.AppConfigFuncInvoked)
+		require.True(t, ds.TeamByNameFuncInvoked)
+		require.False(t, ds.SaveTeamFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+		require.False(t, ds.NewJobFuncInvoked)
+		resetInvoked()
+
+		// apply team spec edits existing team without applying defaults
+		spec.MDM.MacOSUpdates.Deadline = optjson.SetString("2025-01-01")
+		_, err = svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
+		require.NoError(t, err)
+		require.True(t, ds.SaveTeamFuncInvoked)
+		require.True(t, ds.AppConfigFuncInvoked)
+		require.True(t, ds.TeamByNameFuncInvoked)
+		require.False(t, ds.NewTeamFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+		require.False(t, ds.NewJobFuncInvoked)
+		resetInvoked()
+	})
+}

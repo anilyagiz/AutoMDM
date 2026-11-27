@@ -1,0 +1,13 @@
+.okta-conditional-access-modal {
+  &__certificate-section {
+    display: flex;
+    flex-direction: column;
+    gap: $gap-form-component;
+    align-items: flex-start;
+  }
+
+  // Certificate file uploader wrapper
+  &__file-uploader-wrapper {
+    @include flex-column-8px-gap;
+  }
+}

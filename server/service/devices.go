@@ -1,0 +1,1217 @@
+package service
+
+import (
+	"context"
+	"crypto/x509"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"path"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+)
+
+/////////////////////////////////////////////////////////////////////////////////
+// Ping device endpoint
+/////////////////////////////////////////////////////////////////////////////////
+
+type devicePingRequest struct{}
+
+type deviceAuthPingRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *deviceAuthPingRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type devicePingResponse struct{}
+
+func (r devicePingResponse) Error() error { return nil }
+
+func (r devicePingResponse) HijackRender(ctx context.Context, w http.ResponseWriter) {
+	writeCapabilitiesHeader(w, automdm.GetServerDeviceCapabilities())
+}
+
+// NOTE: we're intentionally not reading the capabilities header in this
+// endpoint as is unauthenticated and we don't want to trust whatever comes in
+// there.
+func devicePingEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	svc.DisableAuthForPing(ctx)
+	return devicePingResponse{}, nil
+}
+
+func (svc *Service) DisableAuthForPing(ctx context.Context) {
+	// skipauth: this endpoint is intentionally public to allow devices to ping
+	// the server and among other things, get the automdm.Capabilities header to
+	// determine which capabilities are enabled in the server.
+	svc.authz.SkipAuthorization(ctx)
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// AutoMDM Desktop endpoints
+/////////////////////////////////////////////////////////////////////////////////
+
+type automdmDesktopResponse struct {
+	Err error `json:"error,omitempty"`
+	automdm.DesktopSummary
+}
+
+func (r automdmDesktopResponse) Error() error { return r.Err }
+
+type getAutoMDMDesktopRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *getAutoMDMDesktopRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+// getAutoMDMDesktopEndpoint is meant to be the only API endpoint used by AutoMDM Desktop. This
+// endpoint should not include any kind of identifying information about the host.
+func getAutoMDMDesktopEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	sum, err := svc.GetAutoMDMDesktopSummary(ctx)
+	if err != nil {
+		return automdmDesktopResponse{Err: err}, nil
+	}
+	return automdmDesktopResponse{DesktopSummary: sum}, nil
+}
+
+func (svc *Service) GetAutoMDMDesktopSummary(ctx context.Context) (automdm.DesktopSummary, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return automdm.DesktopSummary{}, automdm.ErrMissingLicense
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// POST /device/{token}/sso
+/////////////////////////////////////////////////////////////////////////////////
+
+type initiateDeviceSSORequest struct {
+	Token string `url:"token"`
+}
+
+func (r *initiateDeviceSSORequest) deviceAuthToken() string { return r.Token }
+
+type initiateDeviceSSOResponse struct {
+	URL string `json:"url"`
+	Err error  `json:"error,omitempty"`
+	// Cookie fields
+	sessionID       string
+	sessionDuration time.Duration
+}
+
+func (r initiateDeviceSSOResponse) Error() error { return r.Err }
+
+func (r initiateDeviceSSOResponse) SetCookies(_ context.Context, w http.ResponseWriter) {
+	if r.sessionID == "" {
+		return
+	}
+	setSSOCookie(w, r.sessionID, int(r.sessionDuration.Seconds()))
+}
+
+func initiateDeviceSSOEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*initiateDeviceSSORequest)
+	initiation, err := svc.InitiateDeviceSSO(ctx, "/device/"+req.Token)
+	if err != nil {
+		return initiateDeviceSSOResponse{Err: err}, nil
+	}
+	return initiateDeviceSSOResponse{
+		URL:             initiation.IdPURL,
+		sessionID:       initiation.SessionID,
+		sessionDuration: initiation.SessionDuration,
+	}, nil
+}
+
+func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*automdm.DeviceSSOInitiation, error) {
+	svc.authz.SkipAuthorization(ctx)
+	return nil, automdm.ErrMissingLicense
+}
+
+func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *automdm.Host, sessionID string) error {
+	return nil
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// Get Current Device's Host
+/////////////////////////////////////////////////////////////////////////////////
+
+type getDeviceHostRequest struct {
+	Token                 string `url:"token"`
+	ExcludeSoftware       bool   `query:"exclude_software,optional"`
+	IncludeHiddenPolicies bool   `query:"include_hidden_policies,optional" premium:"true"`
+}
+
+func (r *getDeviceHostRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+// deviceHostDetailResponse wraps the host detail response to shadow the
+// host's policies with their device-safe representation, which excludes the
+// policy author's identity and the raw SQL query (this is a device-authenticated
+// endpoint, so it must not expose admin-only data).
+type deviceHostDetailResponse struct {
+	*automdm.HostDetailResponse
+	Policies *[]*automdm.DevicePolicy `json:"policies,omitempty"`
+}
+
+type getDeviceHostResponse struct {
+	Host                *deviceHostDetailResponse  `json:"host"`
+	OrgLogoURLDarkMode  string                     `json:"org_logo_url_dark_mode"`
+	OrgLogoURLLightMode string                     `json:"org_logo_url_light_mode"`
+	SelfService         bool                       `json:"self_service"`
+	OrgContactURL       string                     `json:"org_contact_url"`
+	Err                 error                      `json:"error,omitempty"`
+	License             automdm.LicenseInfo        `json:"license"`
+	GlobalConfig        automdm.DeviceGlobalConfig `json:"global_config"`
+	// GoogleConditionalAccessSignInRequired tells the Self-service web clip to ask the
+	// Google status route for a sign-in URL.
+	GoogleConditionalAccessSignInRequired bool `json:"google_conditional_access_sign_in_required"`
+}
+
+func (r getDeviceHostResponse) Error() error { return r.Err }
+
+func getDeviceHostEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getDeviceHostRequest)
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return getDeviceHostResponse{Err: err}, nil
+	}
+
+	// must still load the full host details, as it returns more information
+	opts := automdm.HostDetailOptions{
+		IncludeCVEScores:      false,
+		IncludePolicies:       false,
+		ExcludeSoftware:       req.ExcludeSoftware,
+		ExcludeHiddenPolicies: !req.IncludeHiddenPolicies,
+	}
+	hostDetails, err := svc.GetHost(ctx, host.ID, opts)
+	if err != nil {
+		return getDeviceHostResponse{Err: err}, nil
+	}
+
+	resp, err := hostDetailResponseForHost(ctx, svc, hostDetails)
+	if err != nil {
+		return getDeviceHostResponse{Err: err}, nil
+	}
+
+	// Only the My device page can act on a BitLocker PIN, so these fields are added here.
+	if host.AutoMDMPlatform() == "windows" {
+		canSetPIN, pinRequest, err := svc.BitLockerPINStateForDevice(ctx, host)
+		if err != nil {
+			return getDeviceHostResponse{Err: ctxerr.Wrap(ctx, err, "getting bitlocker pin state for device")}, nil
+		}
+		applyBitLockerPINDeviceFields(resp, canSetPIN, pinRequest)
+	}
+
+	// the org logo URL config is required by the frontend to render the page;
+	// we need to be careful with what we return from AppConfig in the response
+	// as this is a weakly authenticated endpoint (with the device auth token).
+	ac, err := svc.AppConfigObfuscated(ctx)
+	if err != nil {
+		return getDeviceHostResponse{Err: err}, nil
+	}
+
+	license, err := svc.License(ctx)
+	if err != nil {
+		return getDeviceHostResponse{Err: err}, nil
+	}
+
+	// Scrub sensitive data from the host response for iOS and iPadOS devices
+	if authzCtx, ok := authz.FromContext(ctx); ok && authzCtx.AuthnMethod() == authz.AuthnDeviceURL {
+		if host.Platform == "ios" || host.Platform == "ipados" {
+			resp.HardwareSerial = ""
+			resp.UUID = ""
+			resp.PrimaryMac = ""
+			resp.GoogleDeviceID = nil
+			resp.TeamName = nil
+			resp.MDM.Profiles = nil
+			resp.Labels = nil
+			resp.Hostname = ""
+			resp.ComputerName = ""
+			resp.DisplayText = ""
+			resp.DisplayName = ""
+			resp.HostMDMAppleDeviceVitals = automdm.HostMDMAppleDeviceVitals{}
+
+			// Scrub sensitive data from the license response
+			scrubbedLicense := *license
+			scrubbedLicense.Organization = ""
+			scrubbedLicense.DeviceCount = 0
+			scrubbedLicense.Expiration = time.Time{}
+			license = &scrubbedLicense
+		}
+	}
+
+	resp.DEPAssignedToAutoMDM = ptr.Bool(false)
+	if ac.MDM.EnabledAndConfigured && license.IsPremium() {
+		hdep, err := svc.GetHostDEPAssignment(ctx, host)
+		if err != nil && !automdm.IsNotFound(err) {
+			return getDeviceHostResponse{Err: err}, nil
+		}
+		resp.DEPAssignedToAutoMDM = ptr.Bool(hdep.IsDEPAssignedToAutoMDM())
+	}
+
+	softwareInventoryEnabled := ac.Features.EnableSoftwareInventory
+	requireAllSoftware := ac.MDM.MacOSSetup.RequireAllSoftware
+	var conditionalAccessEnabled bool
+	if resp.TeamID != nil {
+		// load the team to get the device's team's software inventory config.
+		tm, err := svc.GetTeam(ctx, *resp.TeamID)
+		if errors.Is(err, automdm.ErrMissingLicense) {
+			// AutoMDM Free does not support teams, so team-specific config
+			// (software inventory, conditional access, etc.) falls back to
+			// the global defaults set above.
+			tm = nil
+		} else if err != nil && !automdm.IsNotFound(err) {
+			return getDeviceHostResponse{Err: err}, nil
+		}
+		if tm != nil {
+			softwareInventoryEnabled = tm.Config.Features.EnableSoftwareInventory // TODO: We should look for opportunities to fix the confusing name of the `global_config` object in the API response. Also, how can we better clarify/document the expected order of precedence for team and global feature flags?
+			requireAllSoftware = tm.Config.MDM.MacOSSetup.RequireAllSoftware
+			conditionalAccessEnabled = ac.ConditionalAccess.OktaConfigured() && tm.Config.Integrations.ConditionalAccessEnabled.Valid && tm.Config.Integrations.ConditionalAccessEnabled.Value
+		}
+	}
+
+	hasSelfService := false
+	if softwareInventoryEnabled {
+		hasSelfService, err = svc.HasSelfServiceSoftwareInstallers(ctx, host)
+		if err != nil {
+			return getDeviceHostResponse{Err: err}, nil
+		}
+	}
+
+	googleSignInRequired, err := svc.GoogleConditionalAccessSignInRequired(ctx, host)
+	if err != nil {
+		return getDeviceHostResponse{Err: ctxerr.Wrap(ctx, err, "getting google conditional access sign-in state")}, nil
+	}
+
+	deviceGlobalConfig := automdm.DeviceGlobalConfig{
+		MDM: automdm.DeviceGlobalMDMConfig{
+			// TODO(mna): It currently only returns the Apple enabled and configured,
+			// regardless of the platform of the device. See
+			// https://github.com/fleetdm/fleet/pull/19304#discussion_r1618792410.
+			EnabledAndConfigured:             ac.MDM.EnabledAndConfigured,
+			RequireAllSoftware:               requireAllSoftware,
+			OnlyAllowAppleBusinessEnrollment: ac.MDM.OnlyAllowAppleBusinessEnrollment,
+		},
+		Features: automdm.DeviceFeatures{
+			EnableSoftwareInventory:       softwareInventoryEnabled,
+			EnableConditionalAccess:       conditionalAccessEnabled,
+			EnableConditionalAccessBypass: ac.ConditionalAccess != nil && ac.ConditionalAccess.BypassEnabled(),
+		},
+	}
+
+	deviceHost := &deviceHostDetailResponse{HostDetailResponse: resp}
+	if resp.Policies != nil {
+		devicePolicies := automdm.HostPoliciesToDevicePolicies(*resp.Policies)
+		deviceHost.Policies = &devicePolicies
+		// defense-in-depth: the shadow field above already wins over the
+		// embedded policies when marshaling, but clear the admin-facing
+		// policies anyway so they cannot leak if the wrapped response is ever
+		// marshaled directly.
+		resp.Policies = nil
+	}
+
+	deviceResp := getDeviceHostResponse{
+		Host:                deviceHost,
+		OrgLogoURLDarkMode:  ac.OrgInfo.OrgLogoURLDarkMode,
+		OrgLogoURLLightMode: ac.OrgInfo.OrgLogoURLLightMode,
+		OrgContactURL:       ac.OrgInfo.ContactURL,
+		License:             *license,
+		GlobalConfig:        deviceGlobalConfig,
+		SelfService:         hasSelfService,
+	}
+	deviceResp.GoogleConditionalAccessSignInRequired = googleSignInRequired
+	return deviceResp, nil
+}
+
+func (svc *Service) GetHostDEPAssignment(ctx context.Context, host *automdm.Host) (*automdm.HostDEPAssignment, error) {
+	alreadyAuthd := svc.authz.IsAuthenticatedWith(ctx, authz.AuthnDeviceToken) ||
+		svc.authz.IsAuthenticatedWith(ctx, authz.AuthnDeviceURL)
+	if !alreadyAuthd {
+		if err := svc.authz.Authorize(ctx, host, automdm.ActionRead); err != nil {
+			return nil, err
+		}
+	}
+	return svc.ds.GetHostDEPAssignment(ctx, host.ID)
+}
+
+// AuthenticateDevice returns the host identified by the device authentication
+// token, along with a boolean indicating if debug logging is enabled for that
+// host.
+func (svc *Service) AuthenticateDevice(ctx context.Context, authToken string) (*automdm.Host, bool, error) {
+	const deviceAuthTokenTTL = time.Hour
+	// skipauth: Authorization is currently for user endpoints only.
+	svc.authz.SkipAuthorization(ctx)
+
+	if authToken == "" {
+		return nil, false, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("authentication error: missing device authentication token"))
+	}
+
+	host, err := svc.ds.LoadHostByDeviceAuthToken(ctx, authToken, deviceAuthTokenTTL)
+	switch {
+	case err == nil:
+		// OK
+	case automdm.IsNotFound(err):
+		return nil, false, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("authentication error: invalid device authentication token"))
+	default:
+		return nil, false, ctxerr.Wrap(ctx, err, "authenticate device")
+	}
+
+	// iOS/iPadOS don't run AutoMDM Desktop, so they authenticate by UUID in the URL.
+	if host.Platform == "ios" || host.Platform == "ipados" {
+		return nil, false, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("authentication error: iOS and iPadOS devices must use URL authentication"))
+	}
+
+	return host, svc.debugEnabledForHost(ctx, host.ID), nil
+}
+
+// AuthenticateIDeviceByURL returns the host identified by the URL UUID.
+// This is used for iOS/iPadOS devices (iDevices) accessing endpoints via a unique URL parameter.
+// Returns an error if the UUID doesn't exist or if the host is not iOS/iPadOS.
+func (svc *Service) AuthenticateIDeviceByURL(ctx context.Context, urlUUID string) (*automdm.Host, bool, error) {
+	// skipauth: Authorization is currently for user endpoints only.
+	svc.authz.SkipAuthorization(ctx)
+
+	if urlUUID == "" {
+		return nil, false, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("authentication error: missing host UUID"))
+	}
+
+	host, err := svc.ds.HostByUUID(ctx, urlUUID)
+	switch {
+	case err == nil:
+		// OK
+	case automdm.IsNotFound(err):
+		return nil, false, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("authentication error: host not found"))
+	default:
+		return nil, false, ctxerr.Wrap(ctx, err, "lookup host by UUID")
+	}
+
+	// Verify host platform is iOS or iPadOS
+	if host.Platform != "ios" && host.Platform != "ipados" {
+		return nil, false, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("authentication error: URL authentication only supported for iOS and iPadOS devices"))
+	}
+
+	return host, svc.debugEnabledForHost(ctx, host.ID), nil
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// Refetch Current Device's Host
+/////////////////////////////////////////////////////////////////////////////////
+
+type refetchDeviceHostRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *refetchDeviceHostRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func refetchDeviceHostEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return refetchHostResponse{Err: err}, nil
+	}
+
+	err := svc.RefetchHost(ctx, host.ID)
+	if err != nil {
+		return refetchHostResponse{Err: err}, nil
+	}
+	return refetchHostResponse{}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// List Current Device's Host Device Mappings
+////////////////////////////////////////////////////////////////////////////////
+
+type listDeviceHostDeviceMappingRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *listDeviceHostDeviceMappingRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func listDeviceHostDeviceMappingEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return listHostDeviceMappingResponse{Err: err}, nil
+	}
+
+	dms, err := svc.ListHostDeviceMapping(ctx, host.ID)
+	if err != nil {
+		return listHostDeviceMappingResponse{Err: err}, nil
+	}
+	return listHostDeviceMappingResponse{HostID: host.ID, DeviceMapping: dms}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Get Current Device's Macadmins
+////////////////////////////////////////////////////////////////////////////////
+
+type getDeviceMacadminsDataRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *getDeviceMacadminsDataRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func getDeviceMacadminsDataEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return getMacadminsDataResponse{Err: err}, nil
+	}
+
+	data, err := svc.MacadminsData(ctx, host.ID)
+	if err != nil {
+		return getMacadminsDataResponse{Err: err}, nil
+	}
+	return getMacadminsDataResponse{Macadmins: data}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// List Current Device's Policies
+////////////////////////////////////////////////////////////////////////////////
+
+type listDevicePoliciesRequest struct {
+	Token                 string `url:"token"`
+	IncludeHiddenPolicies bool   `query:"include_hidden_policies,optional" premium:"true"`
+}
+
+func (r *listDevicePoliciesRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type listDevicePoliciesResponse struct {
+	Err      error                   `json:"error,omitempty"`
+	Policies []*automdm.DevicePolicy `json:"policies"`
+}
+
+func (r listDevicePoliciesResponse) Error() error { return r.Err }
+
+func listDevicePoliciesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*listDevicePoliciesRequest)
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return listDevicePoliciesResponse{Err: err}, nil
+	}
+
+	data, err := svc.ListDevicePolicies(ctx, host, req.IncludeHiddenPolicies)
+	if err != nil {
+		return listDevicePoliciesResponse{Err: err}, nil
+	}
+
+	return listDevicePoliciesResponse{Policies: data}, nil
+}
+
+func (svc *Service) ListDevicePolicies(ctx context.Context, host *automdm.Host, includeHidden bool) ([]*automdm.DevicePolicy, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return nil, automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Bypass conditional access
+////////////////////////////////////////////////////////////////////////////////
+
+type bypassConditionalAccessRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *bypassConditionalAccessRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type bypassConditionalAccessResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r bypassConditionalAccessResponse) Error() error { return r.Err }
+
+func bypassConditionalAccessEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return bypassConditionalAccessResponse{Err: err}, nil
+	}
+
+	if err := svc.BypassConditionalAccess(ctx, host); err != nil {
+		return bypassConditionalAccessResponse{Err: err}, nil
+	}
+
+	return bypassConditionalAccessResponse{}, nil
+}
+
+func (svc *Service) BypassConditionalAccess(ctx context.Context, host *automdm.Host) error {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Resend configuration profile
+////////////////////////////////////////////////////////////////////////////////
+
+type resendDeviceConfigurationProfileRequest struct {
+	Token       string `url:"token"`
+	ProfileUUID string `url:"profile_uuid"`
+}
+
+func (r *resendDeviceConfigurationProfileRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type resendDeviceConfigurationProfileResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r resendDeviceConfigurationProfileResponse) Error() error { return r.Err }
+
+func (r resendDeviceConfigurationProfileResponse) Status() int { return http.StatusAccepted }
+
+func resendDeviceConfigurationProfileEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return resendDeviceConfigurationProfileResponse{Err: err}, nil
+	}
+
+	req := request.(*resendDeviceConfigurationProfileRequest)
+	err := svc.ResendDeviceHostMDMProfile(ctx, host, req.ProfileUUID)
+	if err != nil {
+		return resendDeviceConfigurationProfileResponse{
+			Err: err,
+		}, nil
+	}
+
+	return resendDeviceConfigurationProfileResponse{}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Get software MDM command results
+////////////////////////////////////////////////////////////////////////////////
+
+type getDeviceMDMCommandResultsRequest struct {
+	Token       string `url:"token"`
+	CommandUUID string `url:"command_uuid"`
+}
+
+func (r *getDeviceMDMCommandResultsRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func getDeviceMDMCommandResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	_, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return getMDMCommandResultsResponse{Err: err}, nil
+	}
+
+	req := request.(*getDeviceMDMCommandResultsRequest)
+	results, err := svc.GetMDMCommandResults(ctx, req.CommandUUID, "")
+	if err != nil {
+		return getMDMCommandResultsResponse{
+			Err: err,
+		}, nil
+	}
+
+	return getMDMCommandResultsResponse{
+		Results: results,
+	}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Transparency URL Redirect
+////////////////////////////////////////////////////////////////////////////////
+
+type transparencyURLRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *transparencyURLRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type transparencyURLResponse struct {
+	RedirectURL string `json:"-"` // used to control the redirect, see HijackRender method
+	Err         error  `json:"error,omitempty"`
+}
+
+func (r transparencyURLResponse) HijackRender(ctx context.Context, w http.ResponseWriter) {
+	w.Header().Set("Location", r.RedirectURL)
+	w.WriteHeader(http.StatusTemporaryRedirect)
+}
+
+func (r transparencyURLResponse) Error() error { return r.Err }
+
+func transparencyURL(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	transparencyURL, err := svc.GetTransparencyURL(ctx)
+
+	return transparencyURLResponse{RedirectURL: transparencyURL, Err: err}, nil
+}
+
+func (svc *Service) GetTransparencyURL(ctx context.Context) (string, error) {
+	config, err := svc.AppConfigObfuscated(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	license, err := svc.License(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	transparencyURL := automdm.DefaultTransparencyURL
+	// See #27309; overridden if on AutoMDM Premium and custom transparency URL is set
+	if svc.config.Partnerships.EnableSecureframe {
+		transparencyURL = automdm.SecureframeTransparencyURL
+	}
+
+	// AutoMDM Premium license is required for custom transparency URL
+	if license.IsPremium() && config.AutoMDMDesktop.TransparencyURL != "" {
+		transparencyURL = config.AutoMDMDesktop.TransparencyURL
+	}
+
+	return transparencyURL, nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////////
+// Software title icons
+// ///////////////////////////////////////////////////////////////////////////////
+type getDeviceSoftwareIconRequest struct {
+	Token           string `url:"token"`
+	SoftwareTitleID uint   `url:"software_title_id"`
+}
+
+func (r *getDeviceSoftwareIconRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type getDeviceSoftwareIconResponse struct {
+	Err         error  `json:"error,omitempty"`
+	ImageData   []byte `json:"-"`
+	ContentType string `json:"-"`
+	Filename    string `json:"-"`
+	Size        int64  `json:"-"`
+}
+
+func (r getDeviceSoftwareIconResponse) Error() error { return r.Err }
+
+type getDeviceSoftwareIconRedirectResponse struct {
+	Err         error  `json:"error,omitempty"`
+	RedirectURL string `json:"-"`
+}
+
+func (r getDeviceSoftwareIconRedirectResponse) Error() error { return r.Err }
+
+func (r getDeviceSoftwareIconRedirectResponse) HijackRender(ctx context.Context, w http.ResponseWriter) {
+	if r.Err != nil {
+		return
+	}
+
+	w.Header().Set("Location", r.RedirectURL)
+	w.WriteHeader(http.StatusFound)
+}
+
+func (r getDeviceSoftwareIconResponse) HijackRender(ctx context.Context, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", r.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, r.Filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", r.Size))
+
+	_, _ = w.Write(r.ImageData)
+}
+
+func getDeviceSoftwareIconEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return getDeviceSoftwareIconResponse{Err: err}, nil
+	}
+
+	req := request.(*getDeviceSoftwareIconRequest)
+	var teamID uint
+	if host.TeamID != nil {
+		teamID = *host.TeamID
+	}
+	iconData, size, filename, err := svc.GetDeviceSoftwareIconsTitleIcon(ctx, teamID, req.SoftwareTitleID)
+	if err != nil {
+		var vppErr *automdm.VPPIconAvailable
+		if errors.As(err, &vppErr) {
+			// 302 redirect to vpp app IconURL
+			return getDeviceSoftwareIconRedirectResponse{RedirectURL: vppErr.IconURL}, nil
+		}
+		return getDeviceSoftwareIconResponse{Err: err}, nil
+	}
+
+	return getDeviceSoftwareIconResponse{
+		ImageData:   iconData,
+		ContentType: "image/png", // only type of icon we currently allow
+		Filename:    filename,
+		Size:        size,
+	}, nil
+}
+
+func (svc *Service) GetDeviceSoftwareIconsTitleIcon(ctx context.Context, teamID uint, titleID uint) ([]byte, int64, string, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return nil, 0, "", automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Receive errors from the client
+////////////////////////////////////////////////////////////////////////////////
+
+type automdmdErrorRequest struct {
+	Token string `url:"token"`
+	automdm.AutoMDMdError
+}
+
+func (f *automdmdErrorRequest) deviceAuthToken() string {
+	return f.Token
+}
+
+// Since we're directly storing what we get in Redis, limit the request size to
+// 5MB, this combined with the rate limit of this endpoint should be enough to
+// prevent a malicious actor.
+// body limiting is done at the handler level
+func (f *automdmdErrorRequest) DecodeBody(ctx context.Context, r io.Reader, u url.Values, c []*x509.Certificate) error {
+	decoder := json.NewDecoder(r)
+
+	for {
+		if err := decoder.Decode(&f.AutoMDMdError); err == io.EOF {
+			break
+		} else if err == io.ErrUnexpectedEOF {
+			return &automdm.BadRequestError{Message: "payload exceeds maximum accepted size"}
+		} else if err != nil {
+			return &automdm.BadRequestError{Message: "invalid payload"}
+		}
+	}
+
+	return nil
+}
+
+type automdmdErrorResponse struct{}
+
+func (r automdmdErrorResponse) Error() error { return nil }
+
+func automdmdError(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdmdErrorRequest)
+	err := svc.LogAutoMDMdError(ctx, req.AutoMDMdError)
+	if err != nil {
+		return nil, err
+	}
+	return automdmdErrorResponse{}, nil
+}
+
+func (svc *Service) LogAutoMDMdError(ctx context.Context, automdmdError automdm.AutoMDMdError) error {
+	// iOS/iPadOS devices don't have automdmd, so URL auth is not allowed here.
+	if !svc.authz.IsAuthenticatedWith(ctx, authz.AuthnDeviceToken) {
+		return ctxerr.Wrap(ctx, automdm.NewPermissionError("forbidden: only device-authenticated hosts can access this endpoint"))
+	}
+
+	err := ctxerr.WrapWithData(ctx, automdmdError, "receive automdmd error", automdmdError.ToMap())
+	svc.logger.WarnContext(ctx, "automdmd error", "error", err)
+	// Send to Redis/telemetry (if enabled)
+	ctxerr.Handle(ctx, err)
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Get Current Device's MDM Apple Enrollment Profile
+////////////////////////////////////////////////////////////////////////////////
+
+type getDeviceMDMManualEnrollProfileRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *getDeviceMDMManualEnrollProfileRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type getDeviceMDMManualEnrollProfileResponse struct {
+	// EnrollURL field is used in HijackRender for the response.
+	EnrollURL string `json:"enroll_url,omitempty"`
+
+	Err error `json:"error,omitempty"`
+}
+
+func (r getDeviceMDMManualEnrollProfileResponse) Error() error { return r.Err }
+
+func getDeviceMDMManualEnrollProfileEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	// this call ensures that the authentication was done, no need to actually
+	// use the host
+	if _, ok := hostctx.FromContext(ctx); !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return getDeviceMDMManualEnrollProfileResponse{Err: err}, nil
+	}
+
+	enrollURL, err := svc.GetDeviceMDMAppleEnrollmentProfile(ctx)
+	if err != nil {
+		return getDeviceMDMManualEnrollProfileResponse{Err: err}, nil
+	}
+	return getDeviceMDMManualEnrollProfileResponse{EnrollURL: enrollURL.String()}, nil
+}
+
+func (svc *Service) GetDeviceMDMAppleEnrollmentProfile(ctx context.Context) (*url.URL, error) {
+	// must be device-authenticated, no additional authorization is required
+	// iOS/iPadOS devices are enrolled via MDM profile or ABM, so URL auth is not allowed here.
+	if !svc.authz.IsAuthenticatedWith(ctx, authz.AuthnDeviceToken) {
+		return nil, ctxerr.Wrap(ctx, automdm.NewPermissionError("forbidden: only device-authenticated hosts can access this endpoint"))
+	}
+
+	cfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "fetching app config")
+	}
+
+	if cfg.MDM.OnlyAllowAppleBusinessEnrollment {
+		return nil, &automdm.ABOnlyEnrollmentForbiddenError{}
+	}
+
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+	}
+
+	tmSecrets, err := svc.ds.GetEnrollSecrets(ctx, host.TeamID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, ctxerr.Wrap(ctx, err, "getting host team enroll secrets")
+	}
+	if len(tmSecrets) == 0 && host.TeamID != nil {
+		tmSecrets, err = svc.ds.GetEnrollSecrets(ctx, nil)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, ctxerr.Wrap(ctx, err, "getting no team enroll secrets")
+		}
+	}
+	if len(tmSecrets) == 0 {
+		return nil, &automdm.BadRequestError{Message: "unable to find an enroll secret to generate enrollment profile"}
+	}
+	var enrollSecret automdm.EnrollSecret
+	for _, s := range tmSecrets {
+		if s.CreatedAt.After(enrollSecret.CreatedAt) {
+			enrollSecret = *s
+		}
+	}
+	url, err := url.Parse(cfg.MDMUrl())
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "parsing MDM URL from config")
+	}
+	url.Path = path.Join(url.Path, "enroll")
+	q := url.Query()
+	q.Set("enroll_secret", enrollSecret.Secret)
+	url.RawQuery = q.Encode()
+
+	return url, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Signal start of mdm migration on a device
+////////////////////////////////////////////////////////////////////////////////
+
+type deviceMigrateMDMRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *deviceMigrateMDMRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type deviceMigrateMDMResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r deviceMigrateMDMResponse) Error() error { return r.Err }
+
+func (r deviceMigrateMDMResponse) Status() int { return http.StatusNoContent }
+
+func migrateMDMDeviceEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return deviceMigrateMDMResponse{Err: err}, nil
+	}
+
+	if err := svc.TriggerMigrateMDMDevice(ctx, host); err != nil {
+		return deviceMigrateMDMResponse{Err: err}, nil
+	}
+	return deviceMigrateMDMResponse{}, nil
+}
+
+func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *automdm.Host) error {
+	return automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Trigger linux key escrow
+////////////////////////////////////////////////////////////////////////////////
+
+type triggerLinuxDiskEncryptionEscrowRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *triggerLinuxDiskEncryptionEscrowRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type triggerLinuxDiskEncryptionEscrowResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r triggerLinuxDiskEncryptionEscrowResponse) Error() error { return r.Err }
+
+func (r triggerLinuxDiskEncryptionEscrowResponse) Status() int { return http.StatusNoContent }
+
+func triggerLinuxDiskEncryptionEscrowEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return triggerLinuxDiskEncryptionEscrowResponse{Err: err}, nil
+	}
+
+	if err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, host); err != nil {
+		return triggerLinuxDiskEncryptionEscrowResponse{Err: err}, nil
+	}
+	return triggerLinuxDiskEncryptionEscrowResponse{}, nil
+}
+
+func (svc *Service) TriggerLinuxDiskEncryptionEscrow(ctx context.Context, host *automdm.Host) error {
+	return automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Get Current Device's Software
+////////////////////////////////////////////////////////////////////////////////
+
+type getDeviceSoftwareRequest struct {
+	Token string `url:"token"`
+	automdm.HostSoftwareTitleListOptions
+}
+
+func (r *getDeviceSoftwareRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type getDeviceSoftwareResponse struct {
+	Software []*automdm.HostSoftwareWithInstaller `json:"software"`
+	Count    int                                  `json:"count"`
+	Meta     *automdm.PaginationMetadata          `json:"meta,omitempty"`
+	Err      error                                `json:"error,omitempty"`
+}
+
+func (r getDeviceSoftwareResponse) Error() error { return r.Err }
+
+func getDeviceSoftwareEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return getDeviceSoftwareResponse{Err: err}, nil
+	}
+
+	req := request.(*getDeviceSoftwareRequest)
+	res, meta, err := svc.ListHostSoftware(ctx, host.ID, req.HostSoftwareTitleListOptions)
+	for _, s := range res {
+		// mutate HostSoftwareWithInstaller records for my device page
+		s.ForMyDevicePage(req.Token)
+	}
+
+	if err != nil {
+		return getDeviceSoftwareResponse{Err: err}, nil
+	}
+	if res == nil {
+		res = []*automdm.HostSoftwareWithInstaller{}
+	}
+	return getDeviceSoftwareResponse{Software: res, Meta: meta, Count: int(meta.TotalResults)}, nil //nolint:gosec // dismiss G115
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// List Current Device's Certificates
+////////////////////////////////////////////////////////////////////////////////
+
+type listDeviceCertificatesRequest struct {
+	Token string `url:"token"`
+	automdm.ListOptions
+}
+
+func (r *listDeviceCertificatesRequest) ValidateRequest() error {
+	if r.ListOptions.OrderKey != "" && !listHostCertificatesSortCols[r.ListOptions.OrderKey] {
+		return badRequest("invalid order key")
+	}
+	return nil
+}
+
+func (r *listDeviceCertificatesRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type listDeviceCertificatesResponse struct {
+	Certificates []*automdm.HostCertificatePayload `json:"certificates"`
+	Meta         *automdm.PaginationMetadata       `json:"meta,omitempty"`
+	Count        uint                              `json:"count"`
+	Err          error                             `json:"error,omitempty"`
+}
+
+func (r listDeviceCertificatesResponse) Error() error { return r.Err }
+
+func listDeviceCertificatesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return listDevicePoliciesResponse{Err: err}, nil
+	}
+
+	req := request.(*listDeviceCertificatesRequest)
+	res, meta, err := svc.ListHostCertificates(ctx, host.ID, req.ListOptions)
+	if err != nil {
+		return listDeviceCertificatesResponse{Err: err}, nil
+	}
+	if res == nil {
+		res = []*automdm.HostCertificatePayload{}
+	}
+	return listDeviceCertificatesResponse{Certificates: res, Meta: meta, Count: meta.TotalResults}, nil
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// Get "Setup experience" status.
+/////////////////////////////////////////////////////////////////////////////////
+
+type getDeviceSetupExperienceStatusRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *getDeviceSetupExperienceStatusRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+type getDeviceSetupExperienceStatusResponse struct {
+	Results *automdm.DeviceSetupExperienceStatusPayload `json:"setup_experience_results,omitempty"`
+	Err     error                                       `json:"error,omitempty"`
+}
+
+func (r getDeviceSetupExperienceStatusResponse) Error() error { return r.Err }
+
+func getDeviceSetupExperienceStatusEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req, ok := request.(*getDeviceSetupExperienceStatusRequest)
+	if !ok {
+		return nil, fmt.Errorf("internal error: invalid request type: %T", request)
+	}
+	results, err := svc.GetDeviceSetupExperienceStatus(ctx)
+	if err != nil {
+		return &getDeviceSetupExperienceStatusResponse{Err: err}, nil
+	}
+
+	// only software can have custom icons, so no need to iterate over Scripts
+	for _, r := range results.Software {
+		// mutate SetupExperienceStatusResult records for my device page
+		// (same approach used for HostSoftwareWithInstaller)
+		r.ForMyDevicePage(req.Token)
+	}
+
+	return &getDeviceSetupExperienceStatusResponse{Results: results}, nil
+}
+
+func (svc *Service) GetDeviceSetupExperienceStatus(ctx context.Context) (*automdm.DeviceSetupExperienceStatusPayload, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return nil, automdm.ErrMissingLicense
+}
+
+type deviceSendAPNSPingRequest struct {
+	Token string `url:"token"`
+}
+
+func (r *deviceSendAPNSPingRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func deviceSendAPNSPing(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return sendAPNSPingResponse{Err: err}, nil
+	}
+
+	err := svc.DeviceSendAPNSPing(ctx, host)
+	if err != nil {
+		return sendAPNSPingResponse{Err: err}, nil
+	}
+
+	return sendAPNSPingResponse{Err: nil}, nil
+}
+
+type deviceInstallSelfServiceConfigurationProfileRequest struct {
+	Token       string `url:"token"`
+	ProfileUUID string `url:"profile_uuid"`
+}
+
+func (r *deviceInstallSelfServiceConfigurationProfileRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func deviceInstallSelfServiceConfigurationProfileEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return installSelfServiceConfigurationProfileResponse{Err: err}, nil
+	}
+
+	req := request.(*deviceInstallSelfServiceConfigurationProfileRequest)
+
+	err := svc.DeviceInstallSelfServiceConfigurationProfile(ctx, host, req.ProfileUUID)
+	if err != nil {
+		return installSelfServiceConfigurationProfileResponse{Err: err}, nil
+	}
+
+	return installSelfServiceConfigurationProfileResponse{Err: nil}, nil
+}
+
+type deviceUninstallSelfServiceConfigurationProfileRequest struct {
+	Token       string `url:"token"`
+	ProfileUUID string `url:"profile_uuid"`
+}
+
+func (r *deviceUninstallSelfServiceConfigurationProfileRequest) deviceAuthToken() string {
+	return r.Token
+}
+
+func deviceUninstallSelfServiceConfigurationProfileEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return uninstallSelfServiceConfigurationProfileResponse{Err: err}, nil
+	}
+
+	req := request.(*deviceUninstallSelfServiceConfigurationProfileRequest)
+
+	err := svc.DeviceUninstallSelfServiceConfigurationProfile(ctx, host, req.ProfileUUID)
+	if err != nil {
+		return uninstallSelfServiceConfigurationProfileResponse{Err: err}, nil
+	}
+
+	return uninstallSelfServiceConfigurationProfileResponse{Err: nil}, nil
+}

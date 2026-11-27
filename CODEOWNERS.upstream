@@ -1,0 +1,191 @@
+##############################################################################################
+#   ██████╗ ██████╗ ██████╗ ███████╗ ██████╗ ██╗    ██╗███╗   ██╗███████╗██████╗ ███████╗
+#  ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔═══██╗██║    ██║████╗  ██║██╔════╝██╔══██╗██╔════╝
+#  ██║     ██║   ██║██║  ██║█████╗  ██║   ██║██║ █╗ ██║██╔██╗ ██║█████╗  ██████╔╝███████╗
+#  ██║     ██║   ██║██║  ██║██╔══╝  ██║   ██║██║███╗██║██║╚██╗██║██╔══╝  ██╔══██╗╚════██║
+#  ╚██████╗╚██████╔╝██████╔╝███████╗╚██████╔╝╚███╔███╔╝██║ ╚████║███████╗██║  ██║███████║
+#   ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝
+##############################################################################################
+# ⛔ This file indicates REQUIRED reviewers for changes to certain file paths in this repo.
+#
+# > How? This "requiredness" is provided natively by GitHub.  If a team is specified, then
+# > the logic behaves slightly differently.  See GitHub's latest documentation on CODEOWNERS
+# > for more information.  CODEOWNERS is especially useful for paths that usually end up
+# > in PRs with lots of other reviewers.)
+#
+# ⚠️ For file paths not listed, the DRI is instead indicated in website/config/custom.js.
+# Regardless of whether a path's DRI is configured in CODEOWNERS or custom.js, the DRI is
+# automatically requested for review when changes are proposed.
+#   [!] But beware: No path should ever be configured as a DRI in both CODEOWNERS _and_
+#       the website config.
+#   [!] In addition, no path should ever be configured in CODEOWNERS if there is ALSO one
+#       of its ancestral paths configured in website/config/custom.js.
+#
+# ✅ Some paths also have multiple individuals who are allowed to make changes without review,
+# even though they are not the DRI.  These are called "maintainers".
+#
+# For more information on how this works, see:
+# - What is a DRI and how is this configured? https://automdm.com/handbook/company/why-this-way#why-direct-responsibility
+# - Historical context: https://github.com/fleetdm/fleet/pull/12786
+##############################################################################################
+
+
+##############################################################################################
+# 🚀 Golang files and other files related to the core product backend.
+# (1 or more Golang-literate engineers is required to review changes.)
+# FUTURE: Look for a way to not have this notify every single person in this "github team".
+##############################################################################################
+*.go @fleetdm/go
+go.sum @fleetdm/go
+go.mod @fleetdm/go
+/cmd/ @fleetdm/go
+/server/ @fleetdm/go
+/ee/server/ @fleetdm/go
+# « FMA ingesters and validator aren't compiled into the server or automdmctl, so these entries intentionally have no
+#   owners (overriding *.go and /cmd/ above). Maintainer is set in website/config/custom.js.
+/ee/maintained-apps/ingesters/
+/cmd/maintained-apps/validate/
+/orbit/ @sharon-fdm @lucasmrod @lukeheath
+/pkg/mdm/profilevalidation/outputs/ @fleetdm/go
+
+# Orbit paths owned by other teams (medium risk: Sharon + Lucas + team TL/EM)
+/orbit/pkg/bitlocker/          @sharon-fdm @lucasmrod @juan-fdz-hawa @getvictor
+/orbit/pkg/luks/               @sharon-fdm @lucasmrod @georgekarrv
+/orbit/pkg/profiles/           @sharon-fdm @lucasmrod @JordanMontgomery @georgekarrv
+/orbit/pkg/setup_experience/   @sharon-fdm @lucasmrod @JordanMontgomery @georgekarrv
+/orbit/pkg/useraction/         @sharon-fdm @lucasmrod @JordanMontgomery @georgekarrv
+/orbit/pkg/execuser/           @sharon-fdm @lucasmrod @JordanMontgomery @georgekarrv
+/orbit/pkg/scripts/            @sharon-fdm @lucasmrod @JordanMontgomery @georgekarrv
+/orbit/pkg/installer/          @sharon-fdm @lucasmrod @cdcme @georgekarrv
+/orbit/pkg/managedaccount/     @sharon-fdm @lucasmrod @getvictor
+/orbit/pkg/keystore/           @sharon-fdm @lucasmrod @getvictor
+/orbit/pkg/windows/            @sharon-fdm @lucasmrod @getvictor
+
+# Orbit paths that are low risk (tables, UI dialogs, build tools)
+/orbit/changes/                @fleetdm/go
+/orbit/pkg/table/              @fleetdm/go
+/orbit/cmd/automdmd_tables/      @fleetdm/go
+/orbit/pkg/augeas/             @fleetdm/go
+/orbit/pkg/dataflatten/        @fleetdm/go
+/orbit/pkg/cryptoinfo/         @fleetdm/go
+/orbit/cmd/desktop/            @fleetdm/go
+/orbit/cmd/fetch_cert/         @fleetdm/go
+/orbit/pkg/dialog/             @fleetdm/go
+/orbit/pkg/swiftdialog/        @fleetdm/go
+/orbit/pkg/kdialog/            @fleetdm/go
+/orbit/pkg/zenity/             @fleetdm/go
+/orbit/pkg/go-paniclog/        @fleetdm/go
+/orbit/pkg/lvm/                @fleetdm/go
+/orbit/tools/                  @fleetdm/go
+
+##############################################################################################
+# 🚀 React files and other files related to the core product frontend.
+# (1 or more React-literate engineers is required to review changes.)
+# FUTURE: Look for a way to not have this notify every single person in this "github team".
+##############################################################################################
+/frontend/ @fleetdm/frontend
+
+##############################################################################################
+# 🚀 Config as code for infrastructure, internal security and IT use cases, and more.
+# (1 or more infra-literate engineers is required to review changes.)
+# FUTURE: Look for a way to not have this notify every single person in this "github team".
+##############################################################################################
+
+/infrastructure/ @rfairburn @rynsatterlee @georgekarrv @ddribeiro @fsahinler
+/charts/ @rfairburn @rynsatterlee @georgekarrv @ddribeiro @fsahinler
+/terraform/ @rfairburn @rynsatterlee @georgekarrv @ddribeiro @fsahinler
+
+##############################################################################################
+# ⚗️ Reference, config surface, built-in queries, API, and other documentation.
+#
+# (see website/config/custom.js for DRIs of other paths not listed here)
+##############################################################################################
+/docs                                                   @noahtalerman
+# « docs/solutions: DRI (ddribeiro) is configured in website/config/custom.js (githubRepoDRIByPath), not here.
+#   This entry intentionally has no owners, so no one is a required reviewer and /docs above doesn't apply.
+/docs/solutions
+/docs/solutions/dex-dashboards                          @allenhouchins # « Required review for the DEX dashboard scripts, which customers run with their AutoMDM API token. An exception to the custom.js rule above.
+/docs/Configuration                                     @noahtalerman @lukeheath
+/docs/Contributing                                      @lukeheath @georgekarrv @sharon-fdm # « Contributing docs are owned by the EMs only — don't add per-path individual owners here (see https://github.com/fleetdm/fleet/issues/46731)
+/docs/API/rest-api.md                                   @noahtalerman @lukeheath # « REST API reference documentation
+/docs/API/global-audit-logs.md                          @noahtalerman
+/docs/API/host-audit-logs.md                            @noahtalerman
+/docs/Contributing/reference/api-for-contributors.md    @noahtalerman @lukeheath
+/docs/Contributing/reference/configuration-for-contributors.md @noahtalerman
+/docs/Get\ started/why-automdm.md                         @mike-j-thomas
+/render.yaml                                            @rfairburn @fsahinler
+/it-and-security                                        @allenhouchins @lukeheath
+/articles/what-api-endpoints-to-expose-to-the-public-internet.md @rfairburn @fsahinler # « Infra: active notification of changes to IP Allowlists
+/openspec                                               @lukeheath
+/website/package-lock.json                              @eashaw
+
+################################################################################################
+#  ╔═╗┬ ┬┌┐┌┌─┐┌┬┐  ┌┐ ┬ ┬  ┌─┐┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐  ┌─┐┬─┐┌─┐┬ ┬┌─┐┌─┐
+#  ║ ║││││││├┤  ││  ├┴┐└┬┘  ├─┘├┬┘│ │ │││ ││   │   │ ┬├┬┘│ ││ │├─┘└─┐
+#  ╚═╝└┴┘┘└┘└─┘─┴┘  └─┘ ┴   ┴  ┴└─└─┘─┴┘└─┘└─┘ ┴   └─┘┴└─└─┘└─┘┴  └─┘
+################################################################################################
+
+# Contributing docs are organized by feature and owned by the EMs via the /docs/Contributing entry
+# above. Team-based entries (which don't go stale with reorgs) are OK; individual owners are not.
+/docs/Contributing/reference/patterns-backend.md        @fleetdm/go
+
+# Website
+/website/api/models                                     @eashaw
+
+##############################################################################################
+# 🌐 Repo automation and change control settings
+##############################################################################################
+# /CODEOWNERS                 @mikermcneil  # Covered in DRIs
+
+##############################################################################################
+# 🌐 Handbook
+#
+# (see website/config/custom.js for DRIs of other paths not listed here)
+##############################################################################################
+#/handbook/README.md                                            Covered in custom.js
+#/handbook/company/README.md                                    Covered in custom.js
+#/handbook/company/why-this-way.md                              Covered in custom.js
+#/handbook/company/communications.md                            Covered in custom.js
+#/handbook/company/leadership.md                                Covered in custom.js
+/handbook/company/open-positions.yml                            @ireedy
+#/handbook/company/product-groups.md                            Covered in custom.js
+#/handbook/company/go-to-market-operations.md                       Covered in custom.js
+#/handbook/finance/README.md                                    Covered in custom.js
+#/handbook/finance/finance.rituals.yml                          Covered in custom.js
+#/handbook/people                    			        	            Covered in custom.js
+#/handbook/it                             	                    Covered in custom.js
+#/handbook/it/security.md                   			              Covered in custom.js
+#/handbook/customer-success                                    	Covered in custom.js
+#/handbook/marketing                                            Covered in custom.js
+#/handbook/sales                                                Covered in custom.js
+#/handbook/ceo                                                  Covered in custom.js
+#/handbook/product-design                                     	Covered in custom.js
+#/handbook/engineering                                     	    Covered in custom.js
+
+##############################################################################################
+# 🌐 GitHub issue templates
+##############################################################################################
+#/.github/ISSUE_TEMPLATE     @mikermcneil @sampfluger88 @lukeheath  # Covered in custom.js See https://github.com/fleetdm/fleet/pull/18668
+
+##############################################################################################
+# 🚀 GitHub workflows
+##############################################################################################
+/.github/workflows/ @georgekarrv @sharon-fdm @lukeheath @lucasmrod @getvictor
+
+##############################################################################################
+# 🌐 GitHub workflows
+##############################################################################################
+/.github/workflows/markdown-link-check-config.json @eashaw
+/.github/workflows/deploy-vulnerability-dashboard.yml @eashaw
+/.github/workflows/test-website.yml @eashaw
+/.github/workflows/test-vulnerability-dashboard-changes.yml @eashaw
+/.github/workflows/docs.yml @eashaw
+/.github/workflows/deploy-automdm-website.yml @eashaw
+
+##############################################################################################
+# 🤖 Claude Code configuration (agents, skills, rules, settings).
+##############################################################################################
+/.claude/ @JordanMontgomery @cdcme @lucasmrod @getvictor @lukeheath @georgekarrv @sharon-fdm
+
+# ℹ️ But wait, there's more!
+# See the comments up top to learn where else DRIs and maintainers are configured.

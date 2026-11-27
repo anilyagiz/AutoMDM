@@ -1,0 +1,12 @@
+{
+  "name": "Adobe Acrobat Reader",
+  "unique_identifier": "com.adobe.Reader",
+  "token": "adobe-acrobat-reader",
+  "installer_format": "dmg",
+  "slug": "adobe-acrobat-reader/darwin",
+  "default_categories": [
+    "Productivity"
+  ],
+  "install_script_path": "ee/maintained-apps/inputs/homebrew/scripts/adobe-acrobat-reader-install.sh",
+  "uninstall_script_path": "ee/maintained-apps/inputs/homebrew/scripts/adobe-acrobat-reader-uninstall.sh"
+}

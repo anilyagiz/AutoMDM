@@ -1,0 +1,13 @@
+environments:
+  AUTOMDM_TEST_ZERO: 0
+  AUTOMDM_TEST_FALSE: false
+
+envsFrom:
+  - name: AUTOMDM_SERVER_PRIVATE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: automdm-mdm
+        key: server-private-key
+
+vulnProcessing:
+  dedicated: true

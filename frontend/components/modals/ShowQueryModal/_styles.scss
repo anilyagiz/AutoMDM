@@ -1,0 +1,17 @@
+.show-query-modal {
+  display: flex;
+  flex-direction: column;
+  gap: $pad-large;
+
+  .yaml-ace {
+    min-height: 0;
+  }
+
+  .yaml-ace__label {
+    height: 0;
+  }
+
+  .modal-cta-wrap {
+    margin-top: initial;
+  }
+}

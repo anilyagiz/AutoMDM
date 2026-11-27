@@ -1,0 +1,9 @@
+.policy-automations-fields {
+  display: flex;
+  flex-direction: column;
+  gap: $gap-form;
+
+  &__continuous .form-field--checkbox {
+    gap: $pad-small;
+  }
+}

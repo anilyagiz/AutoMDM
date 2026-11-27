@@ -1,0 +1,276 @@
+import { screen } from "@testing-library/react";
+import React from "react";
+
+import createMockConfig from "__mocks__/configMock";
+import { createCustomRenderer, createMockRouter } from "test/test-utils";
+
+import Advanced from "./Advanced";
+
+const renderAdvanced = (
+  overrides: {
+    historicalData?: { uptime: boolean; vulnerabilities: boolean };
+    handleSubmit?: jest.Mock;
+    gitOpsModeEnabled?: boolean;
+    tier?: string;
+    mcpDisabled?: boolean;
+    aiSessionsDisabled?: boolean;
+    mdm?: Partial<ReturnType<typeof createMockConfig>["mdm"]>;
+  } = {}
+) => {
+  const baseConfig = createMockConfig();
+  const config = {
+    ...baseConfig,
+    license: { ...baseConfig.license, tier: overrides.tier ?? "premium" },
+    mdm: { ...baseConfig.mdm, ...overrides.mdm },
+    server_settings: {
+      ...baseConfig.server_settings,
+      mcp_disabled: overrides.mcpDisabled ?? false,
+      ai_sessions_disabled: overrides.aiSessionsDisabled ?? false,
+    },
+    features: {
+      ...baseConfig.features,
+      historical_data:
+        overrides.historicalData ?? baseConfig.features.historical_data,
+    },
+  };
+  const handleSubmit =
+    overrides.handleSubmit ?? jest.fn().mockResolvedValue(true);
+  const render = createCustomRenderer({
+    context: {
+      app: {
+        isPremiumTier: (overrides.tier ?? "premium") === "premium",
+        config: {
+          ...config,
+          gitops: {
+            ...config.gitops,
+            gitops_mode_enabled: !!overrides.gitOpsModeEnabled,
+          },
+        },
+      },
+    },
+  });
+  const utils = render(
+    <Advanced
+      appConfig={config}
+      handleSubmit={handleSubmit}
+      isUpdatingSettings={false}
+      router={createMockRouter()}
+    />
+  );
+  return { ...utils, handleSubmit, config };
+};
+
+describe("Advanced settings — Activity & data retention", () => {
+  it("renders the new section heading and both checkboxes", () => {
+    renderAdvanced();
+    expect(screen.getByText("Activity & data retention")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Hosts online historical reporting/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Vulnerability exposure historical reporting/i)
+    ).toBeInTheDocument();
+  });
+
+  it("starts with both checkboxes checked when collection is enabled", () => {
+    renderAdvanced();
+    expect(
+      screen.getByLabelText(/Hosts online historical reporting/i)
+    ).toBeChecked();
+    expect(
+      screen.getByLabelText(/Vulnerability exposure historical reporting/i)
+    ).toBeChecked();
+  });
+
+  it("starts with the checkbox unchecked when collection is disabled in config", () => {
+    renderAdvanced({
+      historicalData: { uptime: false, vulnerabilities: true },
+    });
+    expect(
+      screen.getByLabelText(/Hosts online historical reporting/i)
+    ).not.toBeChecked();
+    expect(
+      screen.getByLabelText(/Vulnerability exposure historical reporting/i)
+    ).toBeChecked();
+  });
+
+  it("submits without confirmation when no dataset is being newly disabled", async () => {
+    const { user, handleSubmit } = renderAdvanced();
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    const payload = handleSubmit.mock.calls[0][0];
+    expect(payload.features.historical_data).toEqual({
+      uptime: true,
+      vulnerabilities: true,
+    });
+    // Modal should not have appeared
+    expect(
+      screen.queryByText("Disable data collection")
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the confirmation modal when a dataset is being disabled", async () => {
+    const { user, handleSubmit } = renderAdvanced();
+    await user.click(
+      screen.getByRole("checkbox", { name: "disableHostsActive" })
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(handleSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText("Disable data collection")).toBeInTheDocument();
+  });
+
+  it("issues the PATCH after the user confirms via the modal", async () => {
+    const { user, handleSubmit } = renderAdvanced();
+    await user.click(
+      screen.getByRole("checkbox", { name: "disableHostsActive" })
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await user.click(screen.getByRole("button", { name: /save and disable/i }));
+    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    const payload = handleSubmit.mock.calls[0][0];
+    expect(payload.features.historical_data).toEqual({
+      uptime: false,
+      vulnerabilities: true,
+    });
+  });
+
+  it("does not open the modal when re-enabling a previously-disabled dataset", async () => {
+    const { user, handleSubmit } = renderAdvanced({
+      historicalData: { uptime: false, vulnerabilities: true },
+    });
+    await user.click(
+      screen.getByRole("checkbox", { name: "disableHostsActive" })
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText("Disable data collection")
+    ).not.toBeInTheDocument();
+    const payload = handleSubmit.mock.calls[0][0];
+    expect(payload.features.historical_data.uptime).toBe(true);
+  });
+});
+
+describe("Advanced settings — Host lifecycle", () => {
+  it("disables the host expiry window until host expiry is enabled", async () => {
+    const { user } = renderAdvanced();
+
+    expect(screen.getByLabelText("Host expiry window")).toBeDisabled();
+
+    await user.click(screen.getByText("Host expiry"));
+
+    expect(screen.getByLabelText("Host expiry window")).toBeEnabled();
+  });
+});
+
+describe("Advanced settings — Allow only Apple Business enrollments", () => {
+  const getCheckbox = () =>
+    screen.getByLabelText(/Allow only Apple Business enrollments/);
+
+  it("is enabled when Apple MDM is on and Apple Business is connected", () => {
+    renderAdvanced();
+
+    expect(getCheckbox()).toBeEnabled();
+  });
+
+  it("is disabled with a tooltip when Apple Business isn't connected", async () => {
+    const { user } = renderAdvanced({
+      mdm: { apple_business_enabled_and_configured: false },
+    });
+
+    expect(getCheckbox()).toBeDisabled();
+
+    await user.hover(screen.getByText("Allow only Apple Business enrollments"));
+
+    expect(await screen.findByText(/to use this feature/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Apple MDM" })).toHaveAttribute(
+      "href",
+      "/settings/integrations/mdm/apple"
+    );
+    expect(
+      screen.getByRole("link", { name: "Apple Business" })
+    ).toHaveAttribute("href", "/settings/integrations/mdm/ab");
+  });
+
+  it("is disabled when Apple MDM is off", () => {
+    renderAdvanced({ mdm: { enabled_and_configured: false } });
+
+    expect(getCheckbox()).toBeDisabled();
+  });
+});
+
+describe("Advanced settings — Features", () => {
+  it("disables the Profile validation checkbox in GitOps mode", () => {
+    renderAdvanced({ gitOpsModeEnabled: true });
+
+    expect(screen.getByLabelText("Profile validation")).toBeDisabled();
+  });
+});
+
+describe("Advanced settings — MCP server", () => {
+  it("shows the MCP server checkbox checked by default on Premium", () => {
+    renderAdvanced();
+    expect(screen.getByLabelText(/MCP server/)).toBeChecked();
+  });
+
+  it("links the MCP server help text to the guide", () => {
+    renderAdvanced();
+    expect(screen.getByText(/ask questions about your automdm/)).toBeVisible();
+    const guideLinks = screen
+      .getAllByRole("link", { name: /learn more/i })
+      .filter(
+        (link) =>
+          link.getAttribute("href") === "https://automdm.com/guides/automdm-mcp"
+      );
+    expect(guideLinks).toHaveLength(1);
+  });
+
+  it("sends mcp_disabled true after unchecking it", async () => {
+    const { user, handleSubmit } = renderAdvanced();
+    await user.click(screen.getByRole("checkbox", { name: "disableMCP" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(handleSubmit.mock.calls[0][0].server_settings.mcp_disabled).toBe(
+      true
+    );
+  });
+
+  it("starts unchecked when the MCP server is disabled in config", () => {
+    renderAdvanced({ mcpDisabled: true });
+    expect(screen.getByLabelText(/MCP server/)).not.toBeChecked();
+  });
+
+  it("hides the MCP server checkbox on AutoMDM Free", () => {
+    renderAdvanced({ tier: "free" });
+    expect(screen.queryByLabelText(/MCP server/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Advanced settings — AI sessions", () => {
+  it("shows the Store host AI sessions checkbox checked by default on Premium", () => {
+    renderAdvanced();
+    expect(screen.getByLabelText(/Store host AI sessions/)).toBeChecked();
+  });
+
+  it("sends ai_sessions_disabled true after unchecking it", async () => {
+    const { user, handleSubmit } = renderAdvanced();
+    await user.click(
+      screen.getByRole("checkbox", { name: "disableAISessions" })
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(
+      handleSubmit.mock.calls[0][0].server_settings.ai_sessions_disabled
+    ).toBe(true);
+  });
+
+  it("starts unchecked when AI sessions are disabled in config", () => {
+    renderAdvanced({ aiSessionsDisabled: true });
+    expect(screen.getByLabelText(/Store host AI sessions/)).not.toBeChecked();
+  });
+
+  it("hides the Store host AI sessions checkbox on AutoMDM Free", () => {
+    renderAdvanced({ tier: "free" });
+    expect(
+      screen.queryByLabelText(/Store host AI sessions/)
+    ).not.toBeInTheDocument();
+  });
+});

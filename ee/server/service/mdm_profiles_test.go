@@ -1,0 +1,167 @@
+package service
+
+import (
+	"bytes"
+	"os"
+	"strings"
+	"testing"
+	"text/template"
+	"text/template/parse"
+
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// testCertB64 is a stand-in for the CA cert; its value never varies across the
+// cases below, so any diff between them comes from the payload guards.
+const testCertB64 = "VEVTVF9DRVJUSUZJQ0FURQ=="
+
+func renderFileVaultProfile(t *testing.T, enforcement, escrow bool) string {
+	t.Helper()
+	var buf bytes.Buffer
+	require.NoError(t, fileVaultProfileTemplate.Execute(&buf, fileVaultProfileOptions{
+		PayloadIdentifier:    mobileconfig.AutoMDMFileVaultPayloadIdentifier,
+		PayloadName:          mdm.AutoMDMFileVaultProfileName,
+		Base64DerCertificate: testCertB64,
+		EnableEnforcement:    enforcement,
+		EnableEscrow:         escrow,
+	}))
+	return buf.String()
+}
+
+// dictsOf returns the PayloadType of every payload in the profile, in order.
+func dictsOf(t *testing.T, profile string) []string {
+	t.Helper()
+	var types []string
+	for line := range strings.SplitSeq(profile, "\n") {
+		line = strings.TrimSpace(line)
+		const prefix, suffix = "<string>", "</string>"
+		if !strings.HasPrefix(line, prefix) || !strings.HasSuffix(line, suffix) {
+			continue
+		}
+		v := strings.TrimSuffix(strings.TrimPrefix(line, prefix), suffix)
+		switch v {
+		case mobileconfig.AutoMDMFileVaultPayloadType,
+			mobileconfig.AutoMDMRecoveryKeyEscrowPayloadType,
+			"com.apple.security.pkcs1",
+			mobileconfig.AutoMDMCustomSettingsPayloadType:
+			types = append(types, v)
+		}
+	}
+	return types
+}
+
+// TestFileVaultProfileBothOnIsByteStable is the load-bearing assertion of the
+// per-platform work: an existing customer with both macOS settings on must get
+// a profile identical to what AutoMDM shipped before the settings were split, or
+// every Mac gets a needless re-push on upgrade.
+func TestFileVaultProfileBothOnIsByteStable(t *testing.T) {
+	want, err := os.ReadFile("testdata/filevault/both_on.xml")
+	require.NoError(t, err)
+	require.Equal(t, string(want), renderFileVaultProfile(t, true, true))
+}
+
+func TestFileVaultProfilePayloadsPerCombination(t *testing.T) {
+	bothOn := renderFileVaultProfile(t, true, true)
+
+	t.Run("both on carries all four payloads", func(t *testing.T) {
+		require.Equal(t, []string{
+			mobileconfig.AutoMDMFileVaultPayloadType,
+			mobileconfig.AutoMDMRecoveryKeyEscrowPayloadType,
+			"com.apple.security.pkcs1",
+			mobileconfig.AutoMDMCustomSettingsPayloadType,
+		}, dictsOf(t, bothOn))
+		require.Contains(t, bothOn, "<key>ShowRecoveryKey</key>\n\t\t\t<false/>")
+	})
+
+	t.Run("enforce only drops the escrow payloads and shows the recovery key", func(t *testing.T) {
+		got := renderFileVaultProfile(t, true, false)
+		require.Equal(t, []string{
+			mobileconfig.AutoMDMFileVaultPayloadType,
+			mobileconfig.AutoMDMCustomSettingsPayloadType,
+		}, dictsOf(t, got))
+		// with nowhere to escrow the key, the user has to be shown it
+		require.Contains(t, got, "<key>ShowRecoveryKey</key>\n\t\t\t<true/>")
+		require.NotContains(t, got, testCertB64)
+	})
+
+	t.Run("escrow only drops the enforcement payloads", func(t *testing.T) {
+		got := renderFileVaultProfile(t, false, true)
+		require.Equal(t, []string{
+			mobileconfig.AutoMDMRecoveryKeyEscrowPayloadType,
+			"com.apple.security.pkcs1",
+		}, dictsOf(t, got))
+		// nothing forces or prevents disabling FileVault; AutoMDM only escrows
+		require.NotContains(t, got, "dontAllowFDEDisable")
+		require.NotContains(t, got, "<key>ShowRecoveryKey</key>")
+		require.Contains(t, got, testCertB64)
+	})
+
+	t.Run("every combination is well-formed and structurally whole", func(t *testing.T) {
+		for _, tc := range []struct{ enforcement, escrow bool }{
+			{true, true}, {true, false}, {false, true},
+		} {
+			got := renderFileVaultProfile(t, tc.enforcement, tc.escrow)
+			require.Equal(t, strings.Count(got, "<dict>"), strings.Count(got, "</dict>"))
+			require.Equal(t, strings.Count(got, "<array>"), strings.Count(got, "</array>"))
+			// no guard left a blank or whitespace-only line behind
+			for line := range strings.SplitSeq(got, "\n") {
+				require.NotEmpty(t, strings.TrimSpace(line))
+			}
+			require.NotContains(t, got, "{{")
+		}
+	})
+}
+
+// TestProfileTemplatesEscapeFields fails on any string field interpolation
+// that isn't escaped by a final xml call, so new fields can't ship unescaped.
+func TestProfileTemplatesEscapeFields(t *testing.T) {
+	// integer fields can't carry markup and can't be piped through xml.
+	intFields := map[string]struct{}{"Deadline": {}, "GracePeriod": {}}
+
+	for name, tmpl := range map[string]*template.Template{
+		"fileVaultProfileTemplate":        fileVaultProfileTemplate,
+		"windowsOSUpdatesProfileTemplate": windowsOSUpdatesProfileTemplate,
+	} {
+		var walk func(parse.Node)
+		walk = func(n parse.Node) {
+			switch n := n.(type) {
+			case *parse.ListNode:
+				if n != nil {
+					for _, c := range n.Nodes {
+						walk(c)
+					}
+				}
+			case *parse.IfNode:
+				walk(n.List)
+				walk(n.ElseList)
+			case *parse.RangeNode:
+				walk(n.List)
+				walk(n.ElseList)
+			case *parse.WithNode:
+				walk(n.List)
+				walk(n.ElseList)
+			case *parse.ActionNode:
+				// any pipeline touching a string field must end in xml, so
+				// {{ .X | other }} and {{ printf "%s" .X }} are caught too.
+				var hasStringField bool
+				for _, cmd := range n.Pipe.Cmds {
+					for _, arg := range cmd.Args {
+						if f, ok := arg.(*parse.FieldNode); ok {
+							if _, isInt := intFields[f.Ident[len(f.Ident)-1]]; !isInt {
+								hasStringField = true
+							}
+						}
+					}
+				}
+				last, ok := n.Pipe.Cmds[len(n.Pipe.Cmds)-1].Args[0].(*parse.IdentifierNode)
+				if hasStringField && (!ok || last.Ident != "xml") {
+					assert.Failf(t, "unescaped interpolation", "%s: %s does not end in xml", name, n)
+				}
+			}
+		}
+		walk(tmpl.Root)
+	}
+}

@@ -1,0 +1,73 @@
+services:
+  - name: automdm
+    plan: pro
+    type: web
+    runtime: image
+    image:
+      url: 'automdm/automdm:latest'
+    preDeployCommand: "automdm prepare --no-prompt=true db"
+    healthCheckPath: /healthz
+    disk:
+      name: installers
+      mountPath: /opt/automdm/installers
+      sizeGB: 10
+    envVars:
+      - key: AUTOMDM_SOFTWARE_INSTALLER_STORE_DIR
+        value: '/opt/automdm/installers'
+      - key: AUTOMDM_SERVER_PRIVATE_KEY
+        generateValue: true
+      - key: AUTOMDM_MYSQL_ADDRESS
+        fromService:
+          name: automdm-mysql
+          type: pserv
+          property: hostport
+      - key: AUTOMDM_MYSQL_DATABASE
+        fromService:
+          name: automdm-mysql
+          type: pserv
+          envVarKey: MYSQL_DATABASE
+      - key: AUTOMDM_MYSQL_PASSWORD
+        fromService:
+          name: automdm-mysql
+          type: pserv
+          envVarKey: MYSQL_PASSWORD
+      - key: AUTOMDM_MYSQL_USERNAME
+        fromService:
+          name: automdm-mysql
+          type: pserv
+          envVarKey: MYSQL_USER
+      - key: AUTOMDM_REDIS_ADDRESS
+        fromService:
+          name: automdm-redis
+          type: redis
+          property: connectionString
+      - key: AUTOMDM_SERVER_TLS
+        value: 'false'
+      - key: PORT
+        value: 8080
+
+  - name: automdm-mysql
+    plan: standard
+    type: pserv
+    runtime: image
+    image:
+      url: 'docker.io/library/mysql:8.0.44'
+    disk:
+      name: mysql
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - key: MYSQL_DATABASE
+        value: automdm
+      - key: MYSQL_PASSWORD
+        generateValue: true
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+      - key: MYSQL_USER
+        value: automdm
+
+  - name: automdm-redis
+    plan: starter # May use free plan for testing or short-lived deployments
+    type: redis
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []

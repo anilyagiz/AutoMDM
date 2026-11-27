@@ -1,0 +1,1629 @@
+package service
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"strings"
+	"testing"
+
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	nanomdm_mdm "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	nanomdm_pushsvc "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/service"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mdmmock "github.com/anilyagiz/automdm/v4/server/mock/mdm"
+	mocksvc "github.com/anilyagiz/automdm/v4/server/mock/service"
+	svcmock "github.com/anilyagiz/automdm/v4/server/service/mock"
+
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/jmoiron/sqlx"
+	"github.com/micromdm/nanolib/log/stdlogfmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"howett.net/plist"
+)
+
+func setup(t *testing.T) (*mock.Store, *Service) {
+	ds := new(mock.Store)
+
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+		_ sqlx.QueryerContext,
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetCACert:   {Value: []byte(testCert)},
+			automdm.MDMAssetCAKey:    {Value: []byte(testKey)},
+			automdm.MDMAssetAPNSKey:  {Value: []byte(testKey)},
+			automdm.MDMAssetAPNSCert: {Value: []byte(testCert)},
+		}, nil
+	}
+
+	svc := &Service{
+		ds: ds,
+	}
+	return ds, svc
+}
+
+func TestMDMAppleReconcileFileVaultProfile(t *testing.T) {
+	ctx := context.Background()
+
+	getPayloadWithType := func(mc mobileconfig.Mobileconfig, payloadType string) map[string]interface{} {
+		var payload struct {
+			PayloadContent []map[string]interface{}
+		}
+		_, err := plist.Unmarshal(mc, &payload)
+		require.NoError(t, err)
+
+		for _, p := range payload.PayloadContent {
+			if p["PayloadType"] == payloadType {
+				return p
+			}
+		}
+		return nil
+	}
+
+	// withMacOSSettings points the reconciler at the given macOS settings for
+	// no-team and for any team, so each case only states the settings it means
+	withMacOSSettings := func(ds *mock.Store, enforcement, escrow bool) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
+			ac.MDM.MacOSSettings.EnableDiskEncryption = optjson.SetBool(enforcement)
+			ac.MDM.MacOSSettings.EnableEscrowDiskEncryptionKey = optjson.SetBool(escrow)
+			return ac, nil
+		}
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+			tm := &automdm.TeamMDM{}
+			tm.MacOSSettings.EnableDiskEncryption = optjson.SetBool(enforcement)
+			tm.MacOSSettings.EnableEscrowDiskEncryptionKey = optjson.SetBool(escrow)
+			return tm, nil
+		}
+	}
+
+	t.Run("fails if SCEP is not configured", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc := &Service{ds: ds}
+		withMacOSSettings(ds, true, true)
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+			_ sqlx.QueryerContext,
+		) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return nil, nil
+		}
+		err := svc.MDMAppleReconcileFileVaultProfile(ctx, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("fails if the profile can't be saved in the db", func(t *testing.T) {
+		ds, svc := setup(t)
+		withMacOSSettings(ds, true, true)
+		testErr := errors.New("test")
+		ds.UpsertMDMAppleAutoMDMConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile) error {
+			return testErr
+		}
+		err := svc.MDMAppleReconcileFileVaultProfile(ctx, nil)
+		require.ErrorIs(t, err, testErr)
+		require.True(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+	})
+
+	t.Run("both settings on upserts the full profile", func(t *testing.T) {
+		var teamID uint = 4
+		ds, svc := setup(t)
+		withMacOSSettings(ds, true, true)
+		ds.UpsertMDMAppleAutoMDMConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile) error {
+			require.Equal(t, &teamID, p.TeamID)
+			require.Equal(t, p.Identifier, mobileconfig.AutoMDMFileVaultPayloadIdentifier)
+			require.Equal(t, p.Name, mdm.AutoMDMFileVaultProfileName)
+			require.Contains(t, string(p.Mobileconfig), `MIID6DCCAdACFGX99Sw4aF2qKGLucoIWQRAXHrs1MA0GCSqGSIb3DQEBCwUAMDUxEzARBgNVBAoMClJlZGlzIFRlc3QxHjAcBgNVBAMMFUNlcnRpZmljYXRlIEF1dGhvcml0eTAeFw0yMTEwMTkxNzM0MzlaFw0yMjEwMTkxNzM0MzlaMCwxEzARBgNVBAoMClJlZGlzIFRlc3QxFTATBgNVBAMMDEdlbmVyaWMtY2VydDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKSHcH8EjSvp3Nm4IHAFxG9DZm8+0h1BwU0OX0VHcJ+Cf+f6h0XYMcMo9LFEpnUJRRMjKrM4mkI75NIIufNBN+GrtqqTPTid8wfOGu/Ufa5EEU1hb2j7AiMlpM6i0+ZysXSNo+Vc/cNZT0PXfyOtJnYm6p9WZM84ID1t2ea0bLwC12cTKv5oybVGtJHh76TRxAR3FeQ9+SY30vUAxYm6oWyYho8rRdKtUSe11pXj6OhxxfTZnsSWn4lo0uBpXai63XtieTVpz74htSNC1bunIGv7//m5F60sH5MrF5JSkPxfCfgqski84ICDSRNlvpT+eMPiygAAJ8zY8wYUXRYFYTUCAwEAATANBgkqhkiG9w0BAQsFAAOCAgEAAAw+6Uz2bAcXgQ7fQfdOm+T6FLRBcr8PD4ajOvSu/T+HhVVjE26Qt2IBwFEYve2FvDxrBCF8aQYZcyQqnP8bdKebnWAaqL8BbTwLWW+fDuZLO2b4QHjAEdEKKdZC5/FRpQrkerf5CCPTHE+5M17OZg41wdVYnCEwJOkP5pUAVsmwtrSwVeIquy20TZO0qbscDQETf7NIJgW0IXg82wBe53Rv4/wL3Ybq13XVRGYiJrwpaNTfUNgsDWqgwlQ5L2GOLDgg8S2NoF9mWVgCGSp3a2eHW+EmBRQ1OP6EYQtIhKdGLrSndAOMJ2ER1pgHWUFKkWQaZ9i37Dx2j7P5c4/XNeVozcRQcLwKwN+n8k+bwIYcTX0HMOVFYm+WiFi/gjI860Tx853Sc0nkpOXmBCeHSXigGUscgjBYbmJz4iExXuwgawLXKLDKs0yyhLDnKEjmx/Vhz03JpsVFJ84kSWkTZkYsXiG306TxuJCX9zAt1z+6ClieTTGiFY+D8DfkC4H82rlPEtImpZ6rInsMUlAykImpd58e4PMSa+w/wSHXDvwFP7py1Gvz3XvcbGLmpBXblxTUpToqC7zSQJhHOMBBt6XnhcRwd6G9Vj/mQM3FvJIrxtKk8O7FwMJloGivS85OEzCIur5A+bObXbM2pcI8y4ueHE4NtElRBwn859AdB2k=`)
+
+			testPayload := getPayloadWithType(p.Mobileconfig, "com.apple.MCX.FileVault2")
+			require.NotNil(t, testPayload)
+			require.Equal(t, true, testPayload["Defer"])
+			require.EqualValues(t, 0, testPayload["DeferForceAtUserLoginMaxBypassAttempts"])
+			require.Equal(t, false, testPayload["ShowRecoveryKey"])
+
+			return nil
+		}
+
+		err := svc.MDMAppleReconcileFileVaultProfile(ctx, new(teamID))
+		require.NoError(t, err)
+		require.True(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+	})
+
+	t.Run("enforcement only carries no escrow payloads", func(t *testing.T) {
+		ds, svc := setup(t)
+		withMacOSSettings(ds, true, false)
+		ds.UpsertMDMAppleAutoMDMConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile) error {
+			require.NotNil(t, getPayloadWithType(p.Mobileconfig, "com.apple.MCX.FileVault2"))
+			require.NotNil(t, getPayloadWithType(p.Mobileconfig, "com.apple.MCX"))
+			require.Nil(t, getPayloadWithType(p.Mobileconfig, "com.apple.security.FDERecoveryKeyEscrow"))
+			require.Nil(t, getPayloadWithType(p.Mobileconfig, "com.apple.security.pkcs1"))
+			// no escrow means the user needs to be shown the key
+			require.Equal(t, true, getPayloadWithType(p.Mobileconfig, "com.apple.MCX.FileVault2")["ShowRecoveryKey"])
+			return nil
+		}
+		require.NoError(t, svc.MDMAppleReconcileFileVaultProfile(ctx, new(uint(4))))
+		require.True(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+	})
+
+	t.Run("escrow only carries no enforcement payloads", func(t *testing.T) {
+		ds, svc := setup(t)
+		withMacOSSettings(ds, false, true)
+		ds.UpsertMDMAppleAutoMDMConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile) error {
+			require.Nil(t, getPayloadWithType(p.Mobileconfig, "com.apple.MCX.FileVault2"))
+			require.Nil(t, getPayloadWithType(p.Mobileconfig, "com.apple.MCX"))
+			require.NotNil(t, getPayloadWithType(p.Mobileconfig, "com.apple.security.FDERecoveryKeyEscrow"))
+			require.NotNil(t, getPayloadWithType(p.Mobileconfig, "com.apple.security.pkcs1"))
+			return nil
+		}
+		require.NoError(t, svc.MDMAppleReconcileFileVaultProfile(ctx, new(uint(4))))
+		require.True(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+	})
+
+	t.Run("enforcement only does not need the CA certificate", func(t *testing.T) {
+		ds := new(mock.Store)
+		svc := &Service{ds: ds}
+		withMacOSSettings(ds, true, false)
+		// the escrow payload is what carries the certificate, so an unreadable
+		// CA asset must not stop an enforcement-only profile from rendering
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+			_ sqlx.QueryerContext,
+		) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return nil, errors.New("CA asset unavailable")
+		}
+		ds.UpsertMDMAppleAutoMDMConfigProfileFunc = func(ctx context.Context, p automdm.MDMAppleConfigProfile) error {
+			require.NotContains(t, string(p.Mobileconfig), "com.apple.security.pkcs1")
+			return nil
+		}
+		require.NoError(t, svc.MDMAppleReconcileFileVaultProfile(ctx, nil))
+		require.True(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+		require.False(t, ds.GetAllMDMConfigAssetsByNameFuncInvoked, "the CA asset should not be read at all")
+	})
+
+	t.Run("both settings off removes the profile", func(t *testing.T) {
+		var wantTeamID uint = 4
+		ds, svc := setup(t)
+		withMacOSSettings(ds, false, false)
+		ds.DeleteMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, profileIdentifier string) error {
+			require.NotNil(t, teamID)
+			require.Equal(t, wantTeamID, *teamID)
+			require.Equal(t, mobileconfig.AutoMDMFileVaultPayloadIdentifier, profileIdentifier)
+			return nil
+		}
+		require.NoError(t, svc.MDMAppleReconcileFileVaultProfile(ctx, new(wantTeamID)))
+		require.True(t, ds.DeleteMDMAppleConfigProfileByTeamAndIdentifierFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
+	})
+
+	t.Run("both settings off tolerates an already-absent profile", func(t *testing.T) {
+		ds, svc := setup(t)
+		withMacOSSettings(ds, false, false)
+		ds.DeleteMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, profileIdentifier string) error {
+			return notFoundErr{}
+		}
+		require.NoError(t, svc.MDMAppleReconcileFileVaultProfile(ctx, nil))
+		require.True(t, ds.DeleteMDMAppleConfigProfileByTeamAndIdentifierFuncInvoked)
+	})
+}
+
+type notFoundErr struct{}
+
+func (notFoundErr) Error() string    { return "not found" }
+func (notFoundErr) IsNotFound() bool { return true }
+
+var (
+	testCert = `-----BEGIN CERTIFICATE-----
+MIID6DCCAdACFGX99Sw4aF2qKGLucoIWQRAXHrs1MA0GCSqGSIb3DQEBCwUAMDUx
+EzARBgNVBAoMClJlZGlzIFRlc3QxHjAcBgNVBAMMFUNlcnRpZmljYXRlIEF1dGhv
+cml0eTAeFw0yMTEwMTkxNzM0MzlaFw0yMjEwMTkxNzM0MzlaMCwxEzARBgNVBAoM
+ClJlZGlzIFRlc3QxFTATBgNVBAMMDEdlbmVyaWMtY2VydDCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAKSHcH8EjSvp3Nm4IHAFxG9DZm8+0h1BwU0OX0VH
+cJ+Cf+f6h0XYMcMo9LFEpnUJRRMjKrM4mkI75NIIufNBN+GrtqqTPTid8wfOGu/U
+fa5EEU1hb2j7AiMlpM6i0+ZysXSNo+Vc/cNZT0PXfyOtJnYm6p9WZM84ID1t2ea0
+bLwC12cTKv5oybVGtJHh76TRxAR3FeQ9+SY30vUAxYm6oWyYho8rRdKtUSe11pXj
+6OhxxfTZnsSWn4lo0uBpXai63XtieTVpz74htSNC1bunIGv7//m5F60sH5MrF5JS
+kPxfCfgqski84ICDSRNlvpT+eMPiygAAJ8zY8wYUXRYFYTUCAwEAATANBgkqhkiG
+9w0BAQsFAAOCAgEAAAw+6Uz2bAcXgQ7fQfdOm+T6FLRBcr8PD4ajOvSu/T+HhVVj
+E26Qt2IBwFEYve2FvDxrBCF8aQYZcyQqnP8bdKebnWAaqL8BbTwLWW+fDuZLO2b4
+QHjAEdEKKdZC5/FRpQrkerf5CCPTHE+5M17OZg41wdVYnCEwJOkP5pUAVsmwtrSw
+VeIquy20TZO0qbscDQETf7NIJgW0IXg82wBe53Rv4/wL3Ybq13XVRGYiJrwpaNTf
+UNgsDWqgwlQ5L2GOLDgg8S2NoF9mWVgCGSp3a2eHW+EmBRQ1OP6EYQtIhKdGLrSn
+dAOMJ2ER1pgHWUFKkWQaZ9i37Dx2j7P5c4/XNeVozcRQcLwKwN+n8k+bwIYcTX0H
+MOVFYm+WiFi/gjI860Tx853Sc0nkpOXmBCeHSXigGUscgjBYbmJz4iExXuwgawLX
+KLDKs0yyhLDnKEjmx/Vhz03JpsVFJ84kSWkTZkYsXiG306TxuJCX9zAt1z+6Clie
+TTGiFY+D8DfkC4H82rlPEtImpZ6rInsMUlAykImpd58e4PMSa+w/wSHXDvwFP7py
+1Gvz3XvcbGLmpBXblxTUpToqC7zSQJhHOMBBt6XnhcRwd6G9Vj/mQM3FvJIrxtKk
+8O7FwMJloGivS85OEzCIur5A+bObXbM2pcI8y4ueHE4NtElRBwn859AdB2k=
+-----END CERTIFICATE-----`
+
+	testKey = testingKey(`-----BEGIN RSA TESTING KEY-----
+MIIEogIBAAKCAQEApIdwfwSNK+nc2bggcAXEb0Nmbz7SHUHBTQ5fRUdwn4J/5/qH
+Rdgxwyj0sUSmdQlFEyMqsziaQjvk0gi580E34au2qpM9OJ3zB84a79R9rkQRTWFv
+aPsCIyWkzqLT5nKxdI2j5Vz9w1lPQ9d/I60mdibqn1ZkzzggPW3Z5rRsvALXZxMq
+/mjJtUa0keHvpNHEBHcV5D35JjfS9QDFibqhbJiGjytF0q1RJ7XWlePo6HHF9Nme
+xJafiWjS4GldqLrde2J5NWnPviG1I0LVu6cga/v/+bkXrSwfkysXklKQ/F8J+Cqy
+SLzggINJE2W+lP54w+LKAAAnzNjzBhRdFgVhNQIDAQABAoIBAAtUbFHC3XnVq+iu
+PkWYkBNdX9NvTwbGvWnyAGuD5OSHFwnBfck4fwzCaD9Ay/mpPsF3nXwj/LNs7m/s
+O+ndZty6d2S9qOyaK98wuTgkuNbkRxC+Ee73wgjrkbLNEax/32p4Sn4D7lGid8vj
+LhUl2k0ult+MEnsWkVnJk8TITeiQaT2AHhMr3HKdaI86hJJfam3wEBiLBglnnKqA
+TInMqHoudnFOn/C8iVCFuHCE0oo1dMalbc4rlZuRBqezVhbSMWPLypMVXQb7eixM
+ScJ3m8+DooGDSIe+EW/afhN2VnFbrhQC9/DlxGfwTwsUseWv7pgp53ufyyAzzydn
+2plW/4ECgYEA1Va5RzSUDxr75JX003YZiBcYrG268vosiNYWRhE7frvn5EorZBRW
+t4R70Y2gcXA10aPHzpbq40t6voWtpkfynU3fyRzbBmwfiWLEgckrYMwtcNz8nhG2
+ETAg4LXO9CufbwuDa66h76TpkBzQVNc5TSbBUr/apLDWjKPMz6qW7VUCgYEAxW4K
+Yqp3NgJkC5DhuD098jir9AH96hGhUryOi2CasCvmbjWCgWdolD7SRZJfxOXFOtHv
+7Dkp9glA1Cg/nSmEHKslaTJfBIWK+5rqVD6k6kZE/+4QQWQtUxXXVgGINnGrnPvo
+6MlRJxqGUtYJ0GRTFJP4Py0gwuzf5BMIwe+fpGECgYAOhLRfMCjTTlbOG5ZpvaPH
+Kys2sNEEMBpPxaIGaq3N1iPV2WZSjT/JhW6XuDevAJ/pAGhcmtCpXz2fMaG7qzHL
+mr0cBqaxLTKIOvx8iKA3Gi4NfDyE1Ve6m7fhEv5eh4l2GSZ8cYn7sRFkCVH0NCFm
+KrkFVKEgjBhNwefySf2zcQKBgHDVPgw7nlv4q9LMX6RbI98eMnAG/2XZ45gUeWcA
+tAeBX3WXEVoBjoxDBwuJ5z/xjXHbb8JSvT+G9E0MH6cjhgSYb44aoqFD7TV0yP2S
+u8/Ej0SxewrURO8aKXJW99Edz9WtRuRbwgyWJTSMbRlzbOPy2UrJ8NJWbHK9yiCE
+YXmhAoGAA3QUiCCl11c1C4VsF68Fa2i7qwnty3fvFidZpW3ds0tzZdIvkpRLp5+u
+XAJ5+zStdEGdnu0iXALQlY7ektawXguT/zYKg3nfS9RMGW6CxZotn4bqfQwDuttf
+b1xn1jGQd/o0xFf9ojpDNy6vNojidQGHh6E3h0GYvxbnQmVNq5U=
+-----END RSA TESTING KEY-----`)
+)
+
+// prevent static analysis tools from raising issues due to detection of
+// private key in code.
+func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "PRIVATE KEY") }
+
+func TestCountABMTokensAuth(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	ctx := context.Background()
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+	svc := Service{ds: ds, authz: authorizer}
+
+	ds.GetABMTokenCountFunc = func(ctx context.Context) (int, error) {
+		return 5, nil
+	}
+
+	t.Run("CountABMTokens", func(t *testing.T) {
+		cases := []struct {
+			desc              string
+			user              *automdm.User
+			shoudFailWithAuth bool
+		}{
+			{"no role", test.UserNoRoles, true},
+			{"gitops can read", test.UserGitOps, false},
+			{"maintainer can read", test.UserMaintainer, false},
+			{"observer can read", test.UserObserver, false},
+			{"observer+ can read", test.UserObserverPlus, false},
+			{"admin can read", test.UserAdmin, false},
+			{"tm1 gitops can read", test.UserTeamGitOpsTeam1, false},
+			{"tm1 maintainer can read", test.UserTeamMaintainerTeam1, false},
+			{"tm1 observer can read", test.UserTeamObserverTeam1, false},
+			{"tm1 observer+ can read", test.UserTeamObserverPlusTeam1, false},
+			{"tm1 admin can read", test.UserTeamAdminTeam1, false},
+		}
+		for _, c := range cases {
+			t.Run(c.desc, func(t *testing.T) {
+				ctx = test.UserContext(ctx, c.user)
+				count, err := svc.CountABMTokens(ctx)
+				checkAuthErr(t, c.shoudFailWithAuth, err)
+				if !c.shoudFailWithAuth {
+					assert.EqualValues(t, 5, count)
+				}
+			})
+		}
+	})
+}
+
+func TestClearPasscode(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+
+	// Set up the real commander with mocked storage and pusher.
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushProvider := &svcmock.APNSPushProvider{}
+	pushProvider.PushFunc = func(_ context.Context, pushes []*nanomdm_mdm.Push) (map[string]*nanomdm_push.Response, error) {
+		res := make(map[string]*nanomdm_push.Response, len(pushes))
+		for _, p := range pushes {
+			res[p.Token.String()] = &nanomdm_push.Response{Id: "ok"}
+		}
+		return res, nil
+	}
+	pushFactory := &svcmock.APNSPushProviderFactory{}
+	pushFactory.NewPushProviderFunc = func(*tls.Certificate) (nanomdm_push.PushProvider, error) {
+		return pushProvider, nil
+	}
+	pusher := nanomdm_pushsvc.New(mdmStorage, mdmStorage, pushFactory, stdlogfmt.New())
+	commander := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	baseSvc := &mocksvc.Service{
+		NewActivityFunc: func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return nil
+		},
+	}
+	svc := Service{ds: ds, authz: authorizer, mdmAppleCommander: commander, Service: baseSvc}
+
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
+	}
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+		return true, nil
+	}
+	ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+		return &automdm.HostMDMApplePermissions{HostUUID: hostUUID, AccessRights: apple_mdm.MDMAccessRightAll}, nil
+	}
+
+	// Common mdmStorage mocks for enqueue + push.
+	mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *nanomdm_mdm.CommandWithSubtype) (map[string]error, error) {
+		return nil, nil
+	}
+	mdmStorage.RetrievePushInfoFunc = func(ctx context.Context, targets []string) (map[string]*nanomdm_mdm.Push, error) {
+		pushes := make(map[string]*nanomdm_mdm.Push, len(targets))
+		for _, uuid := range targets {
+			pushes[uuid] = &nanomdm_mdm.Push{
+				PushMagic: "magic" + uuid,
+				Token:     []byte("token" + uuid),
+				Topic:     "topic" + uuid,
+			}
+		}
+		return pushes, nil
+	}
+	mdmStorage.RetrievePushCertFunc = func(ctx context.Context, topic string) (*tls.Certificate, string, error) {
+		cert, err := tls.LoadX509KeyPair("../../../server/service/testdata/server.pem", "../../../server/service/testdata/server.key")
+		return &cert, "", err
+	}
+	mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
+		return false, nil
+	}
+
+	t.Run("authorization", func(t *testing.T) {
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{}, nil
+		}
+		ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoMDMEnrollmentDetails, error) {
+			return &automdm.NanoMDMEnrollmentDetails{UnlockToken: new("fake-token")}, nil
+		}
+
+		team1 := new(uint(1))
+
+		cases := []struct {
+			desc       string
+			user       *automdm.User
+			hostTeamID *uint
+			wantErr    error
+		}{
+			{"no role", test.UserNoRoles, nil, test.ErrForbidden},
+			{"observer", test.UserObserver, nil, test.ErrForbidden},
+			{"observer+", test.UserObserverPlus, nil, test.ErrForbidden},
+			{"technician", test.UserTechnician, nil, nil},
+			{"gitops", test.UserGitOps, nil, test.ErrForbidden},
+			{"maintainer", test.UserMaintainer, nil, nil},
+			{"admin", test.UserAdmin, nil, nil},
+			{"team 1 technician", test.UserTeamTechnicianTeam1, team1, nil},
+			{"team 1 admin", test.UserTeamAdminTeam1, team1, nil},
+			{"team 1 observer", test.UserTeamObserverTeam1, team1, test.ErrForbidden},
+			{"team 2 technician", test.UserTeamTechnicianTeam2, team1, test.ErrNotFound},
+		}
+		for _, c := range cases {
+			t.Run(c.desc, func(t *testing.T) {
+				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+					return &automdm.Host{ID: hostID, Platform: "ipados", TeamID: c.hostTeamID}, nil
+				}
+
+				ctx := test.UserContext(t.Context(), c.user)
+				_, err := svc.ClearPasscode(ctx, 1)
+				test.RequireErrKind(t, c.wantErr, err)
+			})
+		}
+	})
+
+	t.Run("access rights disallow clear passcode", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "host-uuid-rights", Platform: "ipados"}, nil
+		}
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{}, nil
+		}
+		ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+			return &automdm.HostMDMApplePermissions{
+				HostUUID:     hostUUID,
+				AccessRights: apple_mdm.MDMAccessRightAll &^ apple_mdm.MDMAccessRightDeviceLock,
+			}, nil
+		}
+		t.Cleanup(func() {
+			ds.GetHostMDMAppleEnrollmentPermissionsFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMApplePermissions, error) {
+				return &automdm.HostMDMApplePermissions{HostUUID: hostUUID, AccessRights: apple_mdm.MDMAccessRightAll}, nil
+			}
+		})
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		require.Contains(t, badReq.Message, automdm.CantClearPasscodeAccessRightsMessage)
+	})
+
+	t.Run("authorization non-Apple-mobile platforms", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "android"}, nil
+		}
+
+		// Technicians can only clear passcodes on iOS/iPadOS hosts; Android still
+		// requires full MDM command write.
+		ctx := test.UserContext(t.Context(), test.UserTechnician)
+		_, err := svc.ClearPasscode(ctx, 1)
+		checkAuthErr(t, true, err)
+
+		// Same for macOS: it is not an Apple mobile platform, so technicians are
+		// denied at the authorization gate rather than by platform validation.
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "darwin"}, nil
+		}
+		_, err = svc.ClearPasscode(ctx, 1)
+		checkAuthErr(t, true, err)
+
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "android"}, nil
+		}
+
+		// Admin passes authorization and fails on Android MDM not being configured,
+		// proving the gate itself lets admins through.
+		ctx = test.UserContext(t.Context(), test.UserAdmin)
+		_, err = svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var forbiddenError *authz.Forbidden
+		require.NotErrorAs(t, err, &forbiddenError)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		require.Contains(t, badReq.Message, automdm.AndroidMDMNotConfiguredMessage)
+	})
+
+	t.Run("happy path ipados", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "host-uuid-1", Platform: "ipados"}, nil
+		}
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{}, nil
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.NoError(t, err)
+		require.True(t, mdmStorage.EnqueueCommandFuncInvoked)
+		mdmStorage.EnqueueCommandFuncInvoked = false
+	})
+
+	t.Run("happy path ios", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "host-uuid-2", Platform: "ios"}, nil
+		}
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{}, nil
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.NoError(t, err)
+		require.True(t, mdmStorage.EnqueueCommandFuncInvoked)
+		mdmStorage.EnqueueCommandFuncInvoked = false
+	})
+
+	t.Run("MDM turned off for host", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "host-uuid-off", Platform: "ios"}, nil
+		}
+		// The unlock token survives unenrollment, so it must not be what gates the command.
+		ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoMDMEnrollmentDetails, error) {
+			return &automdm.NanoMDMEnrollmentDetails{UnlockToken: new("fake-token")}, nil
+		}
+		ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+			return false, nil
+		}
+		t.Cleanup(func() {
+			ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+				return true, nil
+			}
+		})
+		mdmStorage.EnqueueCommandFuncInvoked = false
+		baseSvc.NewActivityFuncInvoked = false
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		require.Contains(t, badReq.Message, "doesn't have MDM turned on")
+		require.False(t, mdmStorage.EnqueueCommandFuncInvoked)
+		require.False(t, baseSvc.NewActivityFuncInvoked)
+	})
+
+	t.Run("non-apple platform", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "windows"}, nil
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Contains(t, badReq.Message, "only supported on Apple mobile platforms")
+	})
+
+	t.Run("macOS not supported", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "darwin"}, nil
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Contains(t, badReq.Message, "ClearPasscode command is only available for iOS and iPadOS. Unable to issue ClearPasscode command.")
+	})
+
+	t.Run("MDM not enabled", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "ipados"}, nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: false}}, nil
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Contains(t, badReq.Message, "Apple MDM must be turned on to use Clear passcode.")
+
+		// Restore for subsequent tests.
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
+		}
+	})
+
+	t.Run("personal enrollment", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "ipados"}, nil
+		}
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{IsPersonalEnrollment: true}, nil
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Contains(t, badReq.Message, "Unlock token is not available")
+	})
+
+	t.Run("enqueue command error", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "host-uuid-3", Platform: "ipados"}, nil
+		}
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{}, nil
+		}
+		mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *nanomdm_mdm.CommandWithSubtype) (map[string]error, error) {
+			return nil, errors.New("enqueue failed")
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "enqueue failed")
+
+		// Restore for subsequent tests.
+		mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *nanomdm_mdm.CommandWithSubtype) (map[string]error, error) {
+			return nil, nil
+		}
+	})
+
+	t.Run("host not found", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return nil, &notFoundError{}
+		}
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		_, err := svc.ClearPasscode(ctx, 999)
+		require.Error(t, err)
+	})
+}
+
+type clearPasscodeAndroidModule struct {
+	android.Service
+	clearedHostIDs []uint
+}
+
+func (m *clearPasscodeAndroidModule) ClearAndroidPasscode(_ context.Context, hostID uint) (string, error) {
+	m.clearedHostIDs = append(m.clearedHostIDs, hostID)
+	return "reset-password-uuid", nil
+}
+
+func TestClearPasscodeAndroidLockWipeStatus(t *testing.T) {
+	t.Parallel()
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+
+	cases := []struct {
+		name    string
+		status  automdm.HostLockWipeStatus
+		wantErr string
+	}{
+		{
+			name:    "pending wipe is refused",
+			status:  automdm.HostLockWipeStatus{WipeMDMCommand: &automdm.MDMCommand{CommandUUID: "wipe-uuid", RequestType: "WIPE"}},
+			wantErr: "Host has pending wipe request. Cannot process clear passcode requests once host is wiped.",
+		},
+		{
+			name: "acknowledged wipe does not block",
+			status: automdm.HostLockWipeStatus{
+				WipeMDMCommand:       &automdm.MDMCommand{CommandUUID: "wipe-uuid", RequestType: "WIPE"},
+				WipeMDMCommandResult: &automdm.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusAcknowledged)},
+			},
+		},
+		{
+			name: "no pending action",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ds := new(mock.Store)
+			ds.HostLiteFunc = func(_ context.Context, hostID uint) (*automdm.Host, error) {
+				return &automdm.Host{ID: hostID, UUID: "android-uuid", Platform: "android"}, nil
+			}
+			ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
+			}
+			ds.IsHostConnectedToAutoMDMMDMFunc = func(_ context.Context, _ *automdm.Host) (bool, error) {
+				return true, nil
+			}
+			ds.GetHostLockWipeStatusFunc = func(_ context.Context, h *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+				require.Equal(t, uint(1), h.ID)
+				status := tc.status
+				status.HostAutoMDMPlatform = "android"
+				return &status, nil
+			}
+
+			var activities []automdm.ActivityDetails
+			baseSvc := &mocksvc.Service{
+				NewActivityFunc: func(_ context.Context, _ *automdm.User, act automdm.ActivityDetails) error {
+					activities = append(activities, act)
+					return nil
+				},
+			}
+			androidModule := &clearPasscodeAndroidModule{}
+			svc := Service{ds: ds, authz: authorizer, androidModule: androidModule, Service: baseSvc}
+
+			ctx := test.UserContext(t.Context(), test.UserAdmin)
+			res, err := svc.ClearPasscode(ctx, 1)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.wantErr)
+				var invalidArgErr *automdm.InvalidArgumentError
+				require.ErrorAs(t, err, &invalidArgErr)
+				assert.Empty(t, androidModule.clearedHostIDs, "nothing should be sent to AMAPI")
+				assert.Empty(t, activities, "no cleared_passcode activity should be created")
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, "reset-password-uuid", res.CommandUUID)
+			assert.Equal(t, []uint{1}, androidModule.clearedHostIDs)
+			require.Len(t, activities, 1)
+			assert.IsType(t, automdm.ActivityTypeClearedPasscode{}, activities[0])
+		})
+	}
+}
+
+func TestCancelHostMDMCommand(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+
+	var lastActivity automdm.ActivityDetails
+	svc := Service{ds: ds, authz: authorizer, Service: &mocksvc.Service{
+		NewActivityFunc: func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			lastActivity = activity
+			return nil
+		},
+	}}
+
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: "host-uuid-1", Platform: "darwin", Hostname: "mac-1"}, nil
+	}
+	ds.CancelHostMDMCommandFunc = func(ctx context.Context, host *automdm.Host, commandUUID string) (string, error) {
+		return "DeviceLock", nil
+	}
+
+	t.Run("authorization", func(t *testing.T) {
+		cases := []struct {
+			desc              string
+			user              *automdm.User
+			shoudFailWithAuth bool
+		}{
+			{"no role", test.UserNoRoles, true},
+			{"observer", test.UserObserver, true},
+			{"observer+", test.UserObserverPlus, true},
+			{"technician", test.UserTechnician, true},
+			{"gitops", test.UserGitOps, true},
+			{"maintainer", test.UserMaintainer, false},
+			{"admin", test.UserAdmin, false},
+		}
+		for _, c := range cases {
+			t.Run(c.desc, func(t *testing.T) {
+				ctx := test.UserContext(t.Context(), c.user)
+				err := svc.CancelHostMDMCommand(ctx, 1, "cmd-uuid")
+				checkAuthErr(t, c.shoudFailWithAuth, err)
+			})
+		}
+	})
+
+	t.Run("happy path", func(t *testing.T) {
+		ds.CancelHostMDMCommandFuncInvoked = false
+		lastActivity = nil
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		require.NoError(t, svc.CancelHostMDMCommand(ctx, 1, "cmd-uuid"))
+		require.True(t, ds.CancelHostMDMCommandFuncInvoked)
+
+		act, ok := lastActivity.(automdm.ActivityTypeCanceledMDMCommand)
+		require.True(t, ok)
+		assert.Equal(t, uint(1), act.HostID)
+		assert.Equal(t, "mac-1", act.HostDisplayName)
+		assert.Equal(t, "DeviceLock", act.CommandType)
+	})
+
+	t.Run("non-apple platform", func(t *testing.T) {
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, Platform: "windows"}, nil
+		}
+		ds.CancelHostMDMCommandFuncInvoked = false
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		err := svc.CancelHostMDMCommand(ctx, 1, "cmd-uuid")
+		require.Error(t, err)
+		var badReq *automdm.BadRequestError
+		require.ErrorAs(t, err, &badReq)
+		assert.Contains(t, badReq.Message, "Only Apple MDM commands can be canceled")
+		require.False(t, ds.CancelHostMDMCommandFuncInvoked)
+
+		// Restore for subsequent tests.
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "host-uuid-1", Platform: "darwin", Hostname: "mac-1"}, nil
+		}
+	})
+
+	t.Run("datastore error means no activity", func(t *testing.T) {
+		ds.CancelHostMDMCommandFunc = func(ctx context.Context, host *automdm.Host, commandUUID string) (string, error) {
+			return "", &notFoundError{}
+		}
+		lastActivity = nil
+
+		ctx := test.UserContext(t.Context(), test.UserAdmin)
+		err := svc.CancelHostMDMCommand(ctx, 1, "cmd-uuid")
+		require.Error(t, err)
+		require.True(t, automdm.IsNotFound(err))
+		require.Nil(t, lastActivity)
+	})
+}
+
+func TestUpdateABMTokenTeams(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+	ctx := test.UserContext(t.Context(), test.UserAdmin)
+
+	// Set up the real commander with mocked storage and pusher.
+	mdmStorage := &mdmmock.MDMAppleStore{}
+	pushProvider := &svcmock.APNSPushProvider{}
+	pushProvider.PushFunc = func(_ context.Context, pushes []*nanomdm_mdm.Push) (map[string]*nanomdm_push.Response, error) {
+		res := make(map[string]*nanomdm_push.Response, len(pushes))
+		for _, p := range pushes {
+			res[p.Token.String()] = &nanomdm_push.Response{Id: "ok"}
+		}
+		return res, nil
+	}
+	pushFactory := &svcmock.APNSPushProviderFactory{}
+	pushFactory.NewPushProviderFunc = func(*tls.Certificate) (nanomdm_push.PushProvider, error) {
+		return pushProvider, nil
+	}
+	pusher := nanomdm_pushsvc.New(mdmStorage, mdmStorage, pushFactory, stdlogfmt.New())
+	commander := apple_mdm.NewMDMAppleCommander(mdmStorage, pusher)
+	svc := Service{ds: ds, authz: authorizer, mdmAppleCommander: commander, Service: &mocksvc.Service{
+		NewActivityFunc: func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return nil
+		},
+	}}
+
+	orgName := "Fake Organization"
+	tokenID := uint(1)
+	abmToken := &automdm.ABMToken{ID: tokenID, OrganizationName: orgName}
+	ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+		return abmToken, nil
+	}
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
+		return nil
+	}
+
+	appCfg := &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true, AppleBusinessManager: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+		{OrganizationName: orgName},
+	})}}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return appCfg, nil
+	}
+
+	var updatedAppCfg *automdm.AppConfig
+	ds.SaveAppConfigFunc = func(ctx context.Context, cfg *automdm.AppConfig) error {
+		updatedAppCfg = cfg
+		return nil
+	}
+
+	validTeamID := new(uint(2))
+	validTeamName := "Valid Team"
+	invalidTeamID := new(uint(3))
+	teamLiteCalls := 0
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		teamLiteCalls++
+		if tid == *validTeamID {
+			return &automdm.TeamLite{ID: *validTeamID, Name: validTeamName}, nil
+		}
+		return nil, &notFoundError{}
+	}
+
+	t.Run("team ids is validated and updated", func(t *testing.T) {
+		teamLiteCalls = 0
+		ds.SaveAppConfigFuncInvoked = false
+		token, err := svc.UpdateABMTokenTeams(ctx, tokenID, validTeamID, validTeamID, validTeamID, validTeamID)
+		require.NoError(t, err)
+
+		assert.Equal(t, validTeamID, token.BYODDefaultTeamID)
+		assert.Equal(t, validTeamID, token.MacOSDefaultTeamID)
+		assert.Equal(t, validTeamID, token.IOSDefaultTeamID)
+		assert.Equal(t, validTeamID, token.IPadOSDefaultTeamID)
+		assert.Equal(t, 4, teamLiteCalls)
+		require.True(t, ds.SaveAppConfigFuncInvoked)
+		var appCfgToken automdm.MDMAppleABMAssignmentInfo
+		for _, tok := range updatedAppCfg.MDM.AppleBusinessManager.Value {
+			if tok.OrganizationName == orgName {
+				appCfgToken = tok
+				break
+			}
+		}
+		assert.Equal(t, validTeamName, appCfgToken.BYODTeam)
+		assert.Equal(t, validTeamName, appCfgToken.MacOSTeam)
+		assert.Equal(t, validTeamName, appCfgToken.IOSTeam)
+		assert.Equal(t, validTeamName, appCfgToken.IpadOSTeam)
+	})
+
+	t.Run("invalid team id returns error", func(t *testing.T) {
+		teamLiteCalls = 0
+		_, err := svc.UpdateABMTokenTeams(ctx, tokenID, validTeamID, validTeamID, validTeamID, invalidTeamID)
+		require.Error(t, err)
+	})
+
+	t.Run("does not validate nil team ids", func(t *testing.T) {
+		teamLiteCalls = 0
+		ds.SaveAppConfigFuncInvoked = false
+		appCfg.MDM.AppleBusinessManager = optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+			{OrganizationName: orgName, MacOSTeam: validTeamName, IOSTeam: validTeamName, IpadOSTeam: validTeamName, BYODTeam: validTeamName},
+		})
+		abmToken.MacOSDefaultTeamID = validTeamID
+		abmToken.IOSDefaultTeamID = validTeamID
+		abmToken.IPadOSDefaultTeamID = validTeamID
+		abmToken.BYODDefaultTeamID = validTeamID
+		abmToken.MacOSTeam.Name = validTeamName
+		abmToken.MacOSTeam.ID = *validTeamID
+		abmToken.IOSTeam.Name = validTeamName
+		abmToken.IOSTeam.ID = *validTeamID
+		abmToken.IPadOSTeam.Name = validTeamName
+		abmToken.IPadOSTeam.ID = *validTeamID
+		abmToken.BYODTeam.Name = validTeamName
+		abmToken.BYODTeam.ID = *validTeamID
+		token, err := svc.UpdateABMTokenTeams(ctx, tokenID, nil, nil, nil, nil)
+		require.NoError(t, err)
+
+		assert.Nil(t, token.BYODDefaultTeamID)
+		assert.Nil(t, token.MacOSDefaultTeamID)
+		assert.Nil(t, token.IOSDefaultTeamID)
+		assert.Nil(t, token.IPadOSDefaultTeamID)
+		assert.Equal(t, 0, teamLiteCalls) // no calls to TeamLite since all team ids are nil
+		require.True(t, ds.SaveAppConfigFuncInvoked)
+		var appCfgToken automdm.MDMAppleABMAssignmentInfo
+		for _, tok := range updatedAppCfg.MDM.AppleBusinessManager.Value {
+			if tok.OrganizationName == orgName {
+				appCfgToken = tok
+				break
+			}
+		}
+		// Validate we clear out the "No team"
+		assert.Empty(t, appCfgToken.BYODTeam)
+		assert.Empty(t, appCfgToken.MacOSTeam)
+		assert.Empty(t, appCfgToken.IOSTeam)
+		assert.Empty(t, appCfgToken.IpadOSTeam)
+	})
+
+	t.Run("updates app config with new entry if not present", func(t *testing.T) {
+		appCfg.MDM.AppleBusinessManager = optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{})
+
+		token, err := svc.UpdateABMTokenTeams(ctx, tokenID, validTeamID, validTeamID, validTeamID, validTeamID)
+		require.NoError(t, err)
+
+		assert.Equal(t, validTeamID, token.BYODDefaultTeamID)
+		assert.Equal(t, validTeamID, token.MacOSDefaultTeamID)
+		assert.Equal(t, validTeamID, token.IOSDefaultTeamID)
+		assert.Equal(t, validTeamID, token.IPadOSDefaultTeamID)
+		require.True(t, ds.SaveAppConfigFuncInvoked)
+		var appCfgToken automdm.MDMAppleABMAssignmentInfo
+		for _, tok := range updatedAppCfg.MDM.AppleBusinessManager.Value {
+			if tok.OrganizationName == orgName {
+				appCfgToken = tok
+				break
+			}
+		}
+		assert.Equal(t, validTeamName, appCfgToken.BYODTeam)
+		assert.Equal(t, validTeamName, appCfgToken.MacOSTeam)
+		assert.Equal(t, validTeamName, appCfgToken.IOSTeam)
+		assert.Equal(t, validTeamName, appCfgToken.IpadOSTeam)
+	})
+}
+
+func TestSetABMTokenDefault(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+	svc := Service{ds: ds, authz: authorizer}
+
+	tokA := &automdm.ABMToken{ID: 1, OrganizationName: "Org A"}
+	tokB := &automdm.ABMToken{ID: 2, OrganizationName: "Org B"}
+	tokenCount := 2
+
+	resetState := func(defaultID uint) {
+		tokA.IsDefault = tokA.ID == defaultID
+		tokB.IsDefault = tokB.ID == defaultID
+		ds.SetABMTokenDefaultFuncInvoked = false
+		ds.ClearABMTokenDefaultFuncInvoked = false
+		ds.SaveAppConfigFuncInvoked = false
+	}
+
+	ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+		switch tokenID {
+		case tokA.ID:
+			return tokA, nil
+		case tokB.ID:
+			return tokB, nil
+		}
+		return nil, &notFoundError{}
+	}
+	ds.SetABMTokenDefaultFunc = func(ctx context.Context, tokenID uint) error {
+		tokA.IsDefault = tokA.ID == tokenID
+		tokB.IsDefault = tokB.ID == tokenID
+		return nil
+	}
+	ds.ClearABMTokenDefaultFunc = func(ctx context.Context) error {
+		tokA.IsDefault = false
+		tokB.IsDefault = false
+		return nil
+	}
+	ds.GetABMTokenCountFunc = func(ctx context.Context) (int, error) {
+		return tokenCount, nil
+	}
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{tokA, tokB}[:tokenCount], nil
+	}
+	appCfg := &automdm.AppConfig{MDM: automdm.MDM{AppleBusinessManager: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+		{OrganizationName: tokA.OrganizationName},
+		{OrganizationName: tokB.OrganizationName},
+	})}}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return appCfg, nil
+	}
+	var updatedAppCfg *automdm.AppConfig
+	ds.SaveAppConfigFunc = func(ctx context.Context, cfg *automdm.AppConfig) error {
+		updatedAppCfg = cfg
+		return nil
+	}
+
+	appCfgDefaults := func() map[string]bool {
+		m := make(map[string]bool)
+		for _, e := range updatedAppCfg.MDM.AppleBusinessManager.Value {
+			m[e.OrganizationName] = e.Default
+		}
+		return m
+	}
+
+	t.Run("only admins are authorized", func(t *testing.T) {
+		cases := []struct {
+			desc    string
+			user    *automdm.User
+			wantErr error
+		}{
+			{"no role", test.UserNoRoles, test.ErrForbidden},
+			{"observer", test.UserObserver, test.ErrForbidden},
+			{"observer+", test.UserObserverPlus, test.ErrForbidden},
+			{"maintainer", test.UserMaintainer, test.ErrForbidden},
+			{"gitops", test.UserGitOps, test.ErrForbidden},
+			{"admin", test.UserAdmin, nil},
+		}
+		for _, c := range cases {
+			t.Run(c.desc, func(t *testing.T) {
+				resetState(tokA.ID)
+				ctx := test.UserContext(t.Context(), c.user)
+				_, err := svc.SetABMTokenDefault(ctx, tokB.ID, new(true))
+				test.RequireErrKind(t, c.wantErr, err)
+			})
+		}
+	})
+
+	adminCtx := test.UserContext(t.Context(), test.UserAdmin)
+
+	t.Run("omitted default value is rejected", func(t *testing.T) {
+		resetState(tokA.ID)
+		_, err := svc.SetABMTokenDefault(adminCtx, tokB.ID, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "missing required argument")
+		assert.False(t, ds.SetABMTokenDefaultFuncInvoked)
+		assert.False(t, ds.ClearABMTokenDefaultFuncInvoked)
+	})
+
+	t.Run("unknown token id is not found", func(t *testing.T) {
+		resetState(tokA.ID)
+		_, err := svc.SetABMTokenDefault(adminCtx, 999, new(true))
+		require.Error(t, err)
+		require.True(t, automdm.IsNotFound(err))
+	})
+
+	t.Run("setting default moves it from the other token", func(t *testing.T) {
+		resetState(tokA.ID)
+		token, err := svc.SetABMTokenDefault(adminCtx, tokB.ID, new(true))
+		require.NoError(t, err)
+		assert.True(t, token.IsDefault)
+		assert.True(t, ds.SetABMTokenDefaultFuncInvoked)
+		require.True(t, ds.SaveAppConfigFuncInvoked)
+		assert.Equal(t, map[string]bool{"Org A": false, "Org B": true}, appCfgDefaults())
+	})
+
+	t.Run("unsetting the default clears it", func(t *testing.T) {
+		resetState(tokB.ID)
+		token, err := svc.SetABMTokenDefault(adminCtx, tokB.ID, new(false))
+		require.NoError(t, err)
+		assert.False(t, token.IsDefault)
+		assert.True(t, ds.ClearABMTokenDefaultFuncInvoked)
+		require.True(t, ds.SaveAppConfigFuncInvoked)
+		assert.Equal(t, map[string]bool{"Org A": false, "Org B": false}, appCfgDefaults())
+	})
+
+	t.Run("unsetting a non-default token is a no-op", func(t *testing.T) {
+		resetState(tokA.ID)
+		token, err := svc.SetABMTokenDefault(adminCtx, tokB.ID, new(false))
+		require.NoError(t, err)
+		assert.False(t, token.IsDefault)
+		assert.False(t, ds.SetABMTokenDefaultFuncInvoked)
+		assert.False(t, ds.ClearABMTokenDefaultFuncInvoked)
+		assert.False(t, ds.SaveAppConfigFuncInvoked)
+	})
+
+	t.Run("unsetting the only token's default is rejected", func(t *testing.T) {
+		tokenCount = 1
+		t.Cleanup(func() { tokenCount = 2 })
+		resetState(tokA.ID)
+		_, err := svc.SetABMTokenDefault(adminCtx, tokA.ID, new(false))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "always the default")
+		assert.False(t, ds.ClearABMTokenDefaultFuncInvoked)
+	})
+}
+
+func TestMDMAppleEditedAppleOSUpdatesDeclaration(t *testing.T) {
+	ctx := context.Background()
+	teamID := uint(1)
+
+	// captured records what the datastore was handed, so the tests assert on the
+	// generated declaration rather than on a real write.
+	type captured struct {
+		decl    *automdm.MDMAppleDeclaration
+		vars    []automdm.AutoMDMVarName
+		deleted string
+		labels  []string
+	}
+
+	newSvc := func() (*Service, *captured) {
+		got := &captured{}
+		ds := new(mock.Store)
+		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]uint, error) {
+			got.labels = names
+			ids := make(map[string]uint, len(names))
+			for i, name := range names {
+				ids[name] = uint(i + 1) //nolint:gosec
+			}
+			return ids, nil
+		}
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, decl *automdm.MDMAppleDeclaration,
+			usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction,
+		) (*automdm.MDMAppleDeclaration, error) {
+			got.decl = decl
+			got.vars = usesAutoMDMVars
+			decl.DeclarationUUID = "decl-uuid"
+			return decl, nil
+		}
+		ds.DeleteMDMAppleDeclarationByNameFunc = func(ctx context.Context, declTeamID *uint, name string) error {
+			got.deleted = name
+			return nil
+		}
+		return &Service{ds: ds}, got
+	}
+
+	// Each platform gets its own declaration name and built-in label; a mix-up
+	// would send the OS update declaration to the wrong devices.
+	platforms := []struct {
+		name      string
+		device    automdm.AppleDevice
+		declName  string
+		labelName string
+	}{
+		{"macos", automdm.MacOS, mdm.AutoMDMMacOSUpdatesProfileName, automdm.BuiltinLabelMacOS14Plus},
+		{"ios", automdm.IOS, mdm.AutoMDMIOSUpdatesProfileName, automdm.BuiltinLabelIOS},
+		{"ipados", automdm.IPadOS, mdm.AutoMDMIPadOSUpdatesProfileName, automdm.BuiltinLabelIPadOS},
+	}
+
+	t.Run("latest emits AutoMDM variable placeholders", func(t *testing.T) {
+		for _, p := range platforms {
+			t.Run(p.name, func(t *testing.T) {
+				svc, got := newSvc()
+
+				err := svc.mdmAppleEditedAppleOSUpdates(ctx, &teamID, p.device, automdm.AppleOSUpdateSettings{
+					MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
+					DeadlineDays:   optjson.SetInt(14),
+				})
+				require.NoError(t, err)
+				require.NotNil(t, got.decl)
+				require.Empty(t, got.deleted)
+
+				// The literal placeholder text matters: it is what gets substituted
+				// per host at declaration fetch time.
+				require.Contains(t, string(got.decl.RawJSON), `"TargetOSVersion": "$AUTOMDM_VAR_HOST_TARGET_OS_VERSION"`)
+				require.Contains(t, string(got.decl.RawJSON), `"TargetLocalDateTime": "${AUTOMDM_VAR_HOST_TARGET_OS_DEADLINE}T12:00:00"`)
+				// Without these the declaration is stored but never expanded.
+				require.ElementsMatch(t, []automdm.AutoMDMVarName{
+					automdm.AutoMDMVarHostTargetOSVersion,
+					automdm.AutoMDMVarHostTargetOSDeadline,
+				}, got.vars)
+
+				require.Equal(t, p.declName, got.decl.Name)
+				require.Equal(t, []string{p.labelName}, got.labels)
+			})
+		}
+	})
+
+	t.Run("specific version emits literal values and no variables", func(t *testing.T) {
+		for _, p := range platforms {
+			t.Run(p.name, func(t *testing.T) {
+				svc, got := newSvc()
+
+				err := svc.mdmAppleEditedAppleOSUpdates(ctx, &teamID, p.device, automdm.AppleOSUpdateSettings{
+					MinimumVersion: optjson.SetString("15.7.8"),
+					Deadline:       optjson.SetString("2026-09-01"),
+				})
+				require.NoError(t, err)
+				require.NotNil(t, got.decl)
+				require.Contains(t, string(got.decl.RawJSON), `"TargetOSVersion": "15.7.8"`)
+				require.Contains(t, string(got.decl.RawJSON), `"TargetLocalDateTime": "2026-09-01T12:00:00"`)
+				require.NotContains(t, string(got.decl.RawJSON), "AUTOMDM_VAR_")
+				require.Empty(t, got.vars)
+
+				require.Equal(t, p.declName, got.decl.Name)
+				require.Equal(t, []string{p.labelName}, got.labels)
+			})
+		}
+	})
+
+	t.Run("disabled deletes the declaration", func(t *testing.T) {
+		for _, p := range platforms {
+			t.Run(p.name, func(t *testing.T) {
+				svc, got := newSvc()
+
+				err := svc.mdmAppleEditedAppleOSUpdates(ctx, &teamID, p.device, automdm.AppleOSUpdateSettings{})
+				require.NoError(t, err)
+				require.Nil(t, got.decl, "no declaration should be written when OS updates are off")
+				require.Equal(t, p.declName, got.deleted)
+			})
+		}
+	})
+}
+
+func TestSyncABMTokensToAppConfig(t *testing.T) {
+	t.Parallel()
+
+	abmToken := func(orgName string, isDefault bool, macOSTeam string) *automdm.ABMToken {
+		tm := automdm.ABMTokenTeam{Name: macOSTeam, ID: 1}
+		if macOSTeam == automdm.DisplayNameNoTeam {
+			tm.ID = 0
+		}
+		return &automdm.ABMToken{OrganizationName: orgName, IsDefault: isDefault, MacOSTeam: tm, IOSTeam: tm, IPadOSTeam: tm, BYODTeam: tm}
+	}
+	abmEntry := func(orgName string, isDefault bool, teamName string) automdm.MDMAppleABMAssignmentInfo {
+		return automdm.MDMAppleABMAssignmentInfo{
+			OrganizationName: orgName,
+			Default:          isDefault,
+			MacOSTeam:        teamName,
+			IOSTeam:          teamName,
+			IpadOSTeam:       teamName,
+			BYODTeam:         teamName,
+		}
+	}
+
+	cases := []struct {
+		name    string
+		appCfg  optjson.Slice[automdm.MDMAppleABMAssignmentInfo]
+		tokens  []*automdm.ABMToken
+		want    []automdm.MDMAppleABMAssignmentInfo
+		wantSet bool
+	}{
+		{
+			name:    "creates entry when app config was never set",
+			tokens:  []*automdm.ABMToken{abmToken("org1", true, automdm.DisplayNameNoTeam)},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "")},
+			wantSet: true,
+		},
+		{
+			name: "keeps a team named Unassigned",
+			tokens: []*automdm.ABMToken{{
+				OrganizationName: "org1", MacOSTeam: automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam, ID: 5},
+				IOSTeam: automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam}, IPadOSTeam: automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam},
+				BYODTeam: automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam},
+			}},
+			want:    []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "org1", MacOSTeam: automdm.DisplayNameNoTeam}},
+			wantSet: true,
+		},
+		{
+			name:    "creates entry when app config is set but empty",
+			appCfg:  optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{}),
+			tokens:  []*automdm.ABMToken{abmToken("org1", true, "Workstations")},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "Workstations")},
+			wantSet: true,
+		},
+		{
+			name:    "creates entry when app config is explicitly null",
+			appCfg:  optjson.Slice[automdm.MDMAppleABMAssignmentInfo]{Set: true, Valid: false},
+			tokens:  []*automdm.ABMToken{abmToken("org1", true, "Workstations")},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "Workstations")},
+			wantSet: true,
+		},
+		{
+			name: "updates the matching entry in place",
+			appCfg: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("org1", false, "Stale"),
+			}),
+			tokens:  []*automdm.ABMToken{abmToken("org1", true, "Workstations")},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "Workstations")},
+			wantSet: true,
+		},
+		{
+			name: "normalizes No team to an empty team name",
+			appCfg: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("org1", true, "Workstations"),
+			}),
+			tokens:  []*automdm.ABMToken{abmToken("org1", true, automdm.DisplayNameNoTeam)},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "")},
+			wantSet: true,
+		},
+		{
+			name: "clears a stale default",
+			appCfg: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("org1", true, "Workstations"),
+			}),
+			tokens:  []*automdm.ABMToken{abmToken("org1", false, "Workstations")},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", false, "Workstations")},
+			wantSet: true,
+		},
+		{
+			name: "mirrors the default across several tokens, updating and appending",
+			appCfg: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("org1", true, "Workstations"),
+				abmEntry("org2", false, "Servers"),
+			}),
+			tokens: []*automdm.ABMToken{
+				abmToken("org1", false, "Workstations"),
+				abmToken("org2", true, "Servers"),
+				abmToken("org3", false, automdm.DisplayNameNoTeam),
+			},
+			want: []automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("org1", false, "Workstations"),
+				abmEntry("org2", true, "Servers"),
+				abmEntry("org3", false, ""),
+			},
+			wantSet: true,
+		},
+		{
+			name: "leaves entries without a matching token untouched",
+			appCfg: optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("gone", true, "Workstations"),
+			}),
+			tokens: []*automdm.ABMToken{abmToken("org1", true, "Servers")},
+			want: []automdm.MDMAppleABMAssignmentInfo{
+				abmEntry("gone", true, "Workstations"),
+				abmEntry("org1", true, "Servers"),
+			},
+			wantSet: true,
+		},
+		{
+			name:    "does not duplicate an entry when a token org repeats",
+			appCfg:  optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{}),
+			tokens:  []*automdm.ABMToken{abmToken("org1", false, "Servers"), abmToken("org1", true, "Workstations")},
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "Workstations")},
+			wantSet: true,
+		},
+		{
+			name:    "no tokens leaves the app config alone",
+			appCfg:  optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "Workstations")}),
+			tokens:  nil,
+			want:    []automdm.MDMAppleABMAssignmentInfo{abmEntry("org1", true, "Workstations")},
+			wantSet: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			appCfg := &automdm.AppConfig{MDM: automdm.MDM{AppleBusinessManager: c.appCfg}}
+
+			syncABMTokensToAppConfig(appCfg, c.tokens)
+
+			assert.Equal(t, c.want, appCfg.MDM.AppleBusinessManager.Value)
+			assert.Equal(t, c.wantSet, appCfg.MDM.AppleBusinessManager.Set)
+			assert.True(t, appCfg.MDM.AppleBusinessManager.Valid)
+		})
+	}
+
+	t.Run("is idempotent", func(t *testing.T) {
+		appCfg := &automdm.AppConfig{}
+		tokens := []*automdm.ABMToken{
+			abmToken("org1", true, "Workstations"),
+			abmToken("org2", false, automdm.DisplayNameNoTeam),
+		}
+
+		syncABMTokensToAppConfig(appCfg, tokens)
+		first := append([]automdm.MDMAppleABMAssignmentInfo(nil), appCfg.MDM.AppleBusinessManager.Value...)
+		syncABMTokensToAppConfig(appCfg, tokens)
+
+		assert.Equal(t, first, appCfg.MDM.AppleBusinessManager.Value)
+	})
+}
+
+func TestDeleteABMTokenSyncsAppConfig(t *testing.T) {
+	t.Parallel()
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
+	ctx := test.UserContext(t.Context(), test.UserAdmin)
+
+	// remaining is what ListABMTokens returns after the delete, standing in for
+	// the promotion the datastore performs when a single token is left.
+	setupDeleteTest := func(t *testing.T, entries []automdm.MDMAppleABMAssignmentInfo, remaining []*automdm.ABMToken) (*mock.Store, *Service, **automdm.AppConfig) {
+		ds := new(mock.Store)
+		svc := &Service{ds: ds, authz: authorizer}
+
+		ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+			return &automdm.ABMToken{ID: tokenID, OrganizationName: "org1"}, nil
+		}
+		ds.DeleteABMTokenFunc = func(ctx context.Context, tokenID uint) error {
+			return nil
+		}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{
+				AppleBMEnabledAndConfigured: true,
+				AppleBusinessManager:        optjson.SetSlice(entries),
+			}}, nil
+		}
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+			return remaining, nil
+		}
+
+		saved := new(*automdm.AppConfig)
+		ds.SaveAppConfigFunc = func(ctx context.Context, cfg *automdm.AppConfig) error {
+			*saved = cfg
+			return nil
+		}
+
+		return ds, svc, saved
+	}
+
+	t.Run("sole survivor is promoted to default", func(t *testing.T) {
+		entries := []automdm.MDMAppleABMAssignmentInfo{
+			{OrganizationName: "org1", Default: true},
+			{OrganizationName: "org2", MacOSTeam: "Workstations"},
+		}
+		remaining := []*automdm.ABMToken{{
+			ID:               2,
+			OrganizationName: "org2",
+			IsDefault:        true, // the datastore promoted it inside the delete tx
+			MacOSTeam:        automdm.ABMTokenTeam{Name: "Workstations", ID: 1},
+			IOSTeam:          automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam},
+			IPadOSTeam:       automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam},
+			BYODTeam:         automdm.ABMTokenTeam{Name: automdm.DisplayNameNoTeam},
+		}}
+		ds, svc, saved := setupDeleteTest(t, entries, remaining)
+
+		require.NoError(t, svc.DeleteABMToken(ctx, 1))
+		require.True(t, ds.SaveAppConfigFuncInvoked)
+
+		appCfg := *saved
+		require.Len(t, appCfg.MDM.AppleBusinessManager.Value, 1)
+		got := appCfg.MDM.AppleBusinessManager.Value[0]
+		assert.Equal(t, "org2", got.OrganizationName)
+		assert.True(t, got.Default, "survivor should inherit the default flag")
+		// the sync rewrites the whole entry, so existing assignments must survive
+		assert.Equal(t, "Workstations", got.MacOSTeam)
+		assert.Empty(t, got.IOSTeam)
+		assert.True(t, appCfg.MDM.AppleBMEnabledAndConfigured)
+	})
+
+	t.Run("no promotion when several tokens remain", func(t *testing.T) {
+		entries := []automdm.MDMAppleABMAssignmentInfo{
+			{OrganizationName: "org1", Default: true},
+			{OrganizationName: "org2"},
+			{OrganizationName: "org3"},
+		}
+		remaining := []*automdm.ABMToken{
+			{ID: 2, OrganizationName: "org2"},
+			{ID: 3, OrganizationName: "org3"},
+		}
+		_, svc, saved := setupDeleteTest(t, entries, remaining)
+
+		require.NoError(t, svc.DeleteABMToken(ctx, 1))
+
+		appCfg := *saved
+		require.Len(t, appCfg.MDM.AppleBusinessManager.Value, 2)
+		for _, got := range appCfg.MDM.AppleBusinessManager.Value {
+			assert.NotEqual(t, "org1", got.OrganizationName, "deleted org entry should be removed")
+			assert.False(t, got.Default, "no token is default once the default one is deleted")
+		}
+		assert.True(t, appCfg.MDM.AppleBMEnabledAndConfigured)
+	})
+
+	t.Run("deleting the last token disables ABM", func(t *testing.T) {
+		entries := []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "org1", Default: true}}
+		_, svc, saved := setupDeleteTest(t, entries, nil)
+
+		require.NoError(t, svc.DeleteABMToken(ctx, 1))
+
+		appCfg := *saved
+		assert.Empty(t, appCfg.MDM.AppleBusinessManager.Value)
+		assert.False(t, appCfg.MDM.AppleBMEnabledAndConfigured)
+	})
+
+	t.Run("cleans up any dangling appCfg entries", func(t *testing.T) {
+		entries := []automdm.MDMAppleABMAssignmentInfo{
+			{OrganizationName: "org1", Default: true},
+			{OrganizationName: "org2"},
+		}
+		remaining := []*automdm.ABMToken{{ID: 2, OrganizationName: "org2"}}
+		_, svc, saved := setupDeleteTest(t, entries, remaining)
+
+		require.NoError(t, svc.DeleteABMToken(ctx, 1))
+
+		appCfg := *saved
+		require.Len(t, appCfg.MDM.AppleBusinessManager.Value, 1)
+		got := appCfg.MDM.AppleBusinessManager.Value[0]
+		assert.Equal(t, "org2", got.OrganizationName)
+		assert.False(t, got.Default)
+	})
+}
+
+func TestValidateMarkdownEULA(t *testing.T) {
+	t.Parallel()
+
+	table := strings.Repeat("| h ", 100) + "|\n" + strings.Repeat("| - ", 100) + "|\n" + strings.Repeat("| x |\n", 100)
+	cases := []struct {
+		name, file, content, want string
+	}{
+		{"valid", "terms.md", "# Terms\n", ""},
+		{"not markdown", "terms.pdf", "# Terms\n", "The file must be a markdown (.md) file."},
+		{"name too long", strings.Repeat("a", 253) + ".md", "# Terms\n", "The file name must be 255 characters or fewer."},
+		{"empty", "terms.md", " \n\t", "The file is empty."},
+		{"too large", "terms.md", strings.Repeat("Clause.\n", 70_000), "The file must be 512 KB or smaller."},
+		{"not utf-8", "terms.md", "\xff\xfeA", "The file must be UTF-8 text."},
+		{"line too long", "terms.md", strings.Repeat("a", 9000), "The file has a line longer than 8 KB. Split long paragraphs into shorter lines and upload again."},
+		{"nested too deep", "terms.md", strings.Repeat("> ", 40) + "Clause\n", "The file nests lists, quotes or HTML too deeply."},
+		{"tables too large", "terms.md", table, "The file's tables have more than 10,000 cells in total."},
+		{"rendered too large", "terms.md", strings.Repeat(strings.Repeat("`<` ", 2_000)+"\n", 64), "The file is too large to show. Make it shorter and upload again."},
+		{"too many lines", "terms.md", strings.Repeat("a\n", 10_001), "The file has more than 10,000 lines."},
+		{"too much formatting", "terms.md", strings.Repeat("**a** ", 600) + "\n", "The file has too much formatting in one paragraph or list. Add blank lines between paragraphs and upload again."},
+		{"html", "terms.md", "<div>\nClause 4.\n</div>\n", "The file contains HTML other than tables and text styles. Convert it to markdown and upload again."},
+		{"nothing to show", "terms.md", "<!-- draft -->\n", "The file has no text to show."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateMarkdownEULA(tc.file, []byte(tc.content))
+			if tc.want == "" {
+				require.NoError(t, err)
+				return
+			}
+			var bre *automdm.BadRequestError
+			require.ErrorAs(t, err, &bre)
+			require.Equal(t, tc.want, bre.Message)
+		})
+	}
+}
+
+func TestEULAMetadataBypassesCache(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, baseSvc := newTestServiceWithMock(t, ds)
+	baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return nil }
+	baseSvc.VerifyMDMWindowsConfiguredFunc = func(ctx context.Context) error { return nil }
+	ctx := test.UserContext(t.Context(), test.UserAdmin)
+
+	var platforms []automdm.MDMEULAPlatform
+	ds.MDMGetEULAMetadataFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform) (*automdm.MDMEULA, error) {
+		require.True(t, ctxdb.IsCachedMysqlBypassed(ctx), platform)
+		platforms = append(platforms, platform)
+		return &automdm.MDMEULA{}, nil
+	}
+	for _, platform := range []automdm.MDMEULAPlatform{"", automdm.MDMEULAPlatformWindows} {
+		_, err := svc.MDMGetEULAMetadata(ctx, platform)
+		require.NoError(t, err)
+	}
+	require.Equal(t, []automdm.MDMEULAPlatform{automdm.MDMEULAPlatformDarwin, automdm.MDMEULAPlatformWindows}, platforms)
+}
+
+func TestEULAPlatformChecks(t *testing.T) {
+	t.Parallel()
+	ds := new(mock.Store)
+	svc, baseSvc := newTestServiceWithMock(t, ds)
+	ctx := test.UserContext(t.Context(), test.UserAdmin)
+	appleOff, windowsOff := errors.New("apple off"), errors.New("windows off")
+	baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return appleOff }
+	baseSvc.VerifyMDMWindowsConfiguredFunc = func(ctx context.Context) error { return windowsOff }
+
+	// an unknown platform is refused before any MDM check, and empty means darwin
+	_, err := automdm.ValidateEULAPlatform(ctx, svc, "linux")
+	var invalid *automdm.InvalidArgumentError
+	require.ErrorAs(t, err, &invalid)
+	_, err = automdm.ValidateEULAPlatform(ctx, svc, "")
+	require.ErrorIs(t, err, appleOff)
+	_, err = automdm.ValidateEULAPlatform(ctx, svc, automdm.MDMEULAPlatformWindows)
+	require.ErrorIs(t, err, windowsOff)
+
+	// a token's platform comes from the database and needs the same MDM
+	dbDown := errors.New("db down")
+	ds.MDMGetEULAPlatformFunc = func(ctx context.Context, token string) (automdm.MDMEULAPlatform, error) {
+		switch token {
+		case "mac":
+			return automdm.MDMEULAPlatformDarwin, nil
+		case "win":
+			return automdm.MDMEULAPlatformWindows, nil
+		case "odd":
+			return "linux", nil
+		}
+		return "", dbDown
+	}
+	_, err = svc.eulaPlatformForToken(ctx, "mac")
+	require.ErrorIs(t, err, appleOff)
+	_, err = svc.eulaPlatformForToken(ctx, "win")
+	require.ErrorIs(t, err, windowsOff)
+	_, err = svc.eulaPlatformForToken(ctx, "gone")
+	require.ErrorIs(t, err, dbDown)
+
+	baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return nil }
+	baseSvc.VerifyMDMWindowsConfiguredFunc = func(ctx context.Context) error { return nil }
+	platform, err := svc.eulaPlatformForToken(ctx, "mac")
+	require.NoError(t, err)
+	require.Equal(t, automdm.MDMEULAPlatformDarwin, platform)
+	platform, err = svc.eulaPlatformForToken(ctx, "win")
+	require.NoError(t, err)
+	require.Equal(t, automdm.MDMEULAPlatformWindows, platform)
+	// a row with a platform the code doesn't know fails closed
+	_, err = svc.eulaPlatformForToken(ctx, "odd")
+	require.ErrorAs(t, err, &invalid)
+}

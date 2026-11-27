@@ -1,0 +1,628 @@
+import React, { useCallback, useContext, useEffect, useState } from "react";
+import { useQuery } from "react-query";
+import { InjectedRouter } from "react-router";
+import { Tab, TabList, Tabs } from "react-tabs";
+
+import AutomationsButton from "components/buttons/AutomationsButton";
+import Button from "components/buttons/Button";
+import MainContent from "components/MainContent";
+import PageDescription from "components/PageDescription";
+import Spinner from "components/Spinner";
+import TabNav from "components/TabNav";
+import TabText from "components/TabText";
+import TeamsHeader from "components/TeamsHeader";
+import { notify } from "components/ToastNotification";
+import TooltipWrapper from "components/TooltipWrapper";
+import { AppContext } from "context/app";
+import useTeamIdParam from "hooks/useTeamIdParam";
+import { IConfig } from "interfaces/config";
+import { IJiraIntegration, IZendeskIntegration } from "interfaces/integration";
+import { SelectedPlatform } from "interfaces/platform";
+import { getSoftwareTypes } from "interfaces/software";
+import { APP_CONTEXT_ALL_TEAMS_ID, ITeamConfig } from "interfaces/team";
+import { IWebhookSoftwareVulnerabilities } from "interfaces/webhook";
+import PATHS from "router/paths";
+import configAPI from "services/entities/config";
+import teamsAPI, { ILoadTeamResponse } from "services/entities/teams";
+import { getNextLocationPath } from "utilities/helpers";
+import {
+  convertParamsToSnakeCase,
+  getPathWithQueryParams,
+} from "utilities/url";
+
+import AddSoftwareModal from "./components/modals/AddSoftwareModal";
+import ManageAutomationsModal from "./components/modals/ManageSoftwareAutomationsModal";
+import SoftwareFiltersModal from "./components/modals/SoftwareFiltersModal";
+import {
+  buildSoftwareFiltersQueryParams,
+  getSoftwareFiltersFromQueryParams,
+  removePremiumOnlyFilters,
+  ISoftwareFilters,
+} from "./SoftwareInventory/SoftwareInventoryTable/helpers";
+
+interface ISoftwareSubNavItem {
+  name: string;
+  pathname: string;
+}
+
+export const softwareSubNav: ISoftwareSubNavItem[] = [
+  {
+    name: "Inventory",
+    pathname: PATHS.SOFTWARE_INVENTORY,
+  },
+  {
+    name: "OS",
+    pathname: PATHS.SOFTWARE_OS,
+  },
+  {
+    name: "Vulnerabilities",
+    pathname: PATHS.SOFTWARE_VULNERABILITIES,
+  },
+];
+
+export const premiumSoftwareSubNav: ISoftwareSubNavItem[] = [
+  ...softwareSubNav,
+  {
+    name: "Library",
+    pathname: PATHS.SOFTWARE_LIBRARY,
+  },
+];
+
+export const getTabIndex = (
+  path: string,
+  navItems: ISoftwareSubNavItem[]
+): number => {
+  return navItems.findIndex((navItem) => {
+    // This check ensures that for software versions path we still
+    // highlight the software tab.
+    if (navItem.name === "Inventory" && PATHS.SOFTWARE_VERSIONS === path) {
+      return true;
+    }
+
+    // tab stays highlighted for paths that start with same pathname
+    return path.startsWith(navItem.pathname);
+  });
+};
+
+// default values for query params used on this page if not provided
+const DEFAULT_SORT_DIRECTION = "desc";
+const DEFAULT_SORT_HEADER = "hosts_count";
+// The OS tab defaults to sorting by version (latest first) instead, once a
+// single platform is selected — see getOSTabSortHeader below.
+const OS_TAB_DEFAULT_SORT_HEADER = "os_version";
+// Increased from 20 to 50 per design spec (#32128). Load test the software
+// endpoints before shipping to confirm acceptable response times at this threshold.
+const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE = 0;
+
+/** Comparing OS versions across different platforms isn't meaningful, so the
+ * OS tab's "All platforms" view can't sort by version — the Version column
+ * itself is unclickable there. But `order_key=os_version` could still reach
+ * this page via a crafted/bookmarked URL, or a stale one restored by
+ * browser back/forward, bypassing that UI restriction entirely (this page
+ * is server-driven — whatever order_key is used here becomes the API
+ * request). Guard against that specific combination rather than trusting
+ * order_key verbatim whenever platform is "all". Links saved before the API
+ * renamed this sort key still say `order_key=version`, which the API now
+ * rejects, so the OS tab reads it as `os_version`. */
+export const getOSTabSortHeader = (
+  pathname: string,
+  platform: string,
+  orderKeyParam?: string
+): string => {
+  const isOnOSTab = pathname.startsWith(PATHS.SOFTWARE_OS);
+  const defaultSortHeader =
+    isOnOSTab && platform !== "all"
+      ? OS_TAB_DEFAULT_SORT_HEADER
+      : DEFAULT_SORT_HEADER;
+  const orderKey =
+    isOnOSTab && orderKeyParam === "version"
+      ? OS_TAB_DEFAULT_SORT_HEADER
+      : orderKeyParam;
+  if (!orderKey) {
+    return defaultSortHeader;
+  }
+  if (
+    isOnOSTab &&
+    platform === "all" &&
+    orderKey === OS_TAB_DEFAULT_SORT_HEADER
+  ) {
+    return defaultSortHeader;
+  }
+  return orderKey;
+};
+
+const baseClass = "software-page";
+
+interface ISoftwareAutomations {
+  webhook_settings: {
+    vulnerabilities_webhook: IWebhookSoftwareVulnerabilities;
+  };
+  integrations: {
+    jira: IJiraIntegration[];
+    zendesk: IZendeskIntegration[];
+  };
+}
+
+interface ISoftwareConfigQueryKey {
+  scope: string;
+  teamId?: number;
+}
+
+interface ISoftwarePageProps {
+  children: JSX.Element;
+  location: {
+    pathname: string;
+    search: string;
+    query: {
+      team_id?: string;
+      available_for_install?: string;
+      self_service?: string;
+      vulnerable?: string;
+      exploit?: string;
+      manage_automations?: string;
+      min_cvss_score?: string;
+      max_cvss_score?: string;
+      page?: string;
+      query?: string;
+      order_key?: string;
+      order_direction?: "asc" | "desc";
+      platform?: SelectedPlatform;
+    };
+    hash?: string;
+  };
+  router: InjectedRouter; // v3
+}
+
+const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
+  const {
+    config: globalConfigFromContext,
+    isFreeTier,
+    isGlobalAdmin,
+    isGlobalMaintainer,
+    isOnGlobalTeam,
+    isTeamAdmin,
+    isTeamMaintainer,
+    isPremiumTier,
+  } = useContext(AppContext);
+
+  const isPrimoMode =
+    globalConfigFromContext?.partnerships?.enable_primo || false;
+
+  const queryParams = location.query;
+
+  // initial values for query params used on this page
+  const platform = queryParams?.platform || "all";
+  const sortHeader = getOSTabSortHeader(
+    location?.pathname || "",
+    platform,
+    queryParams?.order_key
+  );
+  const sortDirection =
+    queryParams?.order_direction === undefined
+      ? DEFAULT_SORT_DIRECTION
+      : queryParams.order_direction;
+  const page =
+    queryParams && queryParams.page
+      ? parseInt(queryParams.page, 10)
+      : DEFAULT_PAGE;
+  // TODO: move query/filter parsing down into individual tab components
+  const query = queryParams && queryParams.query ? queryParams.query : "";
+  const showExploitedVulnerabilitiesOnly =
+    queryParams !== undefined && queryParams.exploit === "true";
+
+  // Library uses a self-service toggle (boolean), not the old dropdown filter
+  const selfServiceOnly = queryParams?.self_service === "true";
+
+  const parsedSoftwareFilters = getSoftwareFiltersFromQueryParams(queryParams);
+  const softwareFilters = isPremiumTier
+    ? parsedSoftwareFilters
+    : removePremiumOnlyFilters(parsedSoftwareFilters);
+
+  const [showManageAutomationsModal, setShowManageAutomationsModal] = useState(
+    false
+  );
+  const [showPreviewPayloadModal, setShowPreviewPayloadModal] = useState(false);
+  const [showPreviewTicketModal, setShowPreviewTicketModal] = useState(false);
+  const [showAddSoftwareModal, setShowAddSoftwareModal] = useState(false);
+  const [showSoftwareFiltersModal, setShowSoftwareFiltersModal] = useState(
+    false
+  );
+  const {
+    currentTeamId,
+    isAllTeamsSelected,
+    isRouteOk,
+    teamIdForApi,
+    userTeams,
+    handleTeamChange,
+  } = useTeamIdParam({
+    location,
+    router,
+    includeAllTeams: true,
+    includeNoTeam: true,
+    // When switching to "All teams", remove self_service param (Library-only)
+    overrideParamsOnTeamChange: {
+      self_service: (newTeamId: number | undefined) =>
+        newTeamId === APP_CONTEXT_ALL_TEAMS_ID,
+    },
+  });
+
+  // softwareConfig is either the global config or the team config of the
+  // currently selected team depending on the page team context selected
+  // by the user.
+  const {
+    data: softwareConfig,
+    error: softwareConfigError,
+    isFetching: isFetchingSoftwareConfig,
+    refetch: refetchSoftwareConfig,
+  } = useQuery<
+    IConfig | ILoadTeamResponse,
+    Error,
+    IConfig | ITeamConfig,
+    ISoftwareConfigQueryKey[]
+  >(
+    [{ scope: "softwareConfig", teamId: teamIdForApi }],
+    ({ queryKey }) => {
+      const { teamId } = queryKey[0];
+      // No team –> Global config
+      return teamId ? teamsAPI.load(teamId) : configAPI.loadAll();
+    },
+    {
+      enabled: isRouteOk,
+      select: (data) => ("team" in data ? data.team : data),
+    }
+  );
+
+  const isSoftwareConfigLoaded =
+    !isFetchingSoftwareConfig && !softwareConfigError && !!softwareConfig;
+
+  // Open manage automations modal via deep-link (e.g. from the command
+  // palette). Capture the intent synchronously on mount: the inventory
+  // table's own URL rewrite runs on its first render and drops params it
+  // doesn't recognize, so by the time softwareConfig finishes loading
+  // the flag is already gone from the URL. Mirror the in-page action's
+  // gate: global-admin only, All teams (or the single team in Primo).
+  const [pendingDeepLinkAutomations, setPendingDeepLinkAutomations] = useState(
+    () => queryParams?.manage_automations === "1"
+  );
+
+  // Strip the param from the URL as soon as we see it so a race with
+  // other URL writers can't leave it stuck, and a refresh doesn't
+  // re-trigger the modal. Also catches palette triggers after first mount
+  // (the initializer only runs once; SoftwarePage persists across tabs).
+  useEffect(() => {
+    if (queryParams?.manage_automations !== "1") return;
+    setPendingDeepLinkAutomations(true);
+    const rest = { ...queryParams };
+    delete rest.manage_automations;
+    router.replace({ pathname: location.pathname, query: rest });
+  }, [queryParams, location.pathname, router]);
+
+  useEffect(() => {
+    if (!pendingDeepLinkAutomations) return;
+    if (!isSoftwareConfigLoaded) return;
+    if (isGlobalAdmin && (isAllTeamsSelected || isPrimoMode)) {
+      setShowManageAutomationsModal(true);
+    }
+    setPendingDeepLinkAutomations(false);
+  }, [
+    pendingDeepLinkAutomations,
+    isSoftwareConfigLoaded,
+    isAllTeamsSelected,
+    isPrimoMode,
+    isGlobalAdmin,
+  ]);
+
+  const toggleManageAutomationsModal = useCallback(() => {
+    setShowManageAutomationsModal(!showManageAutomationsModal);
+  }, [setShowManageAutomationsModal, showManageAutomationsModal]);
+
+  const togglePreviewPayloadModal = useCallback(() => {
+    setShowPreviewPayloadModal(!showPreviewPayloadModal);
+  }, [setShowPreviewPayloadModal, showPreviewPayloadModal]);
+
+  const togglePreviewTicketModal = useCallback(() => {
+    setShowPreviewTicketModal(!showPreviewTicketModal);
+  }, [setShowPreviewTicketModal, showPreviewTicketModal]);
+
+  const toggleSoftwareFiltersModal = useCallback(() => {
+    setShowSoftwareFiltersModal(!showSoftwareFiltersModal);
+  }, [setShowSoftwareFiltersModal, showSoftwareFiltersModal]);
+
+  // TODO: move into manage automations modal
+  const onCreateWebhookSubmit = async (
+    configSoftwareAutomations: ISoftwareAutomations
+  ) => {
+    try {
+      const request = configAPI.update(configSoftwareAutomations);
+      await request.then(() => {
+        notify.success("Successfully updated vulnerability automations.");
+        refetchSoftwareConfig();
+      });
+    } catch {
+      notify.error(
+        "Could not update vulnerability automations. Please try again."
+      );
+    } finally {
+      toggleManageAutomationsModal();
+    }
+  };
+
+  const onAddSoftware = useCallback(() => {
+    if (currentTeamId === APP_CONTEXT_ALL_TEAMS_ID) {
+      setShowAddSoftwareModal(true);
+    } else {
+      router.push(
+        getPathWithQueryParams(PATHS.SOFTWARE_ADD_AUTOMDM_MAINTAINED, {
+          team_id: currentTeamId,
+        })
+      );
+    }
+  }, [currentTeamId, router]);
+
+  const onTeamChange = useCallback(
+    (teamId: number) => {
+      handleTeamChange(teamId);
+    },
+    [handleTeamChange]
+  );
+
+  // Redirect away from Library tab if not allowed:
+  // - Free tier doesn't have Library
+  // - "All teams" can't view Library
+  const isOnLibraryTab = location.pathname.startsWith(PATHS.SOFTWARE_LIBRARY);
+  useEffect(() => {
+    // Wait for config to load before deciding — isPremiumTier is undefined
+    // until then, and !undefined would incorrectly bounce premium users.
+    if (isPremiumTier === undefined) return;
+    // Until the teams load, isAllTeamsSelected reads as true and would bounce
+    // a team-scoped user off Library.
+    if (!isRouteOk) return;
+
+    if (isOnLibraryTab && (!isPremiumTier || isAllTeamsSelected)) {
+      // teamIdForApi, not currentTeamId: "All teams" is -1 in app context but
+      // an absent param in a URL.
+      router.replace(
+        getPathWithQueryParams(PATHS.SOFTWARE_INVENTORY, {
+          team_id: teamIdForApi,
+        })
+      );
+    }
+  }, [
+    isPremiumTier,
+    isRouteOk,
+    isAllTeamsSelected,
+    isOnLibraryTab,
+    teamIdForApi,
+    router,
+  ]);
+
+  const onApplyFilters = (filters: ISoftwareFilters) => {
+    const newQueryParams = {
+      query,
+      teamId: currentTeamId,
+      orderDirection: sortDirection,
+      orderKey: sortHeader,
+      page: 0, // resets page index
+      ...buildSoftwareFiltersQueryParams(filters),
+    };
+
+    router.replace(
+      getNextLocationPath({
+        pathPrefix: location.pathname,
+        routeTemplate: "",
+        queryParams: convertParamsToSnakeCase(newQueryParams),
+      })
+    );
+    toggleSoftwareFiltersModal();
+  };
+
+  const navItems = isPremiumTier ? premiumSoftwareSubNav : softwareSubNav;
+
+  const navigateToNav = useCallback(
+    (i: number): void => {
+      // Only query param to persist between tabs is team id
+      const teamIdParam = {
+        team_id: location?.query.team_id,
+        page: 0, // Fixes flakey page reset in API call when switching between tabs
+      };
+
+      const navPath = getPathWithQueryParams(navItems[i].pathname, teamIdParam);
+      router.replace(navPath);
+    },
+    [location?.query.team_id, navItems, router]
+  );
+
+  const renderPageActions = () => {
+    const canManageAutomations = isGlobalAdmin;
+
+    const canAddSoftware =
+      isGlobalAdmin || isGlobalMaintainer || isTeamAdmin || isTeamMaintainer;
+
+    if (!isSoftwareConfigLoaded) return null;
+
+    return (
+      <div className={`${baseClass}__action-buttons`}>
+        {canManageAutomations && (
+          <TooltipWrapper
+            underline={false}
+            tipContent={
+              <div className={`${baseClass}__header__tooltip`}>
+                Select &ldquo;All teams&rdquo; to manage automations.
+              </div>
+            }
+            disableTooltip={isAllTeamsSelected || isPrimoMode}
+            position="top"
+            showArrow
+          >
+            <AutomationsButton
+              // TODO(Product) - Why not enable managing global automations when on any team like this
+              // for everyone?
+              disabled={!isAllTeamsSelected && !isPrimoMode}
+              onClick={toggleManageAutomationsModal}
+              className={`${baseClass}__manage-automations`}
+            />
+          </TooltipWrapper>
+        )}
+        {canAddSoftware && (
+          <TooltipWrapper
+            underline={false}
+            tipContent={
+              <div className={`${baseClass}__header__tooltip`}>
+                {isPremiumTier
+                  ? "Select a team to add software."
+                  : "This feature is included in AutoMDM Premium."}
+              </div>
+            }
+            disableTooltip={!isAllTeamsSelected}
+            position="top"
+            showArrow
+          >
+            <Button onClick={onAddSoftware} disabled={isAllTeamsSelected}>
+              <span>Add software</span>
+            </Button>
+          </TooltipWrapper>
+        )}
+      </div>
+    );
+  };
+
+  const renderHeaderDescription = () => {
+    return (
+      <>
+        Manage software and search for installed software, OS, and
+        vulnerabilities.
+      </>
+    );
+  };
+
+  const renderBody = () => {
+    const isLibraryDisabled = isAllTeamsSelected;
+
+    return (
+      <div>
+        <TabNav>
+          <Tabs
+            selectedIndex={getTabIndex(location?.pathname || "", navItems)}
+            onSelect={(i) => navigateToNav(i)}
+          >
+            <TabList>
+              {navItems.map((navItem) => {
+                const isDisabledTab =
+                  navItem.name === "Library" && isLibraryDisabled;
+
+                if (isDisabledTab) {
+                  return (
+                    <Tab key={navItem.name} data-text={navItem.name} disabled>
+                      <TooltipWrapper
+                        tipContent="Select a team to view its software library."
+                        showArrow
+                        position="top"
+                        tipOffset={12}
+                        underline={false}
+                      >
+                        <TabText>{navItem.name}</TabText>
+                      </TooltipWrapper>
+                    </Tab>
+                  );
+                }
+
+                return (
+                  <Tab key={navItem.name} data-text={navItem.name}>
+                    <TabText>{navItem.name}</TabText>
+                  </Tab>
+                );
+              })}
+            </TabList>
+          </Tabs>
+        </TabNav>
+        <div key={location?.pathname} className="tab-nav-routed-content">
+          {/* Until the tier is known, softwareFilters can't tell a Premium-only
+          filter in the URL from one to drop on Free. */}
+          {isPremiumTier === undefined ? (
+            <Spinner />
+          ) : (
+            React.cloneElement(children, {
+              router,
+              isSoftwareEnabled: Boolean(
+                softwareConfig?.features?.enable_software_inventory
+              ),
+              perPage: DEFAULT_PAGE_SIZE,
+              orderDirection: sortDirection,
+              orderKey: sortHeader,
+              currentPage: page,
+              teamId: teamIdForApi,
+              // TODO: move down into the Software Titles component
+              platform,
+              query,
+              showExploitedVulnerabilitiesOnly,
+              selfServiceOnly,
+              filters: softwareFilters,
+              onAddFiltersClick: toggleSoftwareFiltersModal,
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <MainContent className={baseClass}>
+      <>
+        <div className={`${baseClass}__header-wrap`}>
+          <div className={`${baseClass}__header`}>
+            <div className={`${baseClass}__header`}>
+              <div className={`${baseClass}__text`}>
+                <div className={`${baseClass}__title`}>
+                  {isPremiumTier && !isPrimoMode ? (
+                    <TeamsHeader
+                      isOnGlobalTeam={isOnGlobalTeam}
+                      currentTeamId={currentTeamId}
+                      userTeams={userTeams}
+                      onTeamChange={onTeamChange}
+                    />
+                  ) : (
+                    <h1>Software</h1>
+                  )}
+                </div>
+              </div>
+            </div>
+            {renderPageActions()}
+          </div>
+          <PageDescription content={renderHeaderDescription()} />
+        </div>
+        {renderBody()}
+        {showManageAutomationsModal && softwareConfig && (
+          <ManageAutomationsModal
+            router={router}
+            onCancel={toggleManageAutomationsModal}
+            onCreateWebhookSubmit={onCreateWebhookSubmit}
+            togglePreviewPayloadModal={togglePreviewPayloadModal}
+            togglePreviewTicketModal={togglePreviewTicketModal}
+            showPreviewPayloadModal={showPreviewPayloadModal}
+            showPreviewTicketModal={showPreviewTicketModal}
+            softwareConfig={softwareConfig}
+          />
+        )}
+        {showAddSoftwareModal && (
+          <AddSoftwareModal
+            onExit={() => setShowAddSoftwareModal(false)}
+            isFreeTier={isFreeTier}
+          />
+        )}
+        {showSoftwareFiltersModal && (
+          <SoftwareFiltersModal
+            onExit={toggleSoftwareFiltersModal}
+            onSubmit={onApplyFilters}
+            filters={softwareFilters}
+            isPremiumTier={isPremiumTier || false}
+            availableTypes={getSoftwareTypes({ premium: isPremiumTier })}
+            showAiToolFilter
+          />
+        )}
+      </>
+    </MainContent>
+  );
+};
+
+export default SoftwarePage;

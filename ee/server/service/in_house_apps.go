@@ -1,0 +1,350 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"text/template"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+)
+
+const inHouseAppInstallTokenLength = 36 // UUID
+
+func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload, vc viewer.Viewer, teamName *string, software *automdm.SoftwareTitle) (*automdm.SoftwareInstaller, error) {
+	existingInstaller, err := svc.ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, payload.TeamID, payload.TitleID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "getting existing installer")
+	}
+
+	if payload.IsNoopPayload(software) {
+		return existingInstaller, nil // no payload, noop
+	}
+
+	if payload.DisplayName != nil && *payload.DisplayName != software.DisplayName {
+		trimmed := strings.TrimSpace(*payload.DisplayName)
+		if trimmed == "" && *payload.DisplayName != "" {
+			return nil, automdm.NewInvalidArgumentError("display_name", "Cannot have a display name that is all whitespace.")
+		}
+
+		*payload.DisplayName = trimmed
+	}
+
+	payload.InstallerID = existingInstaller.InstallerID
+
+	labelsChanged, validatedLabels, err := ValidateSoftwareLabelsForUpdate(ctx, svc, existingInstaller, payload.LabelsIncludeAny, payload.LabelsExcludeAny, payload.LabelsIncludeAll)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "validating software labels for update")
+	}
+	payload.ValidatedLabels = validatedLabels
+
+	// activity team ID must be null if no team, not zero
+	var actTeamID *uint
+	if payload.TeamID != nil && *payload.TeamID != 0 {
+		actTeamID = payload.TeamID
+	}
+	selfService := existingInstaller.SelfService
+	if payload.SelfService != nil {
+		selfService = *payload.SelfService
+	}
+	// Carry the stored display name on every edit so edits that don't touch
+	// it still record the current override, instead of emitting an empty
+	// string (which reads as "cleared" to downstream consumers).
+	displayName := software.DisplayName
+	if payload.DisplayName != nil {
+		displayName = *payload.DisplayName
+	}
+	activity := automdm.ActivityTypeEditedSoftware{
+		SoftwareTitle:       existingInstaller.SoftwareTitle,
+		TeamName:            teamName,
+		TeamID:              actTeamID,
+		SoftwarePackage:     &existingInstaller.Name,
+		SoftwareTitleID:     payload.TitleID,
+		SoftwareIconURL:     existingInstaller.IconUrl,
+		SelfService:         selfService,
+		SoftwareDisplayName: displayName,
+	}
+
+	var payloadForNewInstallerFile *automdm.UploadSoftwareInstallerPayload
+	if payload.InstallerFile != nil {
+		payloadForNewInstallerFile = &automdm.UploadSoftwareInstallerPayload{
+			InstallerFile: payload.InstallerFile,
+			Filename:      payload.Filename,
+		}
+
+		newInstallerExtension, err := svc.addMetadataToSoftwarePayload(ctx, payloadForNewInstallerFile, false)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "extracting updated installer metadata")
+		}
+
+		if newInstallerExtension != existingInstaller.Extension {
+			return nil, &automdm.BadRequestError{
+				Message:     "The selected package is for a different file type.",
+				InternalErr: ctxerr.Wrap(ctx, err, "installer extension mismatch"),
+			}
+		}
+
+		if payloadForNewInstallerFile.Title != software.Name {
+			return nil, &automdm.BadRequestError{
+				Message:     "The selected package is for different software.",
+				InternalErr: ctxerr.Wrap(ctx, err, "installer software title mismatch"),
+			}
+		}
+
+		if payloadForNewInstallerFile.StorageID != existingInstaller.StorageID {
+			activity.SoftwarePackage = &payload.Filename
+			payload.StorageID = payloadForNewInstallerFile.StorageID
+			payload.Filename = payloadForNewInstallerFile.Filename
+			payload.Version = payloadForNewInstallerFile.Version
+
+		} else { // noop if uploaded installer is identical to previous installer
+			payloadForNewInstallerFile = nil
+			payload.InstallerFile = nil
+		}
+	}
+
+	if payload.InstallerFile == nil { // fill in existing existingInstaller data to payload
+		payload.StorageID = existingInstaller.StorageID
+		payload.Filename = existingInstaller.Name
+		payload.Version = existingInstaller.Version
+	}
+
+	if payload.SelfService == nil {
+		payload.SelfService = &existingInstaller.SelfService
+	}
+
+	if len(payload.Configuration) > 0 {
+		if err := automdm.ValidateAppleAppConfiguration(payload.Configuration); err != nil {
+			return nil, err
+		}
+		if err := svc.validateAppConfigCustomHostVitals(ctx, payload.Configuration); err != nil {
+			return nil, err
+		}
+	}
+
+	// persist changes starting here, now that we've done all the validation/diffing we can
+	if payloadForNewInstallerFile != nil {
+		if err := svc.storeSoftware(ctx, payloadForNewInstallerFile); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "storing software installer")
+		}
+	}
+
+	// Only edits that change what the install does should cancel pending
+	// installs: a new installer file, a label targeting change, or a managed
+	// app configuration change. Self-service, categories, and display-name
+	// changes are metadata-only and leave pending installs alone, matching
+	// fieldsShouldSideEffect in ee/server/service/software_installers.go.
+	// Snapshot the configuration-changed signal before SaveInHouseAppUpdates
+	// writes the new config, so we're comparing against the pre-save bytes.
+	configurationChanged := payload.Configuration != nil &&
+		!bytes.Equal(payload.Configuration, existingInstaller.Configuration)
+	installerFileChanged := payloadForNewInstallerFile != nil
+
+	if err := svc.ds.SaveInHouseAppUpdates(ctx, payload); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "saving installer updates")
+	}
+
+	if installerFileChanged || labelsChanged || configurationChanged {
+		if err := svc.ds.RemovePendingInHouseAppInstalls(ctx, existingInstaller.InstallerID); err != nil {
+			return nil, err
+		}
+	}
+
+	// now that the payload has been updated with any patches, we can set the
+	// final fields of the activity
+	actLabelsInclAny, actLabelsExclAny, actLabelsInclAll := activitySoftwareLabelsFromSoftwareScopeLabels(
+		existingInstaller.LabelsIncludeAny, existingInstaller.LabelsExcludeAny, existingInstaller.LabelsIncludeAll)
+	if payload.ValidatedLabels != nil {
+		actLabelsInclAny, actLabelsExclAny, actLabelsInclAll = activitySoftwareLabelsFromValidatedLabels(payload.ValidatedLabels)
+	}
+	activity.LabelsIncludeAny = actLabelsInclAny
+	activity.LabelsExcludeAny = actLabelsExclAny
+	activity.LabelsIncludeAll = actLabelsInclAll
+	if err := svc.NewActivity(ctx, vc.User, activity); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "creating activity for edited in house app")
+	}
+
+	if payload.DisplayName != nil {
+		activity.SoftwareDisplayName = *payload.DisplayName
+	}
+
+	// re-pull installer from database to ensure any side effects are accounted for; may be able to optimize this out later
+	updatedInstaller, err := svc.ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, payload.TeamID, payload.TitleID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "re-hydrating updated installer metadata")
+	}
+
+	st, err := svc.ds.GetSummaryHostInHouseAppInstalls(ctx, payload.TeamID, updatedInstaller.InstallerID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "getting updated installer statuses")
+	}
+	updatedInstaller.Status = &automdm.SoftwareInstallerStatusSummary{Installed: st.Installed, PendingInstall: st.Pending, FailedInstall: st.Failed}
+
+	// Wrap iOS / iPadOS plist as a JSON string for the response.
+	if len(updatedInstaller.Configuration) > 0 {
+		wrapped, err := json.Marshal(string(updatedInstaller.Configuration))
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "wrapping configuration for response")
+		}
+		updatedInstaller.Configuration = wrapped
+	}
+
+	return updatedInstaller, nil
+}
+
+func (svc *Service) GetInHouseAppManifest(ctx context.Context, titleID uint, token string) ([]byte, error) {
+	svc.authz.SkipAuthorization(ctx) // gated on validateInHouseAppInstallToken below
+
+	tokenMeta, err := svc.validateInHouseAppInstallToken(ctx, titleID, token)
+	if err != nil {
+		return nil, err
+	}
+
+	appConfig, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get in house app manifest: get app config")
+	}
+
+	teamIDPtr := inHouseTeamIDPtr(tokenMeta.TeamID)
+	meta, err := svc.ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, teamIDPtr, titleID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get in house app manifest: get in house app metadata")
+	}
+
+	// The device downloads the .ipa named here itself, so like the manifest URL that
+	// pointed it at this plist, it has to be the URL Apple devices reach AutoMDM on.
+	downloadURL := fmt.Sprintf(
+		"%s/api/latest/automdm/software/titles/%d/in_house_app/%s",
+		appConfig.MDMUrl(), titleID, token,
+	)
+
+	if svc.config.SoftwareInstallersSignedURLEnabled() {
+		signedURL, err := svc.softwareInstallStore.Sign(ctx, meta.StorageID, automdm.InHouseAppSignedURLExpiry)
+		if err != nil {
+			// We log the error and continue to send the AutoMDM server URL for the in-house app
+			svc.logger.ErrorContext(ctx, "error signing in-house app URL; check signed URL configuration", "err", err)
+		} else {
+			downloadURL = signedURL
+		}
+	}
+
+	// Escape & characters in case of using a signed URL (CloudFront or GCS presigned)
+	funcMap := map[string]any{
+		"xml": mobileconfig.XMLEscapeString,
+	}
+
+	tmpl := template.Must(template.New("").Funcs(funcMap).Parse(`
+<plist version="1.0">
+  <dict>
+    <key>items</key>
+    <array>
+      <dict>
+        <key>assets</key>
+        <array>
+          <dict>
+            <key>kind</key>
+            <string>software-package</string>
+            <key>url</key>
+            <string>{{ .URL | xml }}</string>
+          </dict>
+          <dict>
+            <key>kind</key>
+            <string>display-image</string>
+            <key>needs-shine</key>
+            <true/>
+            <key>url</key>
+            <string/>
+          </dict>
+        </array>
+        <key>metadata</key>
+        <dict>
+          <key>bundle-identifier</key>
+          <string>{{ .BundleID }}</string>
+          <key>bundle-version</key>
+          <string>{{ .Version }}</string>
+          <key>kind</key>
+          <string>software</string>
+          <key>title</key>
+          <string>{{ .Name }}</string>
+        </dict>
+      </dict>
+    </array>
+  </dict>
+</plist>`))
+
+	buf := bytes.NewBuffer([]byte{})
+
+	err = tmpl.Execute(buf, struct {
+		BundleID string
+		Version  string
+		Name     string
+		URL      string
+	}{meta.BundleIdentifier, meta.Version, meta.SoftwareTitle, downloadURL})
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "rendering app manifest")
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (svc *Service) GetInHouseAppPackage(ctx context.Context, titleID uint, token string) (*automdm.DownloadSoftwareInstallerPayload, error) {
+	svc.authz.SkipAuthorization(ctx) // gated on validateInHouseAppInstallToken below
+
+	tokenMeta, err := svc.validateInHouseAppInstallToken(ctx, titleID, token)
+	if err != nil {
+		return nil, err
+	}
+
+	teamIDPtr := inHouseTeamIDPtr(tokenMeta.TeamID)
+	meta, err := svc.ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, teamIDPtr, titleID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get in house app package: get in house app metadata")
+	}
+
+	return svc.getSoftwareInstallerBinary(ctx, meta.StorageID, "installer.ipa")
+}
+
+// validateInHouseAppInstallToken collapses missing, expired, and title-mismatch
+// into the same permission error so callers can't distinguish them.
+func (svc *Service) validateInHouseAppInstallToken(
+	ctx context.Context,
+	urlTitleID uint,
+	token string,
+) (*automdm.InHouseAppInstallTokenMetadata, error) {
+	// Reject obviously malformed lengths before hitting the DB; the column is
+	// VARCHAR(36) (UUID), so anything else can't match a row.
+	if len(token) != inHouseAppInstallTokenLength {
+		return nil, automdm.NewPermissionError("invalid token")
+	}
+
+	meta, err := svc.ds.GetInHouseAppInstallTokenMetadata(ctx, token)
+	if err != nil {
+		if automdm.IsNotFound(err) {
+			svc.logger.WarnContext(ctx, "in-house app install token not found or expired",
+				"title_id", urlTitleID)
+			return nil, automdm.NewPermissionError("invalid token")
+		}
+		return nil, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
+	}
+	if meta.SoftwareTitleID != urlTitleID {
+		svc.logger.WarnContext(ctx, "in-house app install token title mismatch",
+			"url_title_id", urlTitleID,
+			"token_title_id", meta.SoftwareTitleID,
+			"host_id", meta.HostID)
+		return nil, automdm.NewPermissionError("invalid token")
+	}
+	return meta, nil
+}
+
+// inHouseTeamIDPtr maps stored team_id (0 == no team) back to *uint.
+func inHouseTeamIDPtr(teamID uint) *uint {
+	if teamID == 0 {
+		return nil
+	}
+	return new(teamID)
+}

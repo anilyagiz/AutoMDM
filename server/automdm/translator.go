@@ -1,0 +1,18 @@
+package automdm
+
+const (
+	TranslatorTypeUserEmail = "user"
+	TranslatorTypeLabel     = "label"
+	TranslatorTypeAutoMDM   = "team"
+	TranslatorTypeHost      = "host"
+)
+
+type TranslatePayload struct {
+	Type    string                      `json:"type"`
+	Payload StringIdentifierToIDPayload `json:"payload"`
+}
+
+type StringIdentifierToIDPayload struct {
+	Identifier string `json:"identifier"`
+	ID         uint   `json:"id"`
+}

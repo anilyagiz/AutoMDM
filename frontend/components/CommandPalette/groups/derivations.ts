@@ -1,0 +1,99 @@
+import { ICommandPaletteContext } from "../helpers";
+
+/**
+ * Values derived once from the raw context and shared across all group
+ * builders. Computed in `deriveContext` and passed as the second argument
+ * to each builder so the derivation logic lives in exactly one place.
+ */
+export interface IDerivedContext {
+  /** Apple Business configured at the org level. */
+  isAbmConfigured: boolean;
+  /** GitOps mode active — disables Create-team etc. */
+  isGitOpsMode: boolean;
+  /** GitOps mode active for software, unless the software exception is on. */
+  isSoftwareGitOpsMode: boolean;
+  /** currentTeam is the "No team" / Unassigned sentinel (id 0). */
+  isUnassigned: boolean;
+  /** A specific team OR unassigned is selected (not "All teams"). */
+  hasTeamOrUnassigned: boolean;
+  /** Chip label when navigating from Unassigned to an "All teams" page. */
+  switchesFromUnassigned: string | undefined;
+  /**
+   * Chip label when navigating from "All teams" to a page that requires a
+   * specific team (Controls etc.). Returns the default team name.
+   */
+  switchesFromAllTeams: string | undefined;
+  /**
+   * Chip label for default-context commands (add-report, software automations)
+   * — set to "All teams" only when on Unassigned and would switch context.
+   */
+  defaultDestination: string | undefined;
+}
+
+/** Run once per buildPaletteItems call; passed to every group builder. */
+export const deriveContext = (ctx: ICommandPaletteContext): IDerivedContext => {
+  const {
+    config,
+    currentTeam,
+    availableTeams,
+    hasTeamSelected,
+    isPrimoMode,
+    isPremiumTier,
+  } = ctx;
+
+  const isAbmConfigured =
+    config?.mdm?.apple_business_enabled_and_configured ?? false;
+
+  // GitOps mode disables write actions in the UI; mirrors the predicate
+  // ManageTeamsPage uses to disable its Add team button.
+  const isGitOpsMode = !!(
+    config?.gitops?.gitops_mode_enabled && config?.gitops?.repository_url
+  );
+
+  // Mirrors useGitOpsMode("software"), which SelfServiceCategoriesPage reads.
+  const isSoftwareGitOpsMode = !!(
+    config?.gitops?.gitops_mode_enabled && !config?.gitops?.exceptions?.software
+  );
+
+  const isUnassigned = currentTeam?.id === 0;
+  // On AutoMDM Free, the team concept doesn't apply — there's a single
+  // implicit team, no team picker, and currentTeam stays undefined. Treat
+  // Free as team-or-unassigned so team-gated palette items (Controls, Add
+  // script, etc.) still surface on Free-available destinations.
+  const hasTeamOrUnassigned =
+    !isPremiumTier || !!hasTeamSelected || isUnassigned;
+
+  // In Primo Mode the user perceives a single-team install, so the
+  // concept of "switching team context" doesn't apply. All destination
+  // chips collapse to undefined.
+
+  const switchesFromUnassigned =
+    !isPrimoMode && isUnassigned ? "All teams" : undefined;
+
+  const getDefaultTeamName = (): string | undefined => {
+    if (isPrimoMode) return undefined;
+    if (hasTeamOrUnassigned) return undefined;
+    const realTeams = availableTeams?.filter((t) => t.id > 0) ?? [];
+    if (!realTeams.length) return undefined;
+    const workstations = realTeams.find((t) => {
+      const lower = t.name.toLowerCase();
+      return lower === "workstations" || lower === "\u{1F4BB} workstations";
+    });
+    return (workstations ?? realTeams.sort((a, b) => a.id - b.id)[0])?.name;
+  };
+  const switchesFromAllTeams = getDefaultTeamName();
+
+  const defaultDestination =
+    !isPrimoMode && isUnassigned ? "All teams" : undefined;
+
+  return {
+    isAbmConfigured,
+    isGitOpsMode,
+    isSoftwareGitOpsMode,
+    isUnassigned,
+    hasTeamOrUnassigned,
+    switchesFromUnassigned,
+    switchesFromAllTeams,
+    defaultDestination,
+  };
+};

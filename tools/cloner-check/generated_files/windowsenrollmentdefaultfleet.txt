@@ -1,0 +1,2 @@
+github.com/anilyagiz/automdm/v4/server/automdm/WindowsEnrollmentDefaultTeam	TeamID	*uint
+github.com/anilyagiz/automdm/v4/server/automdm/WindowsEnrollmentDefaultTeam	TeamName	string

@@ -1,0 +1,1 @@
+echo "$AUTOMDM_SECRET_NAME"

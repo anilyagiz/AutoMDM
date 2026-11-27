@@ -1,0 +1,85 @@
+import React from "react";
+
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import Icon from "components/Icon";
+import { IScriptBatchSummaryV2 } from "services/entities/scripts";
+import { isDateTimePast } from "utilities/helpers";
+
+export const SCRIPT_UPLOADER_EMPTY_STATE_TEXT = (
+  <>
+    Upload shell (.sh) or Python (.py) for macOS and Linux,
+    <br />
+    or PowerShell (.ps1) for Windows.
+  </>
+);
+
+export const SCRIPT_UPLOADER_TEXT =
+  "Shell (.sh) or Python (.py) for macOS and Linux, or PowerShell (.ps1) for Windows";
+
+export const getWhen = (summary: IScriptBatchSummaryV2) => {
+  const {
+    batch_execution_id: id,
+    not_before,
+    started_at,
+    finished_at,
+    canceled,
+  } = summary;
+  switch (summary.status) {
+    case "started":
+      if (!started_at || !isDateTimePast(started_at)) {
+        console.warn(
+          `Batch run with execution id ${id} is marked as 'started' but has no past 'started_at'`
+        );
+        return null;
+      }
+      return (
+        <>
+          <Icon name="pending" color="ui-automdm-black-50" />
+          Started{" "}
+          <HumanTimeDiffWithTeamLaunchCutoff
+            timeString={started_at}
+            tooltipPosition="right"
+          />
+        </>
+      );
+    case "scheduled":
+      if (!not_before || isDateTimePast(not_before)) {
+        console.warn(
+          `Batch run with execution id ${id} is marked as 'scheduled' but has no future scheduled start time`
+        );
+        return null;
+      }
+      return (
+        <>
+          <Icon name="clock" color="ui-automdm-black-50" />
+          Will start{" "}
+          <HumanTimeDiffWithTeamLaunchCutoff
+            timeString={not_before}
+            tooltipPosition="right"
+          />
+        </>
+      );
+    case "finished":
+      if (!finished_at || !isDateTimePast(finished_at)) {
+        console.warn(
+          `Batch run with execution id ${id} is marked as 'finished' but has no past 'finished_at' data`
+        );
+        return null;
+      }
+      return (
+        <>
+          <Icon
+            name={canceled ? "close" : "success"}
+            color="ui-automdm-black-50"
+          />
+          {canceled ? "Canceled" : "Completed"}
+          <HumanTimeDiffWithTeamLaunchCutoff
+            timeString={finished_at}
+            tooltipPosition="right"
+          />
+        </>
+      );
+    default:
+      return null;
+  }
+};

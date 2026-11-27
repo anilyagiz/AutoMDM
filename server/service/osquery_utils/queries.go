@@ -1,0 +1,4725 @@
+package osquery_utils
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"maps"
+	"net"
+	"net/url"
+	"path"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/preservedsources"
+	"github.com/anilyagiz/automdm/v4/server/contexts/publicip"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/google/uuid"
+	"github.com/spf13/cast"
+)
+
+// Some machines don't have a correctly set serial number, create a default ignore list
+// https://github.com/fleetdm/fleet/issues/25993
+var invalidHardwareSerialRegexp = regexp.MustCompile("(?i)(?:default|serial|string)")
+
+type DetailQuery struct {
+	// Description is an optional description of the query to be displayed in the
+	// Host Vitals documentation https://automdm.com/docs/using-automdm/understanding-host-vitals
+	Description string
+	// Query is the SQL query string.
+	Query string
+	// QueryFunc is optionally used to dynamically build a query. If false is returned, then the query should be
+	// ignored.
+	QueryFunc func(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore) (string, bool)
+	// Discovery is the SQL query that defines whether the query will run on the host or not.
+	// If not set, AutoMDM makes sure the query will always run.
+	Discovery string
+	// Platforms is a list of platforms to run the query on. If this value is
+	// empty, run on all platforms.
+	Platforms []string
+	// SoftwareOverrideMatch is a function that can be used to override a software
+	// result. The function evaluates a software detail query result row and deletes
+	// the result if the function returns true so the result of this detail query can be
+	// used instead.
+	SoftwareOverrideMatch func(row map[string]string) bool
+	// SoftwareProcessResults is a function that can be used to process entries of the main
+	// software query and append or modify data using results of additional queries.
+	SoftwareProcessResults func(mainSoftwareResults []map[string]string, additionalSoftwareResults []map[string]string) []map[string]string
+	// IngestFunc translates a query result into an update to the host struct,
+	// around data that lives on the hosts table.
+	IngestFunc func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error
+	// DirectIngestFunc gathers results from a query and directly works with the datastore to
+	// persist them. This is usually used for host data stored in a separate table.
+	DirectIngestFunc func(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error
+}
+
+// RunsForPlatform determines whether this detail query should run on the given platform
+func (q *DetailQuery) RunsForPlatform(platform string) bool {
+	if len(q.Platforms) == 0 {
+		return true
+	}
+	for _, p := range q.Platforms {
+		if p == platform {
+			return true
+		}
+	}
+	return false
+}
+
+// networkInterfaceQuery is the query to use to ingest a host's "Primary IP" and "Primary MAC".
+//
+// "Primary IP"/"Primary MAC" is the IP/MAC of the interface the system uses when it originates traffic to the default route.
+//
+// The following was used to determine private IPs:
+// https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/net/ip.go;l=131-148;drc=c53390b078b4d3b18e3aca8970d4b31d4d82cce1
+//
+// NOTE: We cannot use `in_cidr_block` because it's available since osquery 5.3.0, so we use
+// rudimentary split and string matching for IPv4 and and regex_match for IPv6.
+const networkInterfaceQuery = `SELECT
+    ia.address,
+    id.mac
+FROM
+    interface_addresses ia
+    JOIN interface_details id ON id.interface = ia.interface
+	-- On Unix ia.interface is the name of the interface,
+	-- whereas on Windows ia.interface is the IP of the interface.
+    JOIN routes r ON %s
+WHERE
+	-- Destination 0.0.0.0/0 or ::/0 (IPv6) is the default route on route tables.
+    (r.destination = '0.0.0.0' OR r.destination = '::') AND r.netmask = 0
+	-- Type of route is "gateway" for Unix, "remote" for Windows.
+    AND r.type = '%s'
+	-- We are only interested on private IPs (some devices have their Public IP as Primary IP too).
+    AND (
+		-- Private IPv4 addresses.
+		inet_aton(ia.address) IS NOT NULL AND (
+			split(ia.address, '.', 0) = '10'
+			OR (split(ia.address, '.', 0) = '172' AND (CAST(split(ia.address, '.', 1) AS INTEGER) & 0xf0) = 16)
+			OR (split(ia.address, '.', 0) = '192' AND split(ia.address, '.', 1) = '168')
+		)
+		-- Private IPv6 addresses start with 'fc' or 'fd'.
+		OR (inet_aton(ia.address) IS NULL AND regex_match(lower(ia.address), '^f[cd][0-9a-f][0-9a-f]:[0-9a-f:]+', 0) IS NOT NULL)
+	)
+ORDER BY
+    r.metric ASC,
+	-- Prefer IPv4 addresses over IPv6 addresses if their route have the same metric.
+	inet_aton(ia.address) IS NOT NULL DESC
+LIMIT 1;`
+
+const linuxGigsAllDiskSpaceSubQueryConditions = `WHERE
+-- exclude mounts with no space
+blocks > 0
+AND blocks_size > 0
+
+-- exclude external storage
+AND path NOT LIKE '/media%' AND path NOT LIKE '/mnt%'
+
+-- exclude device drivers
+AND path NOT LIKE '/dev%'
+
+-- exclude kernel-related mounts
+AND path NOT LIKE '/proc%'
+AND path NOT LIKE '/sys%'
+
+-- exclude process files
+AND path NOT LIKE '/run%'
+AND path NOT LIKE '/var/run%'
+
+-- exclude boot files
+AND path NOT LIKE '/boot%'
+
+-- exclude snap packages
+AND path NOT LIKE '/snap%' AND path NOT LIKE '/var/snap%'
+
+-- exclude virtualized mounts, would double-count bare metal storage
+AND path NOT LIKE '/var/lib/docker%'
+AND path NOT LIKE '/var/lib/containers%'
+
+AND type IN (
+'ext4',
+'ext3',
+'ext2',
+'xfs',
+'btrfs',
+'ntfs',
+'vfat',
+'fuseblk', --seen on NTFS and exFAT volumes mounted via FUSE
+'zfs' --also valid storage
+)
+AND (
+device LIKE '/dev/sd%'
+OR device LIKE '/dev/hd%'
+OR device LIKE '/dev/vd%'
+OR device LIKE '/dev/nvme%'
+OR device LIKE '/dev/mapper%'
+OR device LIKE '/dev/md%'
+OR device LIKE '/dev/dm-%'
+)`
+
+// hostDetailQueries defines the detail queries that should be run on the host, as
+// well as how the results of those queries should be ingested into the
+// automdm.Host data model (via IngestFunc).
+//
+// This map should not be modified at runtime.
+var hostDetailQueries = map[string]DetailQuery{
+	"network_interface_unix": {
+		Query:      fmt.Sprintf(networkInterfaceQuery, "r.interface = ia.interface", "gateway"),
+		Platforms:  append(automdm.HostLinuxOSs, "darwin"),
+		IngestFunc: ingestNetworkInterface,
+	},
+	"network_interface_windows": {
+		Query:      fmt.Sprintf(networkInterfaceQuery, "r.interface = ia.address", "remote"),
+		Platforms:  []string{"windows"},
+		IngestFunc: ingestNetworkInterface,
+	},
+	"network_interface_chrome": {
+		Query:      `SELECT ipv4 AS address, mac FROM network_interfaces LIMIT 1`,
+		Platforms:  []string{"chrome"},
+		IngestFunc: ingestNetworkInterface,
+	},
+	"timezone_unix": {
+		Description: "Reads the target of the `/etc/localtime` symlink, which requires osquery 5.17.0 or later. Hosts where `/etc/localtime` is a copied file report no timezone.",
+		Query:       `SELECT symlink_target_path FROM file WHERE path = '/etc/localtime'`,
+		Discovery:   `SELECT 1 FROM pragma_table_info('file') WHERE name = 'symlink_target_path'`,
+		Platforms:   append(automdm.HostLinuxOSs, "darwin"),
+		IngestFunc:  ingestTimezoneUnix,
+	},
+	"timezone_windows": {
+		Description: "Reads the Windows time zone name from the registry and maps it to an IANA name using the CLDR windowsZones table.",
+		Query:       `SELECT data FROM registry WHERE path = 'HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation\\TimeZoneKeyName'`,
+		Platforms:   []string{"windows"},
+		IngestFunc:  ingestTimezoneWindows,
+	},
+	"os_version": {
+		// Collect operating system information for the `hosts` table.
+		// Note that data for `operating_system` and `host_operating_system` tables are ingested via
+		// the `os_unix_like` extra detail query below.
+		Query: "SELECT * FROM os_version LIMIT 1",
+		IngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+			if len(rows) != 1 {
+				logger.ErrorContext(ctx, fmt.Sprintf("detail_query_os_version expected single result got %d", len(rows)),
+					"component", "service", "method", "IngestFunc")
+				return nil
+			}
+
+			if build, ok := rows[0]["build"]; ok {
+				host.Build = build
+			}
+
+			host.Platform = rows[0]["platform"]
+			host.PlatformLike = rows[0]["platform_like"]
+			host.CodeName = rows[0]["codename"]
+
+			// On centos6 there is an osquery bug that leaves
+			// platform empty. Here we workaround.
+			if host.Platform == "" &&
+				strings.Contains(strings.ToLower(rows[0]["name"]), "centos") {
+				host.Platform = "centos"
+			}
+
+			if host.Platform != "windows" {
+				// Populate `host.OSVersion` for non-Windows hosts.
+				// Note Windows-specific registry query is required to populate `host.OSVersion` for
+				// Windows that is handled in `os_version_windows` detail query below.
+				host.OSVersion = fmt.Sprintf("%v %v", rows[0]["name"], parseOSVersion(
+					rows[0]["name"],
+					rows[0]["version"],
+					rows[0]["major"],
+					rows[0]["minor"],
+					rows[0]["patch"],
+					rows[0]["build"],
+					rows[0]["extra"],
+				))
+			}
+
+			return nil
+		},
+	},
+	"os_version_windows": {
+		// AutoMDM requires the DisplayVersion as well as the UBR (4th part of the version
+		// number) to correctly map OS vulnerabilities to hosts. kernel_info.version also
+		// carries the UBR, but some Windows 10 releases misreport the build number (3rd
+		// part) there, so it is only the fallback.
+		//
+		// Windows Server 2012 and 2012 R2 predate the UBR and report no value for it, so
+		// they take that fallback. The revision is cast before it is compared because it
+		// reads back as 0 or "" on those releases, and "" must not be appended: a zero
+		// revision would make every fixed build in a security bulletin compare as newer
+		// than the host, reporting every CVE in it.
+		//
+		// The DisplayVersion registry value was introduced in Windows 10 20H2. Older releases still in
+		// support (Windows 10 LTSC 2019 and LTSB 2016, Windows Server 2019 and 2016) only have ReleaseId,
+		// so it is the fallback. ReleaseId is frozen at "2009" from 20H2 onward, so it must not be preferred.
+		// Both are joined in so that a missing value returns no rows and the query still succeeds.
+		Description: "Reads the update build revision (UBR) from `os_version.revision`, which requires osquery 5.12.1 or later. Windows Server 2012 and 2012 R2 have no UBR and fall back to the `kernel_info` version.",
+		Query: `
+		WITH display_version_table AS (
+			SELECT data as display_version
+			FROM registry
+			WHERE path = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\DisplayVersion'
+		),
+		release_id_table AS (
+			SELECT data AS release_id
+			FROM registry
+			WHERE path = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ReleaseId'
+		),
+		installation_type_table AS (
+			SELECT data AS installation_type
+			FROM registry
+			WHERE path = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\InstallationType'
+		)
+		SELECT
+			os.name,
+			COALESCE(NULLIF(d.display_version, ''), r.release_id, '') AS display_version,
+			CASE WHEN CAST(os.revision AS INTEGER) > 0 THEN os.version || '.' || os.revision ELSE k.version END AS version,
+			COALESCE(it.installation_type, '') AS installation_type
+		FROM
+			os_version os,
+			kernel_info k
+		LEFT JOIN
+			display_version_table d
+		LEFT JOIN
+			release_id_table r
+		LEFT JOIN
+			installation_type_table it`,
+		Platforms: []string{"windows"},
+		IngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+			if len(rows) != 1 {
+				logger.ErrorContext(ctx, fmt.Sprintf("detail_query_os_version_windows expected single result got %d", len(rows)),
+					"component", "service", "method", "IngestFunc")
+				return nil
+			}
+
+			s := fmt.Sprintf("%s %s", rows[0]["name"], rows[0]["display_version"])
+			// Shorten "Microsoft Windows" to "Windows" to facilitate display and sorting in UI
+			s = strings.Replace(s, "Microsoft Windows", "Windows", 1)
+			s = strings.TrimSpace(s)
+			if strings.EqualFold(rows[0]["installation_type"], "Server Core") {
+				s += " (Server Core)"
+			}
+			s += " " + rows[0]["version"]
+			host.OSVersion = s
+
+			return nil
+		},
+	},
+	"osquery_flags": {
+		// Collect the interval info (used for online status
+		// calculation) from the osquery flags. We typically control
+		// distributed_interval (but it's not required), and typically
+		// do not control config_tls_refresh.
+		Query: `select name, value from osquery_flags where name in ("distributed_interval", "config_tls_refresh", "config_refresh", "logger_tls_period")`,
+		IngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+			var configTLSRefresh, configRefresh uint
+			var configRefreshSeen, configTLSRefreshSeen bool
+			for _, row := range rows {
+				switch row["name"] {
+
+				case "distributed_interval":
+					interval, err := strconv.Atoi(EmptyToZero(row["value"]))
+					if err != nil {
+						return fmt.Errorf("parsing distributed_interval: %w", err)
+					}
+					host.DistributedInterval = uint(interval)
+
+				case "config_tls_refresh":
+					// Prior to osquery 2.4.6, the flag was
+					// called `config_tls_refresh`.
+					interval, err := strconv.Atoi(EmptyToZero(row["value"]))
+					if err != nil {
+						return fmt.Errorf("parsing config_tls_refresh: %w", err)
+					}
+					configTLSRefresh = uint(interval)
+					configTLSRefreshSeen = true
+
+				case "config_refresh":
+					// After 2.4.6 `config_tls_refresh` was
+					// aliased to `config_refresh`.
+					interval, err := strconv.Atoi(EmptyToZero(row["value"]))
+					if err != nil {
+						return fmt.Errorf("parsing config_refresh: %w", err)
+					}
+					configRefresh = uint(interval)
+					configRefreshSeen = true
+
+				case "logger_tls_period":
+					interval, err := strconv.Atoi(EmptyToZero(row["value"]))
+					if err != nil {
+						return fmt.Errorf("parsing logger_tls_period: %w", err)
+					}
+					host.LoggerTLSPeriod = uint(interval)
+				}
+			}
+
+			// Since the `config_refresh` flag existed prior to
+			// 2.4.6 and had a different meaning, we prefer
+			// `config_tls_refresh` if it was set, and use
+			// `config_refresh` as a fallback.
+			if configTLSRefreshSeen {
+				host.ConfigTLSRefresh = configTLSRefresh
+			} else if configRefreshSeen {
+				host.ConfigTLSRefresh = configRefresh
+			}
+
+			return nil
+		},
+		Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"), // not chrome
+	},
+	"osquery_info": {
+		Query: "select * from osquery_info limit 1",
+		IngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+			if len(rows) != 1 {
+				logger.ErrorContext(ctx, fmt.Sprintf("detail_query_osquery_info expected single result got %d", len(rows)),
+					"component", "service", "method", "IngestFunc")
+				return nil
+			}
+
+			host.OsqueryVersion = rows[0]["version"]
+
+			return nil
+		},
+	},
+	"system_info": {
+		Query: "select * from system_info limit 1",
+		IngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+			if len(rows) != 1 {
+				logger.ErrorContext(ctx, fmt.Sprintf("detail_query_system_info expected single result got %d", len(rows)),
+					"component", "service", "method", "IngestFunc")
+				return nil
+			}
+
+			var err error
+			host.Memory, err = strconv.ParseInt(EmptyToZero(rows[0]["physical_memory"]), 10, 64)
+			if err != nil {
+				return err
+			}
+			host.Hostname = rows[0]["hostname"]
+			switch reported := rows[0]["uuid"]; {
+			case host.UUID == "":
+				host.UUID = reported
+			case !strings.EqualFold(host.UUID, reported):
+				logger.WarnContext(ctx, "ignoring a different UUID reported by the host",
+					"component", "service", "method", "IngestFunc", "host_id", host.ID, "uuid", host.UUID, "reported_uuid", reported)
+			}
+			host.CPUType = rows[0]["cpu_type"]
+			host.CPUSubtype = rows[0]["cpu_subtype"]
+			host.CPUBrand = rows[0]["cpu_brand"]
+			host.CPUPhysicalCores, err = strconv.Atoi(EmptyToZero(rows[0]["cpu_physical_cores"]))
+			if err != nil {
+				return err
+			}
+			host.CPULogicalCores, err = strconv.Atoi(EmptyToZero(rows[0]["cpu_logical_cores"]))
+			if err != nil {
+				return err
+			}
+			host.HardwareVendor = rows[0]["hardware_vendor"]
+			host.HardwareModel = rows[0]["hardware_model"]
+			host.HardwareVersion = rows[0]["hardware_version"]
+			if invalidHardwareSerialRegexp.Match([]byte(rows[0]["hardware_serial"])) {
+				// If the serial number is a default (uninitialize) value, set to empty
+				host.HardwareSerial = ""
+			} else if rows[0]["hardware_serial"] != "-1" {
+				// ignoring the default -1 serial. See: https://github.com/fleetdm/fleet/issues/19789
+				host.HardwareSerial = rows[0]["hardware_serial"]
+			}
+			host.ComputerName = rows[0]["computer_name"]
+			return nil
+		},
+	},
+	"uptime": {
+		Query: "select * from uptime limit 1",
+		IngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+			// automdmd-chrome returns no rows until it records its first startup.
+			if len(rows) == 0 && host.Platform == "chrome" {
+				return nil
+			}
+			if len(rows) != 1 {
+				logger.ErrorContext(ctx, fmt.Sprintf("detail_query_uptime expected single result got %d", len(rows)),
+					"component", "service", "method", "IngestFunc")
+				return nil
+			}
+
+			uptimeSeconds, err := strconv.Atoi(EmptyToZero(rows[0]["total_seconds"]))
+			if err != nil {
+				return err
+			}
+			host.Uptime = time.Duration(uptimeSeconds) * time.Second
+
+			// Update the last restart date of the host if it's changed more than 30 seconds.
+			maybeUpdateLastRestartedAt(time.Now(), host)
+
+			return nil
+		},
+		Platforms: append(automdm.HostLinuxOSs, "darwin", "windows", "chrome"),
+	},
+	"disk_space_unix": {
+		// GROUP BY device collapses bind mounts so a filesystem mounted at multiple paths is counted once.
+		// On composefs (bootc) hosts "/" is a read-only overlay reporting the metadata image's size;
+		// the root filesystem is at /sysroot.
+		Query: fmt.Sprintf(`
+		SELECT (blocks_available * 100 / blocks) AS percent_disk_space_available,
+		       round((blocks_available * blocks_size * 10e-10),2) AS gigs_disk_space_available,
+		       round((blocks           * blocks_size * 10e-10),2) AS gigs_total_disk_space,
+					 (SELECT round(SUM(per_device_size) * 10e-10, 2) FROM (SELECT MAX(blocks * blocks_size) AS per_device_size FROM mounts %s GROUP BY device)) AS gigs_all_disk_space
+		FROM mounts WHERE path IN ('/', '/sysroot')
+		ORDER BY CASE WHEN path = '/' AND type != 'overlay' THEN 0 WHEN path = '/sysroot' THEN 1 ELSE 2 END LIMIT 1;`, linuxGigsAllDiskSpaceSubQueryConditions),
+		Platforms:        automdm.HostLinuxOSs,
+		DirectIngestFunc: directIngestDiskSpace,
+	},
+
+	"disk_space_darwin": {
+		Query: `
+SELECT
+    ROUND(bytes_available * 100.0 / bytes_total, 2) AS percent_disk_space_available,
+    ROUND(bytes_available * 10e-10, 2) AS gigs_disk_space_available,
+    ROUND(bytes_total * 10e-10, 2) AS gigs_total_disk_space
+FROM disk_space LIMIT 1;`,
+		Platforms:        []string{"darwin"},
+		Discovery:        discoveryTable("disk_space"),
+		DirectIngestFunc: directIngestDiskSpace,
+	},
+
+	"disk_space_darwin_legacy": {
+		Query: `
+		SELECT (blocks_available * 100 / blocks) AS percent_disk_space_available,
+		       round((blocks_available * blocks_size * 10e-10),2) AS gigs_disk_space_available,
+		       round((blocks           * blocks_size * 10e-10),2) AS gigs_total_disk_space
+		FROM mounts WHERE path = '/' LIMIT 1;`,
+		Platforms:        []string{"darwin"},
+		Discovery:        fmt.Sprintf(`SELECT 1 WHERE NOT EXISTS (%s);`, discoveryTable("disk_space")),
+		DirectIngestFunc: directIngestDiskSpace,
+	},
+
+	"disk_space_windows": {
+		Query: `
+SELECT ROUND((sum(free_space) * 100 * 10e-10) / (sum(size) * 10e-10)) AS percent_disk_space_available,
+       ROUND(sum(free_space) * 10e-10) AS gigs_disk_space_available,
+       ROUND(sum(size)       * 10e-10) AS gigs_total_disk_space
+FROM logical_drives WHERE file_system = 'NTFS' LIMIT 1;`,
+		Platforms:        []string{"windows"},
+		DirectIngestFunc: directIngestDiskSpace,
+	},
+
+	"kubequery_info": {
+		Query:      `SELECT * from kubernetes_info`,
+		IngestFunc: ingestKubequeryInfo,
+		Discovery:  discoveryTable("kubernetes_info"),
+	},
+}
+
+func ingestTimezoneUnix(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+	// macOS briefly removes /etc/localtime while switching zones, so zero rows is expected at times.
+	if len(rows) != 1 {
+		return nil
+	}
+	_, name, ok := strings.Cut(rows[0]["symlink_target_path"], "zoneinfo/")
+	if !ok {
+		return nil
+	}
+	name = strings.TrimPrefix(strings.TrimPrefix(name, "posix/"), "right/")
+	setHostTimezone(host, name)
+	return nil
+}
+
+func ingestTimezoneWindows(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+	if len(rows) != 1 {
+		return nil
+	}
+	setHostTimezone(host, windowsTimezones[strings.TrimSpace(rows[0]["data"])])
+	return nil
+}
+
+func setHostTimezone(host *automdm.Host, name string) {
+	// LoadLocation accepts "" (UTC), "Local", and "Factory" (zone not set), none of which names the host's zone.
+	if name == "" || name == "Local" || name == "Factory" {
+		return
+	}
+	if _, err := time.LoadLocation(name); err != nil {
+		return
+	}
+	host.TimeZone = &name
+}
+
+func ingestNetworkInterface(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+	logger = logger.With(
+		"component", "service",
+		"method", "IngestFunc",
+		"host", host.Hostname,
+		"platform", host.Platform,
+	)
+
+	// Attempt to extract public IP from the HTTP request.
+	// NOTE: We are executing the IP extraction first to not depend on the network
+	// interface query succeeding and returning results.
+	ipStr := publicip.FromContext(ctx)
+	// First set host.PublicIP to empty to not hide an infrastructure change that
+	// misses to set or sets an invalid value in the expected HTTP headers.
+	host.PublicIP = ""
+	if ipStr != "" {
+		ip := net.ParseIP(ipStr)
+		if ip != nil {
+			host.PublicIP = ipStr
+		} else {
+			logger.ErrorContext(ctx, fmt.Sprintf("expected an IP address, got %s", ipStr))
+		}
+	}
+
+	switch {
+	case len(rows) == 0:
+		logger.DebugContext(ctx, "detail_query_network_interface did not find a private IP address")
+		return nil
+	case len(rows) > 1:
+		logger.ErrorContext(ctx, fmt.Sprintf("detail_query_network_interface expected single result, got %d", len(rows)))
+		return nil
+	}
+
+	host.PrimaryIP = rows[0]["address"]
+	host.PrimaryMac = rows[0]["mac"]
+
+	return nil
+}
+
+func directIngestDiskSpace(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) != 1 {
+		logger.ErrorContext(ctx, fmt.Sprintf("detail_query_disk_space expected single result got %d", len(rows)),
+			"component", "service", "method", "directIngestDiskSpace")
+		return nil
+	}
+
+	gigsAvailable, err := strconv.ParseFloat(EmptyToZero(rows[0]["gigs_disk_space_available"]), 64)
+	if err != nil {
+		return err
+	}
+	percentAvailable, err := strconv.ParseFloat(EmptyToZero(rows[0]["percent_disk_space_available"]), 64)
+	if err != nil {
+		return err
+	}
+	gigsTotal, err := strconv.ParseFloat(EmptyToZero(rows[0]["gigs_total_disk_space"]), 64)
+	if err != nil {
+		return err
+	}
+
+	var gigsAllForFnCall *float64
+	if automdm.IsLinux(host.Platform) {
+		strippedRawRes := strings.TrimSpace(rows[0]["gigs_all_disk_space"])
+		// write `nil`, not 0, if osquery returns `""`, since a host cannot have 0 disk space and
+		// therefore this must represent a problematic query result
+		if strippedRawRes != "" {
+			gigsAll, err := strconv.ParseFloat(strippedRawRes, 64)
+			if err != nil {
+				return err
+			}
+			gigsAllForFnCall = &gigsAll
+		}
+	}
+
+	return ds.SetOrUpdateHostDisksSpace(ctx, host.ID, gigsAvailable, percentAvailable, gigsTotal, gigsAllForFnCall)
+}
+
+func ingestKubequeryInfo(ctx context.Context, logger *slog.Logger, host *automdm.Host, rows []map[string]string) error {
+	if len(rows) != 1 {
+		return fmt.Errorf("kubernetes_info expected single result got: %d", len(rows))
+	}
+
+	host.Hostname = fmt.Sprintf("kubequery %s", rows[0]["cluster_name"])
+
+	// These values are not provided by kubequery
+	host.OsqueryVersion = "kubequery"
+	host.Platform = "kubequery"
+	return nil
+}
+
+// usesMacOSDiskEncryptionQuery probes whether FileVault is enabled on a macOS host.
+// It deliberately does not filter on `user_uuid` — that column reports the SecureToken
+// holder and can be empty for a short period after ADE setup completes, even when
+// FileVault is on and the recovery key has been escrowed. Gating on user_uuid here
+// previously caused the host to appear unencrypted (and the recovery key to remain
+// un-escrowed) until the user logged out/in to settle SecureToken propagation. See
+// https://github.com/fleetdm/fleet/issues/45369.
+const usesMacOSDiskEncryptionQuery = `SELECT 1 FROM disk_encryption WHERE filevault_status = 'on' LIMIT 1`
+
+// extraDetailQueries defines extra detail queries that should be run on the host, as
+// well as how the results of those queries should be ingested into the hosts related tables
+// (via DirectIngestFunc).
+//
+// This map should not be modified at runtime.
+var extraDetailQueries = map[string]DetailQuery{
+	"mdm": {
+		Query:            `select enrolled, server_url, installed_from_dep, payload_identifier from mdm;`,
+		DirectIngestFunc: directIngestMDMMac,
+		Platforms:        []string{"darwin"},
+		Discovery:        discoveryTable("mdm"),
+	},
+	"mdm_windows": {
+		// we get most of the MDM information for Windows from the
+		// `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Enrollments\%%`
+		// registry keys. A computer might many different folders under
+		// that path, for different enrollments, so we need to group by
+		// enrollment (key in this case) and try to grab the most
+		// likely candiate to be an MDM solution.
+		//
+		// The best way I have found, is to filter by groups of entries
+		// with an UPN value, and pick the first one.
+		//
+		// An example of a host having more than one entry: when
+		// the `mdm_bridge` table is used, the `mdmlocalmanagement.dll`
+		// registers an MDM with ProviderID = `Local_Management`
+		//
+		// Entries also need to be filtered by their [Intune enrollmentState][1]
+		//
+		//   Member        Value  Description
+		//   unknown       0      Device enrollment state is unknown
+		//   enrolled      1      Device is Enrolled.
+		//   pendingReset  2      Enrolled but it's enrolled via enrollment profile and the enrolled profile is different from the assigned profile.
+		//   failed        3      Not enrolled and there is enrollment failure record.
+		//   notContacted  4      Device is imported but not enrolled.
+		//   blocked       5      Device is enrolled as userless, but is blocked from moving to user enrollment because the app failed to install.
+		//
+		// [1]: https://learn.microsoft.com/en-us/graph/api/resources/intune-shared-enrollmentstate
+		Query: `
+					WITH registry_keys AS (
+						SELECT *
+						FROM registry
+						WHERE path LIKE 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Enrollments\%%'
+					),
+					enrollment_info AS (
+						SELECT
+							MAX(CASE WHEN name = 'UPN' THEN data END) AS upn,
+							MAX(CASE WHEN name = 'DiscoveryServiceFullURL' THEN data END) AS discovery_service_url,
+							MAX(CASE WHEN name = 'ProviderID' THEN data END) AS provider_id,
+							MAX(CASE WHEN name = 'EnrollmentState' THEN data END) AS state,
+							MAX(CASE WHEN name = 'AADResourceID' THEN data END) AS aad_resource_id
+						FROM registry_keys
+						GROUP BY key
+					),
+					installation_info AS (
+						SELECT data AS installation_type
+						FROM registry
+						WHERE path = 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\InstallationType'
+						LIMIT 1
+					)
+					SELECT
+						e.aad_resource_id,
+						e.discovery_service_url,
+						e.provider_id,
+						i.installation_type
+					FROM installation_info i
+					LEFT JOIN enrollment_info e ON e.upn IS NOT NULL
+			-- coalesce to 'unknown' and keep that state in the list
+			-- in order to account for hosts that might not have this
+			-- key, and servers
+					WHERE COALESCE(e.state, '0') IN ('0', '1', '2', '3')
+			-- old enrollments that aren't completely cleaned up may still be around
+			-- in the registry so we want to make sure we return the one with an actual
+			-- discovery URL set if there is one. LENGTH is used here to prefer those
+			-- with actual URLs over empty string/null if there are multiple
+					ORDER BY LENGTH(e.discovery_service_url) DESC
+					LIMIT 1;
+		`,
+		DirectIngestFunc: directIngestMDMWindows,
+		Platforms:        []string{"windows"},
+	},
+	"munki_info": {
+		Query:            `select version, errors, warnings from munki_info;`,
+		DirectIngestFunc: directIngestMunkiInfo,
+		Platforms:        []string{"darwin"},
+		Discovery:        discoveryTable("munki_info"),
+	},
+	// On ChromeOS, the `users` table returns only the user signed into the primary chrome profile.
+	"chromeos_profile_user_info": {
+		Query:            `SELECT email FROM users`,
+		DirectIngestFunc: directIngestChromeProfiles,
+		Platforms:        []string{"chrome"},
+	},
+	"google_chrome_profiles": {
+		Query:            `SELECT email FROM google_chrome_profiles WHERE NOT ephemeral AND email <> ''`,
+		DirectIngestFunc: directIngestChromeProfiles,
+		Discovery:        discoveryTable("google_chrome_profiles"),
+	},
+	"battery": {
+		// This query is used to determine battery health of macOS and Windows hosts
+		// based on the cycle count, designed capacity, and max capacity of the battery.
+		// The `health` column is ommitted due to a known osquery issue with M1 Macs
+		// (https://github.com/fleetdm/fleet/issues/6763) and its absence on Windows.
+		Query:            `SELECT serial_number, cycle_count, designed_capacity, max_capacity FROM battery`,
+		Platforms:        []string{"windows", "darwin"},
+		DirectIngestFunc: directIngestBattery,
+		Discovery:        discoveryTable("battery"), // added to Windows in v5.12.1 (https://github.com/osquery/osquery/releases/tag/5.12.1)
+	},
+	"os_windows": {
+		// This query is used to populate the `operating_systems` and `host_operating_system`
+		// tables. Separately, the `hosts` table is populated via the `os_version` and
+		// `os_version_windows` detail queries above. See os_version_windows for why the
+		// UBR comes from os_version.revision and why it is cast before being compared.
+		//
+		// See os_version_windows for why display_version falls back to ReleaseId.
+		Description: "Reads the update build revision (UBR) from `os_version.revision`, which requires osquery 5.12.1 or later. Windows Server 2012 and 2012 R2 have no UBR and fall back to the `kernel_info` version.",
+		Query: `
+		WITH display_version_table AS (
+			SELECT data as display_version
+			FROM registry
+			WHERE path = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\DisplayVersion'
+		),
+		release_id_table AS (
+			SELECT data AS release_id
+			FROM registry
+			WHERE path = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ReleaseId'
+		),
+		installation_type_table AS (
+			SELECT data AS installation_type
+			FROM registry
+			WHERE path = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\InstallationType'
+		)
+		SELECT
+			os.name,
+			os.platform,
+			os.arch,
+			k.version as kernel_version,
+			CASE WHEN CAST(os.revision AS INTEGER) > 0 THEN os.version || '.' || os.revision ELSE k.version END AS version,
+			COALESCE(NULLIF(d.display_version, ''), r.release_id, '') AS display_version,
+			COALESCE(it.installation_type, '') AS installation_type
+		FROM
+			os_version os,
+			kernel_info k
+		LEFT JOIN
+			display_version_table d
+		LEFT JOIN
+			release_id_table r
+		LEFT JOIN
+			installation_type_table it`,
+		Platforms:        []string{"windows"},
+		DirectIngestFunc: directIngestOSWindows,
+	},
+	"os_unix_like": {
+		// This query is used to populate the `operating_systems` and `host_operating_system`
+		// tables. Separately, the `hosts` table is populated via the `os_version` detail
+		// query above.
+		Query: `
+	SELECT
+		os.name,
+		os.major,
+		os.minor,
+		os.patch,
+		os.extra,
+		os.build,
+		os.arch,
+		os.platform,
+		os.version AS version,
+		k.version AS kernel_version
+	FROM
+		os_version os,
+		kernel_info k`,
+		Platforms:        append(automdm.HostLinuxOSs, "darwin"),
+		DirectIngestFunc: directIngestOSUnixLike,
+	},
+	"os_chrome": {
+		Query: `
+	SELECT
+		os.name,
+		os.major,
+		os.minor,
+		os.patch,
+		os.build,
+		os.arch,
+		os.platform,
+		os.version AS version,
+		os.version AS kernel_version
+	FROM
+		os_version os`,
+		Platforms:        []string{"chrome"},
+		DirectIngestFunc: directIngestOSUnixLike,
+	},
+	"orbit_info": {
+		Query:            `SELECT * FROM orbit_info`,
+		DirectIngestFunc: directIngestOrbitInfo,
+		Platforms:        append(automdm.HostLinuxOSs, "darwin", "windows"),
+		Discovery:        discoveryTable("orbit_info"),
+	},
+	"disk_encryption_darwin": {
+		Query:            usesMacOSDiskEncryptionQuery,
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestDiskEncryption,
+		// the "disk_encryption" table doesn't need a Discovery query as it is an official
+		// osquery table on darwin and linux, it is always present.
+	},
+	"disk_encryption_linux": {
+		// This query doesn't do any filtering as we've seen what's possibly an osquery bug because it's returning bad
+		// results if we filter further, so we'll do the filtering in Go.
+		Query:            `SELECT de.encrypted, m.path FROM disk_encryption de JOIN mounts m ON m.device_alias = de.name;`,
+		Platforms:        automdm.HostLinuxOSs,
+		DirectIngestFunc: directIngestDiskEncryptionLinux,
+		// the "disk_encryption" table doesn't need a Discovery query as it is an official
+		// osquery table on darwin and linux, it is always present.
+	},
+	"disk_encryption_windows": {
+		// BitLocker is an optional component on Windows Server and
+		// isn't guaranteed to be installed. We use bl_available to
+		// gate the bitlocker_info access: if BitLocker isn't installed,
+		// bl_available returns 0 rows and the CROSS JOIN ensures
+		// bitlocker_info is never scanned. This is safe on Windows
+		// Server without BitLocker (verified on Server 2022 with
+		// osquery 5.22.1 -- osquery returns empty results with a
+		// WMI warning but does not crash).
+		//
+		// bl_available returns a row when BitLocker is either:
+		// 1. not listed as an optional feature (built into the OS), OR
+		// 2. listed as an optional feature and installed (state = 1)
+		//
+		// Returns protection_status and conversion_status so the server
+		// can distinguish "encrypted + protected" from "encrypted + unprotected".
+		Query: `
+	WITH bl_available(ok) AS (
+		SELECT 1 WHERE
+			NOT EXISTS(SELECT 1 FROM windows_optional_features WHERE name = 'BitLocker')
+			OR EXISTS(SELECT 1 FROM windows_optional_features WHERE name = 'BitLocker' AND state = 1)
+	)
+	SELECT bi.protection_status, bi.conversion_status
+	FROM bl_available
+	CROSS JOIN bitlocker_info bi
+	WHERE bi.drive_letter = 'C:'`,
+		Platforms:        []string{"windows"},
+		DirectIngestFunc: directIngestDiskEncryptionWindows,
+	},
+	"certificates_darwin": {
+		Query: `
+	SELECT
+		ca, common_name, subject, issuer,
+		key_algorithm, key_strength, key_usage, signing_algorithm,
+		not_valid_after, not_valid_before,
+		serial, sha1, "system" as source,
+		path
+	FROM
+		certificates
+	WHERE
+		path = '/Library/Keychains/System.keychain'
+	UNION
+	SELECT
+		ca, common_name, subject, issuer,
+		key_algorithm, key_strength, key_usage, signing_algorithm,
+		not_valid_after, not_valid_before,
+		serial, sha1, "user" as source,
+		path
+	FROM
+		certificates
+	WHERE
+		path LIKE '/Users/%/Library/Keychains/login.keychain-db';`,
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestHostCertificatesDarwin,
+	},
+	"certificates_windows": {
+		Query: `
+	SELECT
+		ca, common_name, subject2, issuer2,
+		key_algorithm, key_strength, key_usage, signing_algorithm,
+		not_valid_after, not_valid_before,
+		serial, sha1, username, sid,
+		path
+	FROM
+		certificates
+	WHERE
+		store = 'Personal';`,
+		// subject2/issuer2 preserve the distinguished name attribute keys (CN, O, OU, C). They are only populated on
+		// Windows starting with osquery 5.23.1
+		Discovery:        `SELECT 1 FROM pragma_table_info('certificates') WHERE name = 'subject2'`,
+		Platforms:        []string{"windows"},
+		DirectIngestFunc: directIngestHostCertificatesWindows,
+	},
+}
+
+// mdmQueries are used by the AutoMDM server to compliment certain MDM
+// features.
+// They are only sent to the device when AutoMDM's MDM is on and properly
+// configured
+var mdmQueries = map[string]DetailQuery{
+	"mdm_config_profiles_darwin": {
+		Query:            `SELECT display_name, identifier, install_date FROM macos_profiles WHERE type = "Configuration";`,
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestMacOSProfiles,
+		Discovery:        fmt.Sprintf(`SELECT 1 WHERE EXISTS (%s) AND NOT EXISTS (%s);`, discoveryTable("macos_profiles"), discoveryTable("macos_user_profiles")),
+	},
+	"mdm_config_profiles_darwin_with_user": {
+		QueryFunc:        buildConfigProfilesMacOSQuery,
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestMacOSProfiles,
+		Discovery: generateSQLForAllExists(
+			discoveryTable("macos_profiles"),
+			discoveryTable("macos_user_profiles"),
+		),
+	},
+	// There are two mutually-exclusive queries used to read the FileVaultPRK depending on which
+	// extension tables are discovered on the agent. The preferred query uses the newer custom
+	// `filevault_prk` extension table rather than the macadmins `file_lines` table. It is preferred
+	// because the `file_lines` implementation uses bufio.ScanLines which drops end of line
+	// characters.
+	//
+	// Both queries depend on the same pre-requisites:
+	//
+	// 1. FileVault must be enabled with a personal recovery key.
+	// 2. The "FileVault Recovery Key Escrow" profile must be configured
+	//    in the host.
+	//
+	// This file is safe to access and well [documented by Apple][1]:
+	//
+	// > If FileVault is enabled after this payload is installed on the system,
+	// > the FileVault PRK will be encrypted with the specified certificate,
+	// > wrapped with a CMS envelope and stored at /var/db/FileVaultPRK.dat. The
+	// > encrypted data will be made available to the MDM server as part of the
+	// > SecurityInfo command.
+	// >
+	// > Alternatively, if a site uses its own administration
+	// > software, it can extract the PRK from the foregoing
+	// > location at any time.
+	//
+	// [1]: https://developer.apple.com/documentation/devicemanagement/fderecoverykeyescrow
+	"mdm_disk_encryption_key_file_lines_darwin": {
+		Query: fmt.Sprintf(`
+	WITH
+		de AS (SELECT IFNULL((%s), 0) as encrypted),
+		fl AS (SELECT line FROM file_lines WHERE path = '/var/db/FileVaultPRK.dat')
+	SELECT encrypted, hex(line) as hex_line FROM de LEFT JOIN fl;`, usesMacOSDiskEncryptionQuery),
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestDiskEncryptionKeyFileLinesDarwin,
+		Discovery:        fmt.Sprintf(`SELECT 1 WHERE EXISTS (%s) AND NOT EXISTS (%s);`, strings.Trim(discoveryTable("file_lines"), ";"), strings.Trim(discoveryTable("filevault_prk"), ";")),
+	},
+	"mdm_disk_encryption_key_file_darwin": {
+		Query: fmt.Sprintf(`
+	WITH
+		de AS (SELECT IFNULL((%s), 0) as encrypted),
+		fv AS (SELECT base64_encrypted as filevault_key FROM filevault_prk)
+	SELECT encrypted, filevault_key FROM de LEFT JOIN fv;`, usesMacOSDiskEncryptionQuery),
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestDiskEncryptionKeyFileDarwin,
+		Discovery:        discoveryTable("filevault_prk"),
+	},
+	"mdm_device_id_windows": {
+		Query:            `SELECT name, data FROM registry WHERE path = 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Provisioning\OMADM\MDMDeviceID\DeviceClientId';`,
+		Platforms:        []string{"windows"},
+		DirectIngestFunc: directIngestMDMDeviceIDWindows,
+	},
+	"mdm_macos_software_update_id": {
+		Query:            `SELECT key, value FROM ioreg WHERE c = 'IOPlatformExpertDevice' AND key IN ('compatible', 'bridge-model', 'board-id');`,
+		Platforms:        []string{"darwin"},
+		DirectIngestFunc: directIngestMDMMacOSSoftwareUpdateID,
+		Discovery:        discoveryTable("ioreg"),
+	},
+}
+
+// discoveryTable returns a query to determine whether a table exists or not.
+func discoveryTable(tableName string) string {
+	return fmt.Sprintf("SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND name = '%s'", tableName)
+}
+
+func macOSBundleIDExistsQuery(appName string) string {
+	return fmt.Sprintf("SELECT 1 FROM apps WHERE bundle_identifier = '%s' LIMIT 1", appName)
+}
+
+// generateSQLForAllExists generates a SQL query that returns
+// 1 if all subqueries return 1, otherwise returns no rows.
+// subqueries should be a list of SQL queries that return 1+ rows
+// if a condition is met, otherwise returns no rows.
+func generateSQLForAllExists(subqueries ...string) string {
+	if len(subqueries) == 0 {
+		return "SELECT 0 LIMIT 0" // Return no rows if no subqueries provided
+	}
+
+	// Generate EXISTS clause for each subquery
+	var conditions []string
+	for _, query := range subqueries {
+		// Remove trailing semicolons from the query to ensure subqueries
+		// are not terminated early (Issue #19401)
+		sanitized := strings.TrimRight(strings.TrimSpace(query), ";")
+
+		condition := fmt.Sprintf("EXISTS (%s)", sanitized)
+		conditions = append(conditions, condition)
+	}
+
+	// Join all conditions with AND
+	fullCondition := strings.Join(conditions, " AND ")
+
+	// Build the final SQL query
+	sql := fmt.Sprintf("SELECT 1 WHERE %s", fullCondition)
+	return sql
+}
+
+// Usernames starting with an underscore are excluded (macOS system accounts),
+// with the managed local admin (_automdmadmin) allowlisted so the ingest layer
+// can capture its UUID for MDM rotation. The ingest layer is responsible for
+// excluding _automdmadmin from host_users — see directIngestUsers.
+const usersQueryStr = `WITH cached_groups AS (select * from groups)
+ SELECT uid, uuid, username, type, groupname, shell
+ FROM users LEFT JOIN cached_groups USING (gid)
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '` + automdm.ManagedLocalAccountUsername + `') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> '')`
+
+func withCachedUsers(query string) string {
+	return fmt.Sprintf(query, usersQueryStr)
+}
+
+// entraDeviceCertIssuerLike matches the issuer of the certificate Windows stores for
+// an Entra-joined or Entra-registered device; its subject is the Entra device ID.
+const entraDeviceCertIssuerLike = "net + windows + MS-Organization-Access%"
+
+// windowsEntraIDDetails holds the query and ingestion function for Windows for Microsoft "Conditional access" feature.
+var windowsEntraIDDetails = DetailQuery{
+	// The query ingests Entra's Device ID of Windows devices that logged in to Entra via "Access work or school".
+	Query:            "SELECT subject AS device_id FROM certificates WHERE issuer LIKE '" + entraDeviceCertIssuerLike + "' LIMIT 1;",
+	Platforms:        []string{"windows"},
+	DirectIngestFunc: directIngestEntraIDDetails,
+}
+
+// windowsEntraJoinUser reads the UPN of the user who joined the device to Entra, so
+// agent-only Windows hosts get IdP vitals without an end user authentication prompt.
+// The datastore ignores it for hosts enrolled in AutoMDM, which receive profiles and
+// certificates that must not follow a device-asserted identity.
+// The JoinInfo subkey is named after the device's certificate thumbprint; matching them
+// drops stale keys but is not an integrity control. Newest certificate first, so a
+// current record without a user yields an empty user_email, not an older record's.
+// Registry first: osquery's certificates table enumerates every store regardless of WHERE.
+var windowsEntraJoinUser = DetailQuery{
+	Query: `SELECT MAX(CASE WHEN r.name = 'UserEmail' THEN r.data END) AS user_email
+FROM registry r
+CROSS JOIN certificates c ON UPPER(c.sha1) = UPPER(SUBSTR(r.key, LENGTH('HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\CloudDomainJoin\JoinInfo\') + 1))
+WHERE r.key LIKE 'HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\CloudDomainJoin\JoinInfo\%'
+  AND c.issuer LIKE '` + entraDeviceCertIssuerLike + `'
+GROUP BY r.key
+ORDER BY MAX(c.not_valid_after) DESC
+LIMIT 1;`,
+	Platforms:        []string{"windows"},
+	DirectIngestFunc: directIngestEntraJoinUser,
+}
+
+var softwareMacOS = DetailQuery{
+	// Note that we create the cached_users CTE (the WITH clause) in order to suggest to SQLite
+	// that it generates the users once instead of once for each UNIONed query. We use CROSS JOIN to
+	// ensure that the nested loops in the query generation are ordered correctly for the _extensions
+	// tables that need a uid parameter. CROSS JOIN ensures that SQLite does not reorder the loop
+	// nesting, which is important as described in https://youtu.be/hcn3HIcHAAo?t=77.
+	//
+	// Regarding `SELECT 1 FROM file WHERE file.path LIKE CONCAT(homebrew_packages.path ...`:
+	// Homebrew package casks are filtered to exclude those that have an associated .app bundle
+	// as these are already included in the apps table.  Apps table software includes bundle_identifier
+	// which is used in vulnerability scanning.
+	// The .app check uses bounded, non-recursive globs matching the standard Homebrew cask layout:
+	// homebrew_packages.path is the Caskroom token dir (e.g. /opt/homebrew/Caskroom/<token>) and the
+	// staged app lives at <token>/<version>/<Name>.app (depth 2) or, less commonly, one level deeper
+	// via an `app "subdir/Name.app"` stanza (depth 3).
+	// Data as of July 2026: 99.7% of casks stage their .app at depth ≤3 per the Homebrew cask API.
+	// It intentionally does NOT use a recursive `%%` match. A recursive match descends into every
+	// .app bundle's Contents/ and the cask's .metadata/ tree (following symlinks such as the
+	// `latest -> <version>` link) and materializes the entire subtree in memory before the LIMIT 1
+	// applies. That regressed memory usage badly after osquery PR #8704
+	// (see https://github.com/osquery/osquery/issues/8964): a single cask like gcloud-cli walks
+	// ~98k entries. Recursion is also less correct here -- `LIKE '%.app%'` is a substring match, so a
+	// recursive walk matches unrelated deep paths like ".../google.auth.app_engine.rst" and wrongly
+	// excludes casks that ship no .app (e.g. gcloud-cli) from inventory. A fleet-wide scan confirmed
+	// no installed cask nests a real .app deeper than the bounded globs reach, so recursion buys
+	// nothing. The bounded globs stop at the .app directory entry and never enter it.
+	Query: withCachedUsers(`WITH cached_users AS (%s)
+SELECT
+  COALESCE(NULLIF(display_name, ''), NULLIF(bundle_name, ''), NULLIF(NULLIF(bundle_executable, ''), 'run.sh'),
+    CASE WHEN name IS NOT NULL AND lower(name) LIKE '%%.app' THEN substr(name, 1, length(name) - 4) ELSE name END
+  ) AS name,
+  COALESCE(NULLIF(bundle_short_version, ''), bundle_version) AS version,
+  bundle_identifier AS bundle_identifier,
+  '' AS extension_id,
+  '' AS extension_for,
+  'apps' AS source,
+  '' AS vendor,
+  last_opened_time AS last_opened_at,
+  path AS installed_path
+FROM apps
+WHERE path NOT LIKE '%%.app/Contents/%%'
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS bundle_identifier,
+  identifier AS extension_id,
+  browser_type AS extension_for,
+  'chrome_extensions' AS source,
+  '' AS vendor,
+  0 AS last_opened_at,
+  path AS installed_path
+FROM cached_users CROSS JOIN chrome_extensions USING (uid)
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS bundle_identifier,
+  identifier AS extension_id,
+  'firefox' AS extension_for,
+  'firefox_addons' AS source,
+  '' AS vendor,
+  0 AS last_opened_at,
+  path AS installed_path
+FROM cached_users CROSS JOIN firefox_addons USING (uid)
+UNION
+SELECT
+  name As name,
+  version AS version,
+  '' AS bundle_identifier,
+  '' AS extension_id,
+  '' AS extension_for,
+  'safari_extensions' AS source,
+  '' AS vendor,
+  0 AS last_opened_at,
+  path AS installed_path
+FROM cached_users CROSS JOIN safari_extensions USING (uid)
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS bundle_identifier,
+  '' AS extension_id,
+  '' AS extension_for,
+  'homebrew_packages' AS source,
+  '' AS vendor,
+  0 AS last_opened_at,
+  path AS installed_path
+FROM homebrew_packages
+WHERE type = 'formula'
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS bundle_identifier,
+  '' AS extension_id,
+  '' AS extension_for,
+  'npm_packages' AS source,
+  '' AS vendor,
+  0 AS last_opened_at,
+  path AS installed_path
+FROM npm_packages
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS bundle_identifier,
+  '' AS extension_id,
+  '' AS extension_for,
+  'homebrew_packages' AS source,
+  '' AS vendor,
+  0 AS last_opened_at,
+  path AS installed_path
+FROM homebrew_packages
+WHERE type = 'cask'
+AND NOT EXISTS (SELECT 1 FROM file WHERE file.path LIKE CONCAT(homebrew_packages.path, '/%%/%%.app%%') OR file.path LIKE CONCAT(homebrew_packages.path, '/%%/%%/%%.app%%') LIMIT 1);
+`),
+	Platforms:        []string{"darwin"},
+	DirectIngestFunc: directIngestSoftware,
+}
+
+// softwareVSCodeExtensions collects VSCode extensions on a separate query for two reasons:
+//   - vscode_extensions is not available in osquery < 5.11.0.
+//   - Avoid growing the main `software_{macos|windows|linux}` queries
+//     (having big queries can cause performance issues or be denylisted).
+var softwareVSCodeExtensions = DetailQuery{
+	Query: withCachedUsers(`WITH cached_users AS (%s)
+SELECT
+  name,
+  version,
+  '' AS bundle_identifier,
+  vscode_extensions.uuid AS extension_id,
+  vscode_edition AS extension_for,
+  'vscode_extensions' AS source,
+  publisher AS vendor,
+  '' AS last_opened_at,
+  path AS installed_path
+FROM cached_users CROSS JOIN vscode_extensions USING (uid)`),
+	Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"),
+	Discovery: discoveryTable("vscode_extensions"),
+	// Has no IngestFunc or DirectIngestFunc because
+	// the results of this query are appended to the results of the other software queries.
+}
+
+var softwareJetbrainsPlugins = DetailQuery{
+	Query: withCachedUsers(`WITH cached_users AS (%s)
+SELECT
+  name,
+  version,
+  '' AS bundle_identifier,
+  '' AS extension_id,
+  product_type AS extension_for,
+  'jetbrains_plugins' AS source,
+  vendor,
+  '' AS last_opened_at,
+  path AS installed_path
+FROM cached_users CROSS JOIN jetbrains_plugins USING (uid)`),
+	Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"),
+	Discovery: discoveryTable("jetbrains_plugins"),
+	// Has no IngestFunc or DirectIngestFunc because
+	// the results of this query are appended to the results of the other software queries.
+}
+
+// softwareAdobePlugins collects Adobe plugins (CEP and UXP extensions) reported by
+// automdmd's adobe_plugins table. The table emits one row per plugin, including a user
+// column for per-user installs, so there's no need to join with cached_users.
+//
+// The default (standard) scan level is used, which covers CEP and UXP extensions. The
+// deep scan level additionally reports native plug-ins, which have no manifest and thus
+// no version.
+//
+// Neither bundle_identifier nor extension_for is stored, following vscode_extensions and
+// jetbrains_plugins: the plugin's bundle id goes in extension_id instead, which is not part of
+// a software title's identity.
+//
+// software_titles keys titles on (unique_identifier, source, extension_for) and on
+// (bundle_identifier, additional_identifier), where unique_identifier falls back to the name
+// and additional_identifier is 0 for every source except ios_apps and ipados_apps. Storing the
+// bundle id or the manifest's host applications therefore puts plugin titles on keys they can
+// collide with:
+//   - a plugin sharing a bundle id with a macOS app, which is keyed the same way;
+//   - a plugin whose extension directory name matches its own bundle id, on a host where the
+//     manifest can't be read and automdmd falls back to the directory name;
+//   - a plugin whose manifest changes which applications it supports, since host_application
+//     changes while the bundle id stays the same.
+//
+// Every one of those drops the title's INSERT IGNORE and leaves the software row with no title
+// at all: invisible on the Software page, and an error logged on every check-in. Nothing
+// user-facing is lost, because the Type column shows a flat "Adobe plugin" and never displays
+// the host application.
+var softwareAdobePlugins = DetailQuery{
+	Query: `
+SELECT
+  name,
+  version,
+  '' AS bundle_identifier,
+  bundle_id AS extension_id,
+  '' AS extension_for,
+  'adobe_plugins' AS source,
+  vendor,
+  '' AS last_opened_at,
+  path AS installed_path
+FROM adobe_plugins`,
+	Platforms: []string{"darwin", "windows"},
+	Discovery: discoveryTable("adobe_plugins"),
+	// Has no IngestFunc or DirectIngestFunc because
+	// the results of this query are appended to the results of the other software queries.
+}
+
+var scheduledQueryStats = DetailQuery{
+	Query: `
+			SELECT *,
+				(SELECT value from osquery_flags where name = 'pack_delimiter') AS delimiter
+			FROM osquery_schedule`,
+	DirectIngestFunc: directIngestScheduledQueryStats,
+	Platforms:        append(automdm.HostLinuxOSs, "darwin", "windows"), // not chrome
+}
+
+// softwareLinuxPacman splits pacman's "[epoch:]pkgver-pkgrel" version the way
+// rpm_packages already arrives: the epoch is dropped and pkgrel goes in release,
+// so version holds the upstream version the NVD knows about. pkgver can contain
+// neither ':' nor '-', so the first of each is the separator.
+var softwareLinuxPacman = DetailQuery{
+	Query: `
+WITH packages AS (
+  SELECT
+    name,
+    arch,
+    CASE WHEN instr(version, ':') > 0 THEN substr(version, instr(version, ':') + 1) ELSE version END AS version_release
+  FROM automdmd_pacman_packages
+)
+SELECT
+  name AS name,
+  CASE WHEN instr(version_release, '-') > 0 THEN substr(version_release, 1, instr(version_release, '-') - 1) ELSE version_release END AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'pacman_packages' AS source,
+  CASE WHEN instr(version_release, '-') > 0 THEN substr(version_release, instr(version_release, '-') + 1) ELSE '' END AS release,
+  '' AS vendor,
+  arch AS arch,
+  '' AS installed_path
+FROM packages`,
+	Platforms: automdm.HostLinuxOSs,
+	Discovery: discoveryTable("automdmd_pacman_packages"),
+	// Has no IngestFunc or DirectIngestFunc because
+	// the results of this query are appended to the results of the other software queries.
+}
+
+// softwareLinuxNix collects the Nix store paths reachable from the active NixOS system
+// profile and users' Nix and Home Manager profiles, including runtime dependencies.
+// Outputs of one package (e.g. openssl-3.0.14 and openssl-3.0.14-bin) are one software
+// with several installed paths.
+//
+// Only NixOS is inventoried: the table returns no rows where Nix is installed alongside another
+// distribution's package manager, whose packages the other software queries already report.
+var softwareLinuxNix = DetailQuery{
+	Query: `
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'nix_packages' AS source,
+  '' AS release,
+  '' AS vendor,
+  '' AS arch,
+  store_path AS installed_path
+FROM automdmd_nix_packages`,
+	Platforms: []string{"nixos"},
+	Discovery: discoveryTable("automdmd_nix_packages"),
+	// Has no IngestFunc or DirectIngestFunc because
+	// the results of this query are appended to the results of the other software queries.
+}
+
+// softwareGoBinaries collects Go binaries installed with `go install`, reported by automdmd's
+// go_binaries table. Two ecosystem attributes ride in existing columns:
+//   - module_path is stored in extension_id. Used for vulnerability detection and is not
+//     part of a software title's identity, so two binaries built from the same module keep
+//     separate titles and a renamed module keeps one title.
+//   - go_version is stored in release. It is part of the software identity, so the same
+//     binary version built with two toolchains is two software rows: they differ in their
+//     standard-library vulnerabilities and in the version the UI displays.
+//
+// version keeps the leading "v" and the "(devel)" value for `go build` binaries as reported;
+// the vulnerability matcher normalizes and skips them respectively.
+var softwareGoBinaries = DetailQuery{
+	Query: `
+SELECT
+  name AS name,
+  version AS version,
+  module_path AS extension_id,
+  '' AS extension_for,
+  'go_binaries' AS source,
+  go_version AS release,
+  '' AS vendor,
+  '' AS arch,
+  installed_path AS installed_path
+FROM go_binaries`,
+	Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"),
+	Discovery: discoveryTable("go_binaries"),
+	// Has no IngestFunc or DirectIngestFunc because
+	// the results of this query are appended to the results of the other software queries.
+}
+
+// softwareAITools reports what automdmd's ai_tools table finds. MCP servers, catalog agent CLIs,
+// agent instruction files and skills become their own sources; AI apps, IDE plugins and browser
+// extensions are reported with the pseudo-source "ai_tools" so AIToolsProcessResults can flag the
+// software another source already reports at the same path. Pseudo-source rows are never stored.
+//
+// The two NOT predicates keep out rows that would make poor titles:
+//   - Agents without the "catalog" evidence token are multi-signal candidates, named after a
+//     project directory or a tool's config folder and never versioned, so each would add a title
+//     per directory name. Catalog rows always carry the token, but a candidate merging into one
+//     re-sorts the tokens, hence LIKE rather than a prefix match.
+//   - MCP servers whose client is "process" (the table's source column, not the alias above) were
+//     only seen running: no config declares them, so they have no path, their name is guessed from
+//     the command line, and they come and go with the process. Declared servers always carry the
+//     name of the client whose config declared them.
+//
+// The types are listed rather than excluding sockets: the table only reads equality constraints
+// on type and runs every collector for any other predicate, including sockets, which lists the
+// host's connections (lsof on macOS). The list also keeps types added to the table later out of
+// inventory until reviewed. skill is listed before automdmd reports it: an automdmd without the type
+// returns no rows for it without running any collector.
+//
+// bundle_identifier and extension_for stay empty for the same reason as softwareAdobePlugins.
+var softwareAITools = DetailQuery{
+	Query: `
+SELECT
+  name,
+  version,
+  '' AS bundle_identifier,
+  '' AS extension_id,
+  '' AS extension_for,
+  CASE type
+    WHEN 'agents' THEN 'ai_clis'
+    WHEN 'mcp_server' THEN 'mcp_servers'
+    WHEN 'agent_instruction' THEN 'ai_skills'
+    WHEN 'skill' THEN 'ai_skills'
+    ELSE 'ai_tools'
+  END AS source,
+  '' AS vendor,
+  '' AS last_opened_at,
+  path AS installed_path,
+  type AS ai_type,
+  source AS ai_install_method
+FROM ai_tools
+WHERE type IN ('agents', 'mcp_server', 'agent_instruction', 'skill', 'apps', 'ide_plugins', 'browser_extension')
+  AND NOT (type = 'agents' AND evidence NOT LIKE '%catalog%')
+  AND NOT (type = 'mcp_server' AND source = 'process')`,
+	Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"),
+	Discovery: discoveryTable("ai_tools"),
+	// Has no IngestFunc or DirectIngestFunc because preProcessSoftwareResults
+	// merges its results into the main software query using AIToolsProcessResults, which needs the
+	// host's platform.
+}
+
+var softwareLinux = DetailQuery{
+	Query: withCachedUsers(`WITH cached_users AS (%s)
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'deb_packages' AS source,
+  '' AS release,
+  '' AS vendor,
+  '' AS arch,
+  '' AS epoch,
+  '' AS installed_path
+FROM deb_packages
+WHERE status LIKE '%% ok installed'
+UNION
+SELECT
+  package AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'portage_packages' AS source,
+  '' AS release,
+  '' AS vendor,
+  '' AS arch,
+  '' AS epoch,
+  '' AS installed_path
+FROM portage_packages
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'rpm_packages' AS source,
+  release AS release,
+  vendor AS vendor,
+  arch AS arch,
+  epoch AS epoch,
+  '' AS installed_path
+FROM rpm_packages
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'npm_packages' AS source,
+  '' AS release,
+  '' AS vendor,
+  '' AS arch,
+  '' AS epoch,
+  path AS installed_path
+FROM npm_packages
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  identifier AS extension_id,
+  browser_type AS extension_for,
+  'chrome_extensions' AS source,
+  '' AS release,
+  '' AS vendor,
+  '' AS arch,
+  '' AS epoch,
+  path AS installed_path
+FROM cached_users CROSS JOIN chrome_extensions USING (uid)
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  identifier AS extension_id,
+  'firefox' AS extension_for,
+  'firefox_addons' AS source,
+  '' AS release,
+  '' AS vendor,
+  '' AS arch,
+  '' AS epoch,
+  path AS installed_path
+FROM cached_users CROSS JOIN firefox_addons USING (uid);
+`),
+	Platforms:        automdm.HostLinuxOSs,
+	DirectIngestFunc: directIngestSoftware,
+}
+
+var softwareWindows = DetailQuery{
+	Query: withCachedUsers(`WITH cached_users AS (%s)
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'programs' AS source,
+  publisher AS vendor,
+  install_location AS installed_path,
+  upgrade_code AS upgrade_code
+FROM programs
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'ie_extensions' AS source,
+  '' AS vendor,
+  path AS installed_path,
+  '' as upgrade_code
+FROM ie_extensions
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  identifier AS extension_id,
+  browser_type AS extension_for,
+  'chrome_extensions' AS source,
+  '' AS vendor,
+  path AS installed_path,
+  '' as upgrade_code
+FROM cached_users CROSS JOIN chrome_extensions USING (uid)
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  identifier AS extension_id,
+  'firefox' AS extension_for,
+  'firefox_addons' AS source,
+  '' AS vendor,
+  path AS installed_path,
+  '' as upgrade_code
+FROM cached_users CROSS JOIN firefox_addons USING (uid)
+UNION
+SELECT
+  name AS name,
+  version AS version,
+  '' AS extension_id,
+  '' AS extension_for,
+  'chocolatey_packages' AS source,
+  '' AS vendor,
+  path AS installed_path,
+  '' as upgrade_code
+FROM chocolatey_packages
+`),
+	Platforms:        []string{"windows"},
+	DirectIngestFunc: directIngestSoftware,
+}
+
+// In osquery versions < 5.16.0 use the original python_packages query, as the cross join on
+// users is not supported. We're *not* using VERSION_COMPARE() here and below because that function
+// doesn't exist in osquery version < 5.11.0, causing discovery queries to fail for those versions.
+// See #27126 for more information.
+var softwarePythonPackages = DetailQuery{
+	Description: "Prior to osquery version 5.16.0, the python_packages table did not search user directories.",
+	Query: `
+		SELECT
+		  name AS name,
+		  version AS version,
+		  '' AS extension_id,
+		  '' AS extension_for,
+		  'python_packages' AS source,
+		  '' AS vendor,
+		  path AS installed_path
+		FROM python_packages
+	`,
+	Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"),
+	Discovery: `SELECT 1 FROM (
+    SELECT
+    CAST(SUBSTR(version, 1, INSTR(version, '.') - 1) AS INTEGER) major,
+    CAST(SUBSTR(version, INSTR(version, '.') + 1, INSTR(SUBSTR(version, INSTR(version, '.') + 1), '.') - 1) AS INTEGER) minor from osquery_info
+) AS version_parts WHERE major < 5 OR (major = 5 AND minor < 16)`,
+}
+
+// In osquery versions >= 5.16.0 the python_packages table was modified to allow for a
+// cross join on users so that user directories could be searched for python packages
+var softwarePythonPackagesWithUsersDir = DetailQuery{
+	Description: "As of osquery version 5.16.0, the python_packages table searches user directories with support from a cross join on users. See https://automdm.com/guides/osquery-consider-joining-against-the-users-table.",
+	Query: withCachedUsers(`WITH cached_users AS (%s)
+		SELECT
+		  name AS name,
+		  version AS version,
+		  '' AS extension_id,
+		  '' AS extension_for,
+		  'python_packages' AS source,
+		  '' AS vendor,
+		  path AS installed_path
+		FROM cached_users CROSS JOIN python_packages USING (uid)
+	`),
+	Platforms: append(automdm.HostLinuxOSs, "darwin", "windows"),
+	Discovery: `SELECT 1 FROM (
+    SELECT
+    CAST(substr(version, 1, instr(version, '.') - 1) AS INTEGER) major,
+    CAST(substr(version, instr(version, '.') + 1, instr(substr(version, instr(version, '.') + 1), '.') - 1) AS INTEGER) minor from osquery_info
+) AS version_parts WHERE major > 5 OR (major = 5 AND minor >= 16)`,
+}
+
+var softwareChrome = DetailQuery{
+	Query: `SELECT
+  name AS name,
+  version AS version,
+  identifier AS extension_id,
+  browser_type AS extension_for,
+  'chrome_extensions' AS source,
+  '' AS vendor,
+  '' AS installed_path
+FROM chrome_extensions`,
+	Platforms:        []string{"chrome"},
+	DirectIngestFunc: directIngestSoftware,
+}
+
+// SoftwareOverrideQueries are used to override software detail query results.  These DetailQueries
+// must include a `SoftwareOverrideMatch` function that returns true if the software row should be
+// overridden with the results of `Query`.
+// Software queries expect specific columns to be present.  Reference the
+// software_{macos|windows|linux} queries for the expected columns.
+var SoftwareOverrideQueries = map[string]DetailQuery{
+	// windows_acrobat_dc checks the Windows registry to determine if "DC" should be appended to the Adobe Acrobat
+	// product name. While Adobe recently rebranded the free version to "Adobe Acrobat (64-bit)" — matching
+	// the naming convention of the paid product — our vulnerability detection engine requires the "DC" postfix for accurate
+	// signature matching.
+	"windows_acrobat_dc": {
+		Description: "Software override query used to determine whether the Adobe Acrobat Reader program name needs to include the DC postfix",
+		Platforms:   []string{"windows"},
+		Query:       `SELECT 1 FROM registry WHERE key = 'HKEY_LOCAL_MACHINE\SOFTWARE\Adobe\Adobe Acrobat\DC'`,
+		SoftwareProcessResults: func(softwareResults, registryResults []map[string]string) []map[string]string {
+			if len(registryResults) == 0 {
+				return softwareResults
+			}
+
+			for i, row := range softwareResults {
+				orig := row["name"]
+				lower := strings.ToLower(orig)
+
+				if !strings.HasPrefix(lower, "adobe acrobat") && !strings.HasPrefix(lower, "acrobat reader") {
+					continue
+				}
+
+				// We need to correctly identify whether the name is in the
+				// form of `... Acrobat Reader ...` or just `... Acrobat ...`
+				options := []string{"reader", "acrobat"}
+				for _, variant := range options {
+					if idx := strings.Index(lower, variant); idx != -1 {
+						splitPoint := idx + len(variant)
+						softwareResults[i]["name"] = orig[:splitPoint] + " DC" + orig[splitPoint:]
+						break
+					}
+				}
+			}
+
+			return softwareResults
+		},
+	},
+	// macos_firefox differentiates between Firefox and Firefox ESR by checking the RemotingName value in the
+	// application.ini file. If the RemotingName is 'firefox-esr', the name is set to 'Firefox ESR.app'.
+	//
+	// NOTE(lucas): This could be re-written to use SoftwareProcessResults so that this query doesn't need to match
+	// the columns of the main softwareMacOS query.
+	"macos_firefox": {
+		Description: "A software override query[^1] to differentiate between Firefox and Firefox ESR on macOS. Requires `automdmd`",
+		Query: `
+			WITH app_paths AS (
+				SELECT path
+				FROM apps
+				WHERE bundle_identifier = 'org.mozilla.firefox'
+			),
+			remoting_name AS (
+				SELECT value, path
+				FROM parse_ini
+				WHERE key = 'RemotingName'
+				AND path IN (SELECT CONCAT(path, '/Contents/Resources/application.ini') FROM app_paths)
+			)
+			SELECT
+				CASE
+					WHEN remoting_name.value = 'firefox-esr' THEN 'Firefox ESR.app'
+					ELSE 'Firefox.app'
+				END AS name,
+				COALESCE(NULLIF(apps.bundle_short_version, ''), apps.bundle_version) AS version,
+				apps.bundle_identifier AS bundle_identifier,
+				'' AS extension_id,
+				'' AS extension_for,
+				'apps' AS source,
+				'' AS vendor,
+				apps.last_opened_time AS last_opened_at,
+				apps.path AS installed_path
+			FROM apps
+			LEFT JOIN remoting_name ON apps.path = REPLACE(remoting_name.path, '/Contents/Resources/application.ini', '')
+			WHERE apps.bundle_identifier = 'org.mozilla.firefox'`,
+		Platforms: []string{"darwin"},
+		Discovery: generateSQLForAllExists(
+			macOSBundleIDExistsQuery("org.mozilla.firefox"),
+			discoveryTable("parse_ini"),
+		),
+		SoftwareOverrideMatch: func(row map[string]string) bool {
+			return row["bundle_identifier"] == "org.mozilla.firefox"
+		},
+	},
+	// macos_codesign collects code signature information of apps on a separate query for two reasons:
+	//   - codesign is an automdmd table (not part of osquery core).
+	//   - Avoid growing the main `software_macos` query
+	//     (having big queries can cause performance issues or be denylisted).
+	"macos_codesign": {
+		Query: `
+		SELECT c.*
+		FROM apps a
+		JOIN codesign c ON a.path = c.path
+	`,
+		Description: "A software override query[^1] to append codesign information to macOS software entries. Requires `automdmd`",
+		Platforms:   []string{"darwin"},
+		Discovery:   discoveryTable("codesign"),
+		SoftwareProcessResults: func(mainSoftwareResults, codesignResults []map[string]string) []map[string]string {
+			if len(codesignResults) == 0 {
+				return mainSoftwareResults
+			}
+
+			type codesignResultRow struct {
+				teamIdentifier string
+				cdhashSHA256   string
+			}
+
+			codesignInfoByPath := make(map[string]codesignResultRow)
+			for _, codesignResult := range codesignResults {
+				var cdhashSha256 string
+				if hash, ok := codesignResult["cdhash_sha256"]; ok {
+					cdhashSha256 = hash
+				}
+
+				codesignInfoByPath[codesignResult["path"]] = codesignResultRow{
+					teamIdentifier: codesignResult["team_identifier"],
+					cdhashSHA256:   cdhashSha256,
+				}
+			}
+
+			for _, result := range mainSoftwareResults {
+				codesignInfo, ok := codesignInfoByPath[result["installed_path"]]
+				if !ok {
+					// No codesign information for this application.
+					continue
+				}
+				result["team_identifier"] = codesignInfo.teamIdentifier
+				result["cdhash_sha256"] = codesignInfo.cdhashSHA256
+			}
+
+			return mainSoftwareResults
+		},
+	},
+	// macos_executable_sha256 collects an executable's sha256 hash via the automdmd `executable_hashes` table.
+	"macos_executable_sha256": {
+		Query: `
+		SELECT eh.*
+		FROM apps a
+		JOIN executable_hashes eh ON a.path = eh.path
+		`,
+		Description: "A software override query[^1] to append the sha256 hash of app bundle executables to macOS software entries. Requires `automdmd`",
+		Platforms:   []string{"darwin"},
+		Discovery:   discoveryTable("executable_hashes"),
+		SoftwareProcessResults: func(mainSoftwareResults, results []map[string]string) []map[string]string {
+			if len(results) == 0 {
+				return mainSoftwareResults
+			}
+
+			type resultRow struct {
+				execSHA256 string
+				execPath   string
+			}
+
+			// assuming one executable per app bundle path for now
+			resultByBundlePath := make(map[string]resultRow)
+			for _, r := range results {
+				var execHash string
+				if hash, ok := r["executable_sha256"]; ok {
+					execHash = hash
+				}
+				var execPath string
+				if ePath, ok := r["executable_path"]; ok {
+					execPath = ePath
+				}
+				resultByBundlePath[r["path"]] = resultRow{
+					execSHA256: execHash,
+					execPath:   execPath,
+				}
+			}
+			for _, swRes := range mainSoftwareResults {
+				rBBP, ok := resultByBundlePath[swRes["installed_path"]]
+				if !ok {
+					// No fileutil information for this software
+					continue
+				}
+				swRes["executable_sha256"] = rBBP.execSHA256
+				swRes["executable_path"] = rBBP.execPath
+			}
+			return mainSoftwareResults
+		},
+	},
+	// macos_homebrew_executable_sha256 collects every Mach-O executable a Homebrew formula
+	// installs under its keg's bin and sbin, and the sha256 of each, via the automdmd
+	// `executable_hashes` table. A file the table did not hash this run still comes back, with
+	// hash_state 'deferred', so the rows for a keg are its complete membership every run.
+	// Discovery keys on the path_type column rather than on the table being present: older
+	// extensions resolve every path as an app bundle, so they would return empty hashes while
+	// spawning a process per file. path_type has never shipped without hash_state, so it gates
+	// both.
+	"macos_homebrew_executable_sha256": {
+		// SQLite pushes the correlated LIKE into the extension and calls it once per keg and
+		// directory, as the apps override does per bundle. executable_hashes keeps only the last
+		// path constraint it receives, so bin and sbin are separate UNION members, not an OR.
+		// The unary plus keeps the path_type filter in SQLite: when osquery hands the extension
+		// that constant equality next to the correlated LIKE, the join returns no rows.
+		Query: `
+		SELECT
+		  hp.path AS keg_path,
+		  hp.version AS version,
+		  eh.executable_path AS executable_path,
+		  eh.executable_sha256 AS executable_sha256,
+		  eh.hash_state AS hash_state
+		FROM homebrew_packages hp
+		JOIN executable_hashes eh ON eh.path LIKE hp.path || '/' || hp.version || '/bin/%'
+		WHERE hp.type = 'formula' AND +eh.path_type = 'file'
+		UNION ALL
+		SELECT
+		  hp.path AS keg_path,
+		  hp.version AS version,
+		  eh.executable_path AS executable_path,
+		  eh.executable_sha256 AS executable_sha256,
+		  eh.hash_state AS hash_state
+		FROM homebrew_packages hp
+		JOIN executable_hashes eh ON eh.path LIKE hp.path || '/' || hp.version || '/sbin/%'
+		WHERE hp.type = 'formula' AND +eh.path_type = 'file'
+		`,
+		Description:            "A software override query[^1] to append the sha256 hash of Mach-O executables installed by Homebrew formulae to macOS software entries. Requires `automdmd`",
+		Platforms:              []string{"darwin"},
+		Discovery:              `SELECT 1 FROM pragma_table_info('executable_hashes') WHERE name = 'path_type'`,
+		SoftwareProcessResults: mergeHomebrewExecutableHashes,
+	},
+	// windows_last_opened_at collects last opened at information from prefetch files on Windows
+	// hosts. Joining this within the main software query is not performant enough to do on the
+	// device (resulted in denylisted queries during testing), so we do it on the server instead.
+	"windows_last_opened_at": {
+		// Note the REPLACE() calls in the REGEX_MATCH() are to escape characters that have special
+		// meaning in regular expressions.
+		Query: `
+		SELECT
+		  MAX(last_run_time) AS last_opened_at,
+		  REGEX_MATCH(accessed_files, "VOLUME[^\\]+([^,]+" || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(filename, '\', '\\'), '.', '\.'), '*', '\*'), '+', '\+'), '?', '\?'), '[', '\['), ']', '\]'), '{', '\{'), '}', '\}'), '(', '\('), ')', '\)'), '|', '\|') || ")", 1) AS executable_path
+		FROM prefetch
+		GROUP BY executable_path
+	`,
+		Description: "A software override query[^1] to append last_opened_at information to Windows software entries.",
+		Platforms:   []string{"windows"},
+		SoftwareProcessResults: func(mainSoftwareResults, prefetchResults []map[string]string) []map[string]string {
+			if len(prefetchResults) == 0 {
+				return mainSoftwareResults
+			}
+
+			skipInstallPaths := map[string]struct{}{
+				"\\":                    {},
+				"\\windows\\system32\\": {},
+			}
+
+			for _, result := range mainSoftwareResults {
+				if result["source"] != "programs" {
+					// Only override last_opened_at for software from the programs source.
+					continue
+				}
+
+				installPath := strings.ToLower(result["installed_path"])
+				// Remove the drive letter from the path
+				volume, path, found := strings.Cut(installPath, ":")
+				if !found || len(volume) != 1 || len(path) == 0 {
+					continue
+				}
+
+				// Skip some install paths where binaries live but can't be well correlated to programs
+				if _, found := skipInstallPaths[path]; found {
+					continue
+				}
+
+				for _, prefetchResult := range prefetchResults {
+					prefetchPath := strings.ToLower(prefetchResult["executable_path"])
+					if strings.HasPrefix(prefetchPath, path) {
+						// Some programs will have multiple prefetch entries matching their install
+						// path, so we compare the last_opened_at values and keep the more recent.
+						result["last_opened_at"] = maxString(result["last_opened_at"], prefetchResult["last_opened_at"])
+					}
+				}
+			}
+
+			return mainSoftwareResults
+		},
+	},
+	// deb_last_opened_at collects last opened at information from DEB package files on Linux
+	// hosts. Joining this within the main software query is not performant enough to do on the
+	// device, so we do it on the server instead.
+	"deb_last_opened_at": {
+		// regex_match on the mode to look for only files with execute permissions
+		// deb_package_files does not have a mode column, so we need to join to the file table and filter there
+		Query: `
+		SELECT package, MAX(atime) AS last_opened_at
+		FROM deb_package_files
+		CROSS JOIN file USING (path)
+		WHERE type = 'regular' AND regex_match(file.mode, '[1357]', 0)
+		GROUP BY package
+	`,
+		Description: "A software override query[^1] to append last_opened_at information to Linux DEB software entries. The accuracy of this information is limited by the accuracy of the atime column in the file table, which can be affected by the system clock and mount settings like noatime and relatime.",
+		Platforms:   automdm.HostLinuxOSs,
+		// Table should ship in osquery 5.19.0: https://github.com/osquery/osquery/pull/8657
+		Discovery:              discoveryTable("deb_package_files"),
+		SoftwareProcessResults: processPackageLastOpenedAt("deb_packages"),
+	},
+	// rpm_last_opened_at collects last opened at information from RPM package files on Linux
+	// hosts. Joining this within the main software query is not performant enough to do on the
+	// device, so we do it on the server instead.
+	"rpm_last_opened_at": {
+		// regex_match on the mode to look for only files with execute permissions
+		// rpm_package_files has a mode column that allows an optimization by filtering before joining to the file table
+		Query: `
+		SELECT package, MAX(atime) AS last_opened_at
+		FROM (SELECT package, path FROM rpm_package_files WHERE regex_match(mode, '[1357]', 0))
+		CROSS JOIN file USING (path)
+		WHERE type = 'regular'
+		GROUP BY package
+	`,
+		Description: "A software override query[^1] to append last_opened_at information to Linux RPM software entries.  The accuracy of this information is limited by the accuracy of the atime column in the file table, which can be affected by the system clock and mount settings like noatime and relatime.",
+		Platforms:   automdm.HostLinuxOSs,
+		// Available since osquery 1.4.5
+		Discovery:              discoveryTable("rpm_package_files"),
+		SoftwareProcessResults: processPackageLastOpenedAt("rpm_packages"),
+	},
+	// windows_program_files_scan detects Windows software installed to C:\Program Files that lacks
+	// registry Uninstall entries (invisible to the osquery programs table). Scans at depth 0
+	// (Vendor\app.exe) and depth 1 (Vendor\Subfolder\app.exe), excluding WindowsApps (already
+	// covered by the programs table). Deduplication against programs entries is handled server-side
+	// via SoftwareProcessResults. Also enables detection of Windows Defender (MsMpEng.exe) which
+	// does not create registry entries (#42878).
+	"windows_program_files_scan": {
+		Description: "A software override query[^1] to detect Windows software installed to Program Files without registry entries.",
+		Platforms:   []string{"windows"},
+		Query: `SELECT
+  path,
+  filename,
+  file_version,
+  product_version,
+  size
+FROM file
+WHERE (
+    path LIKE 'C:\Program Files\%\%.exe'
+    OR path LIKE 'C:\Program Files\%\%\%.exe'
+  )
+  AND path NOT LIKE 'C:\Program Files\WindowsApps\%'`,
+		SoftwareProcessResults: processProgramFilesScan,
+	},
+}
+
+// hashStateDeferred marks a Mach-O file the automdmd executable_hashes table found but did not
+// hash this run, because its per-run byte budget was spent. A later run hashes it.
+const hashStateDeferred = "deferred"
+
+// mergeHomebrewExecutableHashes attaches to each Homebrew formula's row the set of Mach-O
+// executables its keg installs, as a JSON document keyed by each file's path relative to the
+// Cellar directory. The server stores one row per keg carrying that document, so a file that
+// stops being reported is a file that is gone.
+//
+// Rows are keyed by installed path and version together because homebrew_packages.path is the
+// Cellar directory, which every installed version of a formula shares.
+func mergeHomebrewExecutableHashes(mainSoftwareResults, results []map[string]string) []map[string]string {
+	if len(results) == 0 {
+		// The host is saying nothing about membership, so no row carries a document and the
+		// datastore leaves every stored one alone. Absence of the query is never evidence that a
+		// keg lost its executables.
+		return mainSoftwareResults
+	}
+
+	execsByKeg := make(map[string]automdm.ExecutableHashes, len(results))
+	for _, r := range results {
+		kegPath := r["keg_path"]
+		relPath, under := strings.CutPrefix(r["executable_path"], kegPath+"/")
+		if !under || relPath == "" {
+			continue
+		}
+		key := kegPath + automdm.SoftwareFieldSeparator + r["version"]
+		if execsByKeg[key] == nil {
+			execsByKeg[key] = automdm.ExecutableHashes{}
+		}
+		switch {
+		case r["hash_state"] == hashStateDeferred:
+			// Membership without a value. The datastore carries the stored hash over until a
+			// later run reports one.
+			execsByKeg[key][relPath] = ""
+		case r["executable_sha256"] != "":
+			execsByKeg[key][relPath] = r["executable_sha256"]
+		}
+		// Anything else is a file that could not be read, which is not membership.
+	}
+
+	for _, row := range mainSoftwareResults {
+		if row["source"] != "homebrew_packages" {
+			continue
+		}
+		// A formula that installs only scripts, and every cask, carries an empty document rather
+		// than none: the query did run, so the datastore can clear what it has stored.
+		execs := execsByKeg[row["installed_path"]+automdm.SoftwareFieldSeparator+row["version"]]
+		if execs == nil {
+			execs = automdm.ExecutableHashes{}
+		}
+		encoded, err := json.Marshal(execs)
+		if err != nil {
+			continue
+		}
+		row["executable_hashes"] = string(encoded)
+	}
+	return mainSoftwareResults
+}
+
+// processProgramFilesScan deduplicates file scan results against existing programs entries,
+// then appends new (non-duplicate) entries to the main software results.
+//
+// Dedup uses a directory prefix check rather than direct path equality because
+// programs.install_location and the file scan path are not directly comparable:
+//   - install_location is a root directory (e.g. ...\GoLand 2025.3.3), not the exe path
+//   - The exe may be nested deeper (e.g. ...\GoLand 2025.3.3\bin\goland64.exe)
+//   - install_location may or may not have a trailing backslash
+//
+// By normalizing both sides (lowercase, trailing backslash) and checking whether the
+// exe's parent directory starts with a known install_location, we correctly match
+// executables at any depth beneath a program's install root.
+func processProgramFilesScan(mainSoftwareResults, fileScanResults []map[string]string) []map[string]string {
+	if len(fileScanResults) == 0 {
+		return mainSoftwareResults
+	}
+
+	// Build a set of normalized installed paths from existing programs entries.
+	// normalizeWindowsDir ensures consistent trailing backslash and lowercase.
+	//
+	// We skip over-broad locations (drive roots, Windows\System32) because some
+	// programs report install_location as e.g. "C:\" which would prefix-match
+	// every file scan result. See the analogous skipInstallPaths filter in the
+	// windows_last_opened_at handler.
+	skipInstallPaths := map[string]struct{}{
+		`\`:                     {},
+		`\windows\`:             {},
+		`\windows\system32\`:    {},
+		`\program files\`:       {},
+		`\program files (x86)\`: {},
+	}
+	knownPaths := make(map[string]struct{})
+	for _, row := range mainSoftwareResults {
+		if row["source"] != "programs" {
+			continue
+		}
+		p := normalizeWindowsDir(row["installed_path"])
+		if p == "" {
+			continue
+		}
+		// Strip the drive letter (e.g. "c:") to get a volume-relative path for skip checking.
+		if vol, rel, ok := strings.Cut(p, ":"); !ok || len(vol) != 1 || len(rel) == 0 {
+			continue
+		} else if _, skip := skipInstallPaths[rel]; skip {
+			continue
+		}
+		knownPaths[p] = struct{}{}
+	}
+
+	for _, row := range fileScanResults {
+		exePath := row["path"]
+		if exePath == "" {
+			continue
+		}
+
+		// Extract and normalize the directory containing the exe.
+		exeDir := normalizeWindowsDir(windowsDirname(exePath))
+
+		// An exe is a duplicate if its directory falls under any known install_location.
+		// For example, install_location "c:\program files\foo\" matches exe dir
+		// "c:\program files\foo\bin\" because the exe lives inside that install root.
+		duplicate := false
+		for knownPath := range knownPaths {
+			if strings.HasPrefix(exeDir, knownPath) {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+
+		version := row["product_version"]
+		if version == "" {
+			version = row["file_version"]
+		}
+
+		mainSoftwareResults = append(mainSoftwareResults, map[string]string{
+			"name":              row["filename"],
+			"version":           version,
+			"source":            "programs",
+			"vendor":            "",
+			"installed_path":    windowsDirname(exePath),
+			"extension_id":      "",
+			"extension_for":     "",
+			"upgrade_code":      "",
+			"release":           "",
+			"arch":              "",
+			"bundle_identifier": "",
+			"last_opened_at":    "",
+		})
+	}
+
+	return mainSoftwareResults
+}
+
+// windowsDirname returns the directory portion of a Windows path (everything before the last backslash).
+func windowsDirname(path string) string {
+	if idx := strings.LastIndex(path, `\`); idx >= 0 {
+		return path[:idx]
+	}
+	return path
+}
+
+// normalizeWindowsDir lowercases a Windows directory path and ensures it ends with a backslash.
+func normalizeWindowsDir(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	path = strings.ToLower(path)
+	if !strings.HasSuffix(path, `\`) {
+		path += `\`
+	}
+	return path
+}
+
+// processPackageLastOpenedAt is a shared function that processes package last_opened_at information
+// for both DEB and RPM packages. It takes the expected source name as a parameter.
+func processPackageLastOpenedAt(source string) func(mainSoftwareResults, pkgFileResults []map[string]string) []map[string]string {
+	return func(mainSoftwareResults, pkgFileResults []map[string]string) []map[string]string {
+		if len(pkgFileResults) == 0 {
+			return mainSoftwareResults
+		}
+
+		// Create a map of package name to last_opened_at for quick lookup
+		packageLastOpened := make(map[string]string)
+		for _, result := range pkgFileResults {
+			packageLastOpened[result["package"]] = result["last_opened_at"]
+		}
+
+		for _, result := range mainSoftwareResults {
+			// Only process software entries that match the expected source
+			if result["source"] != source {
+				continue
+			}
+
+			packageName := result["name"]
+			if lastOpened, exists := packageLastOpened[packageName]; exists {
+				result["last_opened_at"] = lastOpened
+			}
+		}
+
+		return mainSoftwareResults
+	}
+}
+
+// Convert the strings to integers and return the larger one.
+func maxString(a, b string) string {
+	intA, _ := strconv.Atoi(a)
+	intB, _ := strconv.Atoi(b)
+	if intA > intB {
+		return a
+	}
+	return b
+}
+
+var usersQuery = DetailQuery{
+	// Note we use the cached_groups CTE (`WITH` clause) here to suggest to SQLite that it generate
+	// the `groups` table only once. Without doing this, on some Windows systems (Domain Controllers)
+	// with many user accounts and groups, this query could be very expensive as the `groups` table
+	// was generated once for each user.
+	Query:            usersQueryStr,
+	Platforms:        append(automdm.HostLinuxOSs, "darwin", "windows"),
+	DirectIngestFunc: directIngestUsers,
+}
+
+var usersQueryChrome = DetailQuery{
+	Query:            `SELECT uid, username, email FROM users`,
+	Platforms:        []string{"chrome"},
+	DirectIngestFunc: directIngestUsers,
+}
+
+// directIngestOrbitInfo ingests data from the orbit_info extension table.
+func directIngestOrbitInfo(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) != 1 {
+		return ctxerr.Errorf(ctx, "directIngestOrbitInfo invalid number of rows: %d", len(rows))
+	}
+	version := rows[0]["version"]
+	var desktopVersion sql.NullString
+	desktopVersion.String, desktopVersion.Valid = rows[0]["desktop_version"]
+	var scriptsEnabled sql.NullBool
+	scriptsEnabledStr, ok := rows[0]["scripts_enabled"]
+	if ok {
+		scriptsEnabled.Bool = scriptsEnabledStr == "1"
+		scriptsEnabled.Valid = true
+	}
+	if err := ds.SetOrUpdateHostOrbitInfo(ctx, host.ID, version, desktopVersion, scriptsEnabled); err != nil {
+		return ctxerr.Wrap(ctx, err, "directIngestOrbitInfo update host orbit info")
+	}
+
+	return nil
+}
+
+// directIngestOSWindows ingests selected operating system data from a host on a Windows platform
+func directIngestOSWindows(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) != 1 {
+		return ctxerr.Errorf(ctx, "directIngestOSWindows invalid number of rows: %d", len(rows))
+	}
+
+	hostOS := automdm.OperatingSystem{
+		Name:             rows[0]["name"],
+		Arch:             rows[0]["arch"],
+		KernelVersion:    rows[0]["version"],
+		Platform:         rows[0]["platform"],
+		Version:          rows[0]["version"],
+		InstallationType: rows[0]["installation_type"],
+	}
+
+	displayVersion := rows[0]["display_version"]
+	if displayVersion != "" {
+		hostOS.Name += " " + displayVersion
+		hostOS.DisplayVersion = displayVersion
+	}
+
+	if strings.EqualFold(hostOS.InstallationType, "Server Core") {
+		hostOS.Name += " (Server Core)"
+	}
+
+	if err := ds.UpdateHostOperatingSystem(ctx, host.ID, hostOS); err != nil {
+		return ctxerr.Wrap(ctx, err, "directIngestOSWindows update host operating system")
+	}
+	return nil
+}
+
+// directIngestOSUnixLike ingests selected operating system data from a host on a Unix-like platform
+// (e.g., darwin, Linux or ChromeOS)
+func directIngestOSUnixLike(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) != 1 {
+		return ctxerr.Errorf(ctx, "directIngestOSUnixLike invalid number of rows: %d", len(rows))
+	}
+	// Arch Linux ARM is recorded as "Arch Linux" in the OS inventory. The host keeps its own name and version in
+	// hosts.os_version (the os_version detail query), which the host API returns.
+	name := automdm.InventoryOSName(rows[0]["name"])
+	version := rows[0]["version"]
+	major := rows[0]["major"]
+	minor := rows[0]["minor"]
+	patch := rows[0]["patch"]
+	build := rows[0]["build"]
+	extra := rows[0]["extra"]
+	arch := rows[0]["arch"]
+	kernelVersion := rows[0]["kernel_version"]
+	platform := rows[0]["platform"]
+
+	hostOS := automdm.OperatingSystem{Name: name, Arch: arch, KernelVersion: kernelVersion, Platform: platform}
+	hostOS.Version = parseOSVersion(name, version, major, minor, patch, build, extra)
+
+	if err := ds.UpdateHostOperatingSystem(ctx, host.ID, hostOS); err != nil {
+		return ctxerr.Wrap(ctx, err, "directIngestOSUnixLike update host operating system")
+	}
+	return nil
+}
+
+// parseOSVersion returns a point release string for an operating system. Parsing rules
+// depend on available data, which varies between operating systems.
+func parseOSVersion(name string, version string, major string, minor string, patch string, build string, extra string) string {
+	var osVersion string
+	switch {
+	case strings.Contains(strings.ToLower(name), "ubuntu"), strings.Contains(strings.ToLower(name), "zorin"):
+		// Ubuntu takes a different approach to updating patch IDs so we instead use
+		// the version string provided after removing the code name. Zorin OS keeps
+		// VERSION_ID at the major version, so major/minor/patch would read N.0.0.
+		regx := regexp.MustCompile(`\(.*\)`)
+		osVersion = strings.TrimSpace(regx.ReplaceAllString(version, ""))
+	case strings.Contains(strings.ToLower(name), "chrome"):
+		osVersion = version
+	case strings.EqualFold(build, "rolling"):
+		osVersion = build
+	case major != "0" || minor != "0" || patch != "0":
+		osVersion = fmt.Sprintf("%s.%s.%s", major, minor, patch)
+	default:
+		osVersion = build
+	}
+
+	osVersion = strings.Trim(osVersion, ".")
+
+	// extra is the Apple Rapid Security Response version
+	if extra != "" {
+		osVersion = fmt.Sprintf("%s %s", osVersion, strings.TrimSpace(extra))
+	}
+
+	return osVersion
+}
+
+func directIngestChromeProfiles(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	mapping := make([]*automdm.HostDeviceMapping, 0, len(rows))
+	for _, row := range rows {
+		mapping = append(mapping, &automdm.HostDeviceMapping{
+			HostID: host.ID,
+			Email:  row["email"],
+			Source: automdm.DeviceMappingGoogleChromeProfiles,
+		})
+	}
+	return ds.ReplaceHostDeviceMapping(ctx, host.ID, mapping, automdm.DeviceMappingGoogleChromeProfiles)
+}
+
+// directIngestBattery ingests battery data from a host on a Windows or macOS platform
+// and calculates the battery health based on cycle count and capacity.
+// Due to a known osquery issue with M1 Macs (https://github.com/fleetdm/fleet/issues/6763)
+// and the ommission of the `health` column on Windows, we are not leveraging the `health`
+// column in the query and instead aligning the definition of battery health between
+// macOS and Windows.
+func directIngestBattery(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	mapping := make([]*automdm.HostBattery, 0, len(rows))
+
+	for _, row := range rows {
+		health, cycleCount, err := generateBatteryHealth(ctx, row, logger)
+		if err != nil {
+			logger.ErrorContext(ctx, "directIngestBattery", "host_id", host.ID, "err", err)
+		}
+
+		mapping = append(mapping, &automdm.HostBattery{
+			HostID:       host.ID,
+			SerialNumber: row["serial_number"],
+			CycleCount:   cycleCount,
+			Health:       health,
+		})
+	}
+
+	return ds.ReplaceHostBatteries(ctx, host.ID, mapping)
+}
+
+const (
+	batteryStatusUnknown      = "Unknown"
+	batteryStatusDegraded     = "Service recommended"
+	batteryStatusGood         = "Normal"
+	batteryDegradedThreshold  = 80
+	batteryDegradedCycleCount = 1000
+)
+
+// generateBatteryHealth calculates the battery health based on the cycle count and capacity.
+func generateBatteryHealth(ctx context.Context, row map[string]string, logger *slog.Logger) (string, int, error) {
+	designedCapacity := row["designed_capacity"]
+	maxCapacity := row["max_capacity"]
+	cycleCount := row["cycle_count"]
+
+	count, err := strconv.Atoi(EmptyToZero(cycleCount))
+	if err != nil {
+		logger.ErrorContext(ctx, "generateBatteryHealth", "err", err)
+		// If we can't parse the cycle count, we'll assume it's 0
+		// and continue with the rest of the battery health check.
+		count = 0
+	}
+
+	if count >= batteryDegradedCycleCount {
+		return batteryStatusDegraded, count, nil
+	}
+
+	if designedCapacity == "" || maxCapacity == "" {
+		return batteryStatusUnknown, count, fmt.Errorf("missing battery capacity values, designed: %s, max: %s", designedCapacity, maxCapacity)
+	}
+
+	designed, err := strconv.ParseInt(designedCapacity, 10, 64)
+	if err != nil {
+		return batteryStatusUnknown, count, fmt.Errorf("failed to parse designed capacity: %s", designedCapacity)
+	}
+
+	maxCapInt, err := strconv.ParseInt(maxCapacity, 10, 64)
+	if err != nil {
+		return batteryStatusUnknown, count, fmt.Errorf("failed to parse max capacity: %s", maxCapacity)
+	}
+
+	health := float64(maxCapInt) / float64(designed) * 100
+
+	if health < batteryDegradedThreshold {
+		return batteryStatusDegraded, count, nil
+	}
+
+	return batteryStatusGood, count, nil
+}
+
+func directIngestEntraIDDetails(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	if len(rows) == 0 {
+		// Device maybe hasn't logged in to Entra ID yet.
+		return nil
+	}
+	// Results are matched to detail queries by name only, and macOS hosts must prove their device ID
+	// with an Entra-signed token instead.
+	if host.Platform != "windows" {
+		return ctxerr.New(ctx, "Entra ID device_id is only accepted from Windows hosts")
+	}
+	row := rows[0]
+
+	deviceID := row["device_id"]
+	if deviceID == "" {
+		return ctxerr.New(ctx, "empty Entra ID device_id")
+	}
+
+	// The user principal name isn't reported on Windows.
+	if _, err := ds.CreateHostConditionalAccessStatus(ctx, host.ID, deviceID, "", false); err != nil {
+		return ctxerr.Wrap(ctx, err, "failed to create host conditional access status")
+	}
+	return nil
+}
+
+func directIngestEntraJoinUser(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	// the query is only sent to Windows hosts, but results are not filtered by platform
+	if host.Platform != "windows" {
+		return nil
+	}
+	// Failed queries never reach here: no rows means not joined, and a row without a
+	// usable user means joined without one. Either way the empty UPN clears the mapping.
+	var upn string
+	if len(rows) > 0 {
+		upn = strings.ToLower(strings.TrimSpace(rows[0]["user_email"]))
+		if upn != "" && !microsoft_mdm.IsValidEntraUPN(upn) {
+			logger.WarnContext(ctx, "ignoring invalid Entra join user email", "host.id", host.ID, "length", len(upn))
+			upn = ""
+		}
+	}
+	updated, err := ds.SetOrUpdateEntraJoinHostDeviceMapping(ctx, host.ID, upn)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "set entra join host device mapping")
+	}
+	if updated {
+		logger.InfoContext(ctx, "reconciled host IdP mapping from Entra join record", "host.id", host.ID)
+	}
+	return nil
+}
+
+func directIngestScheduledQueryStats(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	packs := map[string][]automdm.ScheduledQueryStats{}
+	for _, row := range rows {
+		providedName := row["name"]
+		if providedName == "" {
+			logger.DebugContext(ctx, "host reported scheduled query with empty name", "host", host.Hostname)
+			continue
+		}
+		delimiter := row["delimiter"]
+		if delimiter == "" {
+			logger.DebugContext(ctx, "host reported scheduled query with empty delimiter", "host", host.Hostname)
+			continue
+		}
+
+		// Do not save stats without executions so that we do not overwrite existing stats.
+		// It is normal for host to have no executions when the query just got scheduled.
+		executions := cast.ToUint64(row["executions"])
+		if executions == 0 {
+			logger.DebugContext(ctx, "host reported scheduled query with no executions", "host", host.Hostname)
+			continue
+		}
+
+		// Split with a limit of 2 in case query name includes the
+		// delimiter. Not much we can do if pack name includes the
+		// delimiter.
+		trimmedName := strings.TrimPrefix(providedName, "pack"+delimiter)
+		parts := strings.SplitN(trimmedName, delimiter, 2)
+		if len(parts) != 2 {
+			logger.DebugContext(ctx, "could not split pack and query names",
+				"host", host.Hostname,
+				"name", providedName,
+				"delimiter", delimiter)
+			continue
+		}
+		packName, scheduledName := parts[0], parts[1]
+
+		// Handle rare case when wall_time_ms is missing (for osquery < 5.3.0)
+		wallTimeMs := cast.ToUint64(row["wall_time_ms"])
+		if wallTimeMs == 0 {
+			wallTime := cast.ToUint64(row["wall_time"])
+			if wallTime != 0 {
+				wallTimeMs = wallTime * 1000
+			}
+		}
+		stats := automdm.ScheduledQueryStats{
+			ScheduledQueryName: scheduledName,
+			PackName:           packName,
+			AverageMemory:      cast.ToUint64(row["average_memory"]),
+			Denylisted:         cast.ToBool(row["denylisted"]),
+			Executions:         executions,
+			Interval:           cast.ToInt(row["interval"]),
+			// Cast to int first to allow cast.ToTime to interpret the unix timestamp.
+			LastExecuted: time.Unix(cast.ToInt64(row["last_executed"]), 0).UTC(),
+			OutputSize:   cast.ToUint64(row["output_size"]),
+			SystemTime:   cast.ToUint64(row["system_time"]),
+			UserTime:     cast.ToUint64(row["user_time"]),
+			WallTimeMs:   wallTimeMs,
+		}
+		packs[packName] = append(packs[packName], stats)
+	}
+
+	packStats := []automdm.PackStats{}
+	for packName, stats := range packs {
+		packStats = append(
+			packStats,
+			automdm.PackStats{
+				PackName:   packName,
+				QueryStats: stats,
+			},
+		)
+	}
+	if err := ds.SaveHostPackStats(ctx, host.TeamID, host.ID, packStats); err != nil {
+		return ctxerr.Wrap(ctx, err, "save host pack stats")
+	}
+
+	return nil
+}
+
+const (
+	linuxImageRegex = `^linux-image-[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+-[[:digit:]]+-[[:alnum:]]+`
+	rpmKernelName   = "kernel"
+	archKernelName  = `^linux(?:-(?:lts|zen|hardened))?$`
+)
+
+var (
+	kernelRegex     = regexp.MustCompile(linuxImageRegex)
+	archKernelRegex = regexp.MustCompile(archKernelName)
+)
+
+func directIngestSoftware(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	var software, aiTools []automdm.Software
+	sPaths := map[string]automdm.ExecutableHashes{}
+
+	for _, row := range rows {
+		// Attempt to parse the last_opened_at and emit a debug log if it fails.
+		if _, err := automdm.ParseSoftwareLastOpenedAtRowValue(row["last_opened_at"]); err != nil {
+			logger.DebugContext(ctx, "host reported software with invalid last opened timestamp",
+				"host_id", host.ID,
+				"row", fmt.Sprintf("%+v", row))
+		}
+
+		s, err := automdm.SoftwareFromOsqueryRow(
+			row["name"],
+			row["version"],
+			row["source"],
+			row["vendor"],
+			row["installed_path"],
+			row["release"],
+			row["arch"],
+			row["bundle_identifier"],
+			row["extension_id"],
+			row["extension_for"],
+			row["last_opened_at"],
+			row["upgrade_code"],
+			row["epoch"],
+		)
+		if err != nil {
+			logger.DebugContext(ctx, "failed to parse software row",
+				"host_id", host.ID,
+				"row", fmt.Sprintf("%+v", row),
+				"err", err)
+			continue
+		}
+
+		if automdm.IsLinux(host.Platform) && (kernelRegex.MatchString(s.Name) || s.Name == rpmKernelName || archKernelRegex.MatchString(s.Name)) {
+			s.IsKernel = true
+		}
+
+		MutateSoftwareOnIngestion(ctx, s, logger)
+
+		if shouldRemoveSoftware(host, s) {
+			continue
+		}
+
+		if row["ai_tool"] == "1" {
+			s.AITool = new(true)
+		}
+		software = append(software, *s)
+		if ptr.ValOrZero(s.AITool) {
+			aiTools = append(aiTools, *s)
+		}
+
+		installedPath := strings.TrimSpace(row["installed_path"])
+		if installedPath != "" &&
+			// NOTE: osquery is sometimes incorrectly returning the value "null" for some install paths.
+			// Thus, we explicitly ignore such value here.
+			strings.ToLower(installedPath) != "null" {
+			truncateString := func(str string, length int) string {
+				runes := []rune(str)
+				if len(runes) > length {
+					return string(runes[:length])
+				}
+				return str
+			}
+			teamIdentifier := truncateString(row["team_identifier"], automdm.SoftwareTeamIdentifierMaxLength)
+			var cdhashSHA256 string
+			if cdHash, ok := row["cdhash_sha256"]; ok {
+				cdhashSHA256 = cdHash
+			}
+			var execSHA256 string
+			if eHash, ok := row["executable_sha256"]; ok {
+				execSHA256 = eHash
+			}
+			var execPath string
+			if epath, ok := row["executable_path"]; ok {
+				execPath = epath
+			}
+			key := automdm.HostSoftwareInstalledPathKey{
+				InstalledPath:     installedPath,
+				TeamIdentifier:    teamIdentifier,
+				CDHashSHA256:      cdhashSHA256,
+				ExecutableSHA256:  execSHA256,
+				ExecutablePath:    execPath,
+				SoftwareUniqueStr: s.ToUniqueStr(),
+			}
+			// A Homebrew keg carries the executables it installs as a document rather than one
+			// row per executable. The field is absent unless the override query ran, which is
+			// what tells the datastore apart from a keg that installs none.
+			var execHashes automdm.ExecutableHashes
+			if raw, ok := row["executable_hashes"]; ok {
+				if err := json.Unmarshal([]byte(raw), &execHashes); err != nil {
+					logger.DebugContext(ctx, "host reported unparseable executable hashes",
+						"host_id", host.ID,
+						"installed_path", installedPath,
+						"err", err)
+				}
+			}
+			sPaths[key.String()] = execHashes
+		}
+	}
+
+	result, err := ds.UpdateHostSoftware(ctx, host.ID, software,
+		automdm.PreserveSoftwareSources(preservedsources.FromContext(ctx)...))
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "update host software")
+	}
+
+	if err := ds.UpdateHostSoftwareInstalledPaths(ctx, host.ID, sPaths, result); err != nil {
+		return ctxerr.Wrap(ctx, err, "update software installed path")
+	}
+
+	// UpdateHostSoftware only writes the flag on insert, and writes nothing when the host's
+	// software set is unchanged, so rows that already exist are flagged here. Rows the host
+	// already reported flagged are skipped, so an unchanged host makes no extra query.
+	if len(aiTools) > 0 && result != nil {
+		flagged := make(map[string]struct{}, len(aiTools))
+		for _, sw := range result.WasCurrInstalled {
+			if ptr.ValOrZero(sw.AITool) {
+				flagged[sw.ToUniqueStr()] = struct{}{}
+			}
+		}
+		aiTools = slices.DeleteFunc(aiTools, func(sw automdm.Software) bool {
+			_, ok := flagged[sw.ToUniqueStr()]
+			return ok
+		})
+	}
+	if len(aiTools) > 0 {
+		if err := ds.MarkSoftwareAsAITool(ctx, aiTools); err != nil {
+			return ctxerr.Wrap(ctx, err, "mark software as ai tool")
+		}
+	}
+
+	return nil
+}
+
+var (
+	dcvVersionFormat         = regexp.MustCompile(`^(\d+\.\d+)\s*\(r(\d+)\)$`)
+	tunnelblickVersionFormat = regexp.MustCompile(`^(.+?)\s*\(build\s+\d+\)$`)
+	// jetbrainsNameVersion extracts version from JetBrains product names like "WebStorm 2025.1",
+	// "GoLand 2025.3.3", or "IntelliJ IDEA 2025.3.1.1" (supports 2, 3, or 4 part versions)
+	jetbrainsNameVersion = regexp.MustCompile(`\s(\d{4}\.\d+(?:\.\d+){0,2})$`)
+	// pythonNameVersion extracts the marketing version from python.org Windows
+	// installer names like "Python 3.14.5 (64-bit)" -> "3.14.5". The registry
+	// DisplayVersion embeds the micro version in the third segment (e.g.
+	// "3.14.5150.0"), which neither matches the real version nor sorts correctly,
+	// so we recover the true version from the name instead.
+	//
+	// python.org's installer also registers the individual component MSIs as their
+	// own ARP entries ("Python 3.14.5 Core Interpreter (64-bit)", "...Standard
+	// Library (64-bit)", "...Executables (64-bit)", etc.), all sharing the same
+	// bogus DisplayVersion. The optional middle group lets those component names
+	// normalize to the same marketing version as the bundle, so a single install
+	// doesn't show up in inventory under two different versions.
+	pythonNameVersion = regexp.MustCompile(`^Python (\d+\.\d+\.\d+)( [A-Za-z][^()]*)? \(`)
+	// anyDeskClientVersion strips the client-ID prefix AnyDesk writes into its
+	// Windows registry DisplayVersion: "ad 9.7.15" for the generic client, and
+	// "ad<id> 9.7.15" for a custom client. version_compare can't order those
+	// against a real version, so the patch policy would never see a match.
+	anyDeskClientVersion = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*\s+(\d+(?:\.\d+)*)$`)
+	// rpiImagerVersion strips the leading "v" that Raspberry Pi Imager's build
+	// embeds in its reported version on both platforms -- macOS
+	// CFBundleShortVersionString/CFBundleVersion and the Windows registry
+	// DisplayVersion (e.g. "v2.0.11.1", "v2.0.8") -- which doesn't match the
+	// release version and breaks version ordering. Captures only the
+	// dotted-numeric run so a future build metadata suffix (e.g.
+	// "v2.0.11.1-beta") doesn't end up in the ingested version, which
+	// version_compare can't order.
+	rpiImagerVersion = regexp.MustCompile(`^[vV](\d+(?:\.\d+)*)`)
+	// aiCLIDisplayNames maps the ai_tools agents catalog slug to the name shown in inventory. The
+	// table's own name column is left alone so existing reports keep working. Unknown slugs keep
+	// the reported name.
+	aiCLIDisplayNames = map[string]string{
+		"claude-code":  "Claude Code",
+		"gemini-cli":   "Gemini CLI",
+		"codex":        "Codex",
+		"aider":        "aider",
+		"goose":        "Goose",
+		"opencode":     "OpenCode",
+		"cline":        "Cline",
+		"continue-cli": "Continue CLI",
+		"cursor-agent": "Cursor Agent",
+		"amazon-q":     "Amazon Q",
+		"grok":         "Grok CLI",
+	}
+	// rAppVersionFormat extracts the R version from R.app's
+	// CFBundleShortVersionString. The "R" name is duplicated in some builds
+	// and not others, e.g. "R 4.5.1 GUI 1.82 High Sierra build" -> "4.5.1" and
+	// "R R 4.6.1 GUI 1.83 High Sierra build" -> "4.6.1".
+	rAppVersionFormat  = regexp.MustCompile(`^R (?:R )?(\d+(?:\.\d+)+) GUI`)
+	basicAppSanitizers = []struct {
+		matchBundleIdentifier string
+		matchName             string
+		mutate                func(*automdm.Software, *slog.Logger)
+	}{
+		{
+			matchBundleIdentifier: "com.nicesoftware.dcvviewer",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if versionMatches := dcvVersionFormat.FindStringSubmatch(s.Version); len(versionMatches) == 3 {
+					s.Version = fmt.Sprintf("%s.%s", versionMatches[1], versionMatches[2])
+				}
+			},
+		},
+		// Bundle executable name cleanup #34159
+		{
+			matchBundleIdentifier: "com.synology.DSAssistant",
+			matchName:             "DSAssistant",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "SynologyAssistant"
+			},
+		},
+		{
+			matchBundleIdentifier: "com.now.gg.BlueStacksMIM",
+			matchName:             "HD-MultiInstanceManager",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "BlueStacksMIM"
+			},
+		},
+		{
+			matchBundleIdentifier: "jp.go.jpki.JPKIUninstall",
+			matchName:             "JPKIUninstall.scpt",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "JPKIUninstall"
+			},
+		},
+		{
+			matchBundleIdentifier: "com.oracle.OracleDataModeler",
+			matchName:             "datamodeler.sh",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "OracleDataModeler"
+			},
+		},
+		{
+			matchBundleIdentifier: "com.easeus.ntfsformacdaemon",
+			matchName:             "euntfsservice",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "EaseUS NTFS Service"
+			},
+		},
+		{
+			matchBundleIdentifier: "com.poly.lens.legacyhost.app",
+			matchName:             "legacyhost",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Poly Lens Desktop (Legacy)"
+			},
+		},
+		{
+			matchBundleIdentifier: "app.zen-browser.plugincontainer",
+			matchName:             "plugin-container",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Zen Browser Plugin Container"
+			},
+		},
+		{
+			matchBundleIdentifier: "org.mozilla.plugincontainer",
+			matchName:             "plugin-container",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Mozilla Plugin Container"
+			},
+		},
+		{
+			matchBundleIdentifier: "com.google.chromeremotedesktop.me2me-host-uninstaller",
+			matchName:             "remoting_host_uninstaller",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Chrome Remote Desktop Host Uninstaller"
+			},
+		},
+		{
+			matchName: "runemu",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if s.BundleIdentifier == "" {
+					s.Name = "Android Emulator"
+				}
+			},
+		},
+		{
+			matchBundleIdentifier: "com.oracle.SQLDeveloper",
+			matchName:             "sqldeveloper.sh/",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Oracle SQLDeveloper"
+			},
+		},
+		{
+			matchBundleIdentifier: "net.tunnelblick.tunnelblick",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if versionMatches := tunnelblickVersionFormat.FindStringSubmatch(s.Version); len(versionMatches) == 2 {
+					s.Version = versionMatches[1]
+				}
+			},
+		},
+		// end of #34159 cleanup in basic matchers
+		{
+			matchBundleIdentifier: "com.raspberrypi.rpi-imager",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if versionMatches := rpiImagerVersion.FindStringSubmatch(s.Version); len(versionMatches) == 2 {
+					s.Version = versionMatches[1]
+				}
+			},
+		},
+		{
+			matchBundleIdentifier: "org.R-project.R",
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if versionMatches := rAppVersionFormat.FindStringSubmatch(s.Version); len(versionMatches) == 2 {
+					s.Version = versionMatches[1]
+				}
+			},
+		},
+	}
+	customSanitizers = []struct {
+		matches func(*automdm.Software) bool
+		mutate  func(*automdm.Software, *slog.Logger)
+	}{
+		{
+			matches: func(s *automdm.Software) bool { // #34159
+				return s.Source == "apps" &&
+					strings.HasPrefix(s.Name, "TNMS ") &&
+					strings.HasPrefix(s.BundleIdentifier, "TNMS_") &&
+					strings.Replace(s.BundleIdentifier, "_", " ", 1) == s.Name
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "TNMS"
+				s.Version = strings.Replace(s.BundleIdentifier, "TNMS_", "", 1)
+			},
+		},
+		{
+			// JetBrains products on Windows report build numbers (e.g., "253.31033.139")
+			// instead of marketing versions. This sanitizer extracts the version from
+			// the product name (e.g., "GoLand 2025.3.3" -> "2025.3.3").
+			// Excludes JetBrains Toolbox which reports the correct version.
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "programs" &&
+					strings.Contains(strings.ToLower(s.Vendor), "jetbrains") &&
+					!strings.Contains(s.Name, "Toolbox") &&
+					jetbrainsNameVersion.MatchString(s.Name)
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if matches := jetbrainsNameVersion.FindStringSubmatch(s.Name); len(matches) == 2 {
+					s.Version = matches[1]
+				}
+			},
+		},
+		{
+			// For RHEL kernels, join version and release to match OVAL format.
+			// See server/vulnerabilities/goval_dictionary/database.Eval
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "rpm_packages" && s.Name == rpmKernelName && s.Release != ""
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Version = fmt.Sprintf("%s-%s", s.Version, s.Release)
+				s.Release = "" // Clear release to avoid issues with vulnerability matching
+			},
+		},
+		{
+			// python.org's Windows installer reports a registry DisplayVersion like
+			// "3.14.5150.0" (the micro version is encoded into the third segment),
+			// which doesn't match the real version "3.14.5" and breaks version
+			// ordering. Recover the marketing version from the product name, e.g.
+			// "Python 3.14.5 (64-bit)" -> "3.14.5".
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "programs" &&
+					strings.Contains(strings.ToLower(s.Vendor), "python software foundation") &&
+					pythonNameVersion.MatchString(s.Name)
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if matches := pythonNameVersion.FindStringSubmatch(s.Name); len(matches) >= 2 {
+					s.Version = matches[1]
+				}
+			},
+		},
+		{
+			// AnyDesk on Windows prefixes its registry DisplayVersion with the
+			// client ID: the generic client reports "ad 9.7.15" and a custom client
+			// "ad<id> 9.7.15". Strip the prefix so the version sorts and compares
+			// against the real one.
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "programs" &&
+					strings.Contains(strings.ToLower(s.Vendor), "anydesk") &&
+					anyDeskClientVersion.MatchString(s.Version)
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if matches := anyDeskClientVersion.FindStringSubmatch(s.Version); len(matches) == 2 {
+					s.Version = matches[1]
+				}
+			},
+		},
+		{
+			// Raspberry Pi Imager's Windows installer also embeds a leading "v" in
+			// its registered DisplayVersion (e.g. "v2.0.8"), the same versioning
+			// quirk as its macOS build. Strip it so version_compare can order it.
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "programs" &&
+					strings.EqualFold(s.Name, "Raspberry Pi Imager") &&
+					rpiImagerVersion.MatchString(s.Version)
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				if matches := rpiImagerVersion.FindStringSubmatch(s.Version); len(matches) == 2 {
+					s.Version = matches[1]
+				}
+			},
+		},
+		{
+			// Windows Defender's service executable (MsMpEng.exe) is installed under
+			// C:\Program Files\Windows Defender without registry Uninstall entries.
+			// Map it to a user-friendly name for software inventory. (#42878)
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "programs" &&
+					strings.EqualFold(s.Name, "MsMpEng.exe")
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Windows Defender"
+			},
+		},
+		{
+			// automdmd's ai_tools table names catalog agents by slug (claude-code).
+			matches: func(s *automdm.Software) bool {
+				_, ok := aiCLIDisplayNames[s.Name]
+				return s.Source == "ai_clis" && ok
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = aiCLIDisplayNames[s.Name]
+			},
+		},
+		{
+			// Cursor rule files (.cursor/rules/*.mdc) are named by the developer, so each name
+			// would be its own title. They share one; each file stays an installed path.
+			matches: func(s *automdm.Software) bool {
+				return s.Source == "ai_skills" && strings.EqualFold(path.Ext(s.Name), ".mdc")
+			},
+			mutate: func(s *automdm.Software, logger *slog.Logger) {
+				s.Name = "Cursor rules"
+			},
+		},
+	}
+)
+
+// AIToolsProcessResults merges the software_ai_tools rows into the software rows of a host on the
+// given platform. The existing type wins: an ai_tools row reported at the install path of software
+// another source already reports flags that row (ai_tool = "1") instead of adding a second title.
+// Only unmatched MCP servers, agent CLIs and instruction files are added.
+func AIToolsProcessResults(platform string, mainRows, aiRows []map[string]string) []map[string]string {
+	if len(aiRows) == 0 {
+		return mainRows
+	}
+
+	normalize := func(p string) string {
+		if platform == "windows" {
+			// programs.install_location comes from the registry, in whatever case and with or
+			// without the trailing backslash the installer wrote.
+			return normalizeWindowsDir(p)
+		}
+		p = strings.TrimSpace(p)
+		if trimmed := strings.TrimRight(p, "/"); trimmed != "" {
+			p = trimmed
+		}
+		return p
+	}
+
+	isDarwin := platform == "darwin"
+	homebrewVersionDirs := make(map[string][]int)
+	byPath := make(map[string][]int, len(mainRows))
+	for i, r := range mainRows {
+		installedPath := strings.TrimSpace(r["installed_path"])
+		if r["source"] == "npm_packages" {
+			// npm_packages reports the package's package.json; ai_tools reports its directory.
+			installedPath = trimFileName(installedPath, "package.json")
+		}
+		p := normalize(installedPath)
+		if p == "" {
+			continue
+		}
+		byPath[p] = append(byPath[p], i)
+
+		if isDarwin && r["source"] == "homebrew_packages" {
+			// installed_path is homebrew_packages.path: the formula's or cask's dir,
+			// .../Cellar/<formula> or .../Caskroom/<token>, shared by every installed version. Each
+			// version has its own row and is installed under <path>/<version>.
+			dir := path.Join(p, r["version"])
+			homebrewVersionDirs[dir] = append(homebrewVersionDirs[dir], i)
+		}
+	}
+
+	out := mainRows
+	for _, ai := range aiRows {
+		if ai == nil {
+			continue
+		}
+		rawPath := strings.TrimSpace(ai["installed_path"])
+		if ai["ai_type"] == "browser_extension" {
+			// Chromium extensions are reported by their manifest; chrome_extensions reports the
+			// directory.
+			rawPath = trimFileName(rawPath, "manifest.json")
+		}
+
+		var matched []int
+		p := normalize(rawPath)
+		if p != "" {
+			matched = append(matched, byPath[p]...)
+		}
+		if len(matched) == 0 && isDarwin && ai["ai_type"] == "agents" {
+			// A Homebrew-installed CLI is a file somewhere inside its version's dir.
+			for dir := path.Dir(p); dir != "/" && dir != "."; dir = path.Dir(dir) {
+				if rows, ok := homebrewVersionDirs[dir]; ok {
+					matched = append(matched, rows...)
+					break
+				}
+			}
+		}
+		// A match is software another source already reports, so storing the row would add a
+		// second title; the match is flagged instead. AI apps, IDE plugins and browser extensions
+		// have no source of their own and are never stored.
+		for _, i := range matched {
+			mainRows[i]["ai_tool"] = "1"
+		}
+		if len(matched) > 0 || ai["source"] == "ai_tools" {
+			continue
+		}
+		ai["ai_tool"] = "1"
+		out = append(out, ai)
+	}
+	return out
+}
+
+// trimFileName returns the directory of p when p names the file name, matched case-insensitively
+// with either path separator, and p otherwise.
+func trimFileName(p, name string) string {
+	if i := strings.LastIndexAny(p, `/\`); i >= 0 && strings.EqualFold(p[i+1:], name) {
+		return p[:i]
+	}
+	return p
+}
+
+// MutateSoftwareOnIngestion performs any tweaks required to the ingested software fields.
+//
+// Some fields are reported with known incorrect values and we need to fix them before using them.
+func MutateSoftwareOnIngestion(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
+	if s == nil {
+		return
+	}
+	// basicAppSanitizers only apply to macOS apps
+	if s.Source == "apps" {
+		for _, sanitizer := range basicAppSanitizers {
+			if (sanitizer.matchBundleIdentifier != "" || sanitizer.matchName != "") &&
+				(sanitizer.matchBundleIdentifier == "" || sanitizer.matchBundleIdentifier == s.BundleIdentifier) &&
+				(sanitizer.matchName == "" || sanitizer.matchName == s.Name) {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.WarnContext(ctx, "panic during software mutation", "softwareName", s.Name, "softwareVersion", s.Version, "error", r)
+					}
+				}()
+				sanitizer.mutate(s, logger)
+				break
+			}
+		}
+	}
+
+	for _, sanitizer := range customSanitizers {
+		if sanitizer.matches(s) {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.WarnContext(ctx, "panic during software mutation", "softwareName", s.Name, "softwareVersion", s.Version, "error", r)
+				}
+			}()
+			sanitizer.mutate(s, logger)
+			break
+		}
+	}
+}
+
+// shouldRemoveSoftware returns whether or not we should remove the given Software item from this
+// host's software list.
+func shouldRemoveSoftware(h *automdm.Host, s *automdm.Software) bool {
+	// Parallels is a common VM software for MacOS. Parallels makes the VM's applications
+	// visible in the host as MacOS applications, which leads to confusing output (e.g. a MacOS
+	// host reporting that it has Notepad installed when this is just an app from the Windows VM
+	// under Parallels). We want to filter out those "applications" to avoid confusion.
+	return h.Platform == "darwin" && strings.HasPrefix(s.BundleIdentifier, "com.parallels.winapp")
+}
+
+func directIngestUsers(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	var users []automdm.HostUser
+	var appleManagedUsername, appleManagedUserUUID string
+	if host.Platform == "darwin" {
+		// On macOS hosts with user enrollments, if the username of the managed user changes we need
+		// to sync it up with the nano_users table. otherwise we will never see the change until
+		// another TokenUpdate is sent which may be a long time(months, potentially).
+		var err error
+		appleManagedUsername, appleManagedUserUUID, err = ds.GetNanoMDMUserEnrollmentUsernameAndUUID(ctx, host.UUID)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "getting nano user enrollment username and uuid")
+		}
+	}
+	var managedLocalAccountUUID string
+	for _, row := range rows {
+		if row["uid"] == "" {
+			// Under certain circumstances, broken users can come back with empty UIDs. We don't want them
+			continue
+		}
+		uid, err := strconv.Atoi(row["uid"])
+		if err != nil {
+			// Chrome returns uids that are much larger than a 32 bit int, ignore this.
+			if host.Platform == "chrome" {
+				uid = 0
+			} else {
+				return fmt.Errorf("converting uid %s to int: %w", row["uid"], err)
+			}
+		}
+		username := row["username"]
+		type_ := row["type"]
+		groupname := row["groupname"]
+		shell := row["shell"]
+		uuid := row["uuid"]
+		// _automdmadmin is allowlisted in usersQueryStr only so we can capture its uuid for
+		// MDM rotation. Do not persist it in host_users.
+		if host.Platform == "darwin" && username == automdm.ManagedLocalAccountUsername {
+			managedLocalAccountUUID = uuid
+			continue
+		}
+		u := automdm.HostUser{
+			Uid:       uint(uid), // nolint:gosec // dismiss G115
+			Username:  username,
+			Type:      type_,
+			GroupName: groupname,
+			Shell:     shell,
+		}
+		users = append(users, u)
+		if host.Platform == "darwin" && appleManagedUserUUID != "" && appleManagedUserUUID == uuid {
+			if username != appleManagedUsername {
+				err = ds.UpdateNanoMDMUserEnrollmentUsername(ctx, host.UUID, appleManagedUserUUID, username)
+				if err != nil {
+					return ctxerr.Wrap(ctx, err, "UpdateNanoMDMUserEnrollmentUsername")
+				}
+			}
+		}
+	}
+	if host.Platform == "darwin" && managedLocalAccountUUID != "" {
+		captureManagedLocalAccountUUID(ctx, logger, host, ds, managedLocalAccountUUID)
+	}
+	if len(users) == 0 {
+		return nil
+	}
+	if err := ds.SaveHostUsers(ctx, host.ID, users); err != nil {
+		return ctxerr.Wrap(ctx, err, "update host users")
+	}
+	return nil
+}
+
+// captureManagedLocalAccountUUID persists the osquery-reported UUID for the
+// managed local admin account when a row exists and the stored value is NULL
+// or differs from the latest reported UUID. Errors are logged and swallowed
+// so host-detail ingestion is not blocked by this secondary concern.
+func captureManagedLocalAccountUUID(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, accountUUID string) {
+	existing, err := ds.GetManagedLocalAccountUUID(ctx, host.UUID)
+	if automdm.IsNotFound(err) {
+		return
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "get managed local account uuid during user ingest",
+			"err", err, "host_id", host.ID, "host_uuid", host.UUID)
+		return
+	}
+	if existing != nil && *existing == accountUUID {
+		return
+	}
+	if err := ds.SetManagedLocalAccountUUID(ctx, host.UUID, accountUUID); err != nil {
+		logger.ErrorContext(ctx, "set managed local account uuid during user ingest",
+			"err", err, "host_id", host.ID, "host_uuid", host.UUID)
+	}
+}
+
+func directIngestMDMMac(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) == 0 {
+		logger.WarnContext(ctx, fmt.Sprintf("mdm expected single result got %d",
+			len(rows)), "component", "service", "method", "ingestMDM")
+		// assume the extension is not there
+		return nil
+	}
+	if len(rows) > 1 {
+		logger.WarnContext(ctx, fmt.Sprintf("mdm expected single result got %d",
+			len(rows)), "component", "service", "method", "ingestMDM")
+	}
+
+	if host.RefetchCriticalQueriesUntil != nil {
+		logger.DebugContext(ctx, "ingesting macos mdm data during refetch critical queries window",
+			"host_id", host.ID,
+			"data", fmt.Sprintf("%+v", rows))
+	}
+
+	enrolledVal := rows[0]["enrolled"]
+	if enrolledVal == "" {
+		return ctxerr.Wrap(ctx, fmt.Errorf("missing mdm.enrolled value: %d", host.ID))
+	}
+	enrolled, err := strconv.ParseBool(enrolledVal)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "parsing enrolled")
+	}
+	installedFromDepVal := rows[0]["installed_from_dep"]
+	installedFromDep := false
+	if installedFromDepVal != "" {
+		installedFromDep, err = strconv.ParseBool(installedFromDepVal)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "parsing installed_from_dep")
+		}
+	}
+
+	mdmSolutionName := deduceMDMNameMacOS(rows[0])
+	if !enrolled && installedFromDep && mdmSolutionName != automdm.WellKnownMDMAutoMDM && host.RefetchCriticalQueriesUntil != nil {
+		// the host was unenrolled from a non-AutoMDM DEP MDM solution, and the
+		// refetch critical queries timestamp was set, so clear it.
+		host.RefetchCriticalQueriesUntil = nil
+	}
+
+	serverURL, err := url.Parse(rows[0]["server_url"])
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "parsing server_url")
+	}
+
+	// if the MDM solution is AutoMDM, we need to extract the enrollment reference from the URL and
+	// upsert host emails based on the MDM IdP account associated with the enrollment reference
+	var automdmEnrollRef string
+	if mdmSolutionName == automdm.WellKnownMDMAutoMDM {
+		automdmEnrollRef = serverURL.Query().Get(mobileconfig.AutoMDMEnrollReferenceKey)
+		if automdmEnrollRef == "" {
+			// TODO: We have some inconsistencies where we use enroll_reference sometimes and
+			// enrollment_reference other times. It really should be the same everywhere, but
+			// it seems to be working now because the values are matching where they need to match.
+			// We should clean this up at some point, but for now we'll just check both.
+			automdmEnrollRef = serverURL.Query().Get("enrollment_reference")
+		}
+	}
+
+	// AutoMDM bakes byod=1 into the enrollment profile's ServerURL for personal
+	// (BYOD) enrollments (apple_mdm.AddPersonalEnrollmentToAutoMDMURL). osquery
+	// reports that ServerURL here, so we read the flag back the same way we read
+	// the enroll reference above, but only to keep the personal type the Apple
+	// Authenticate flow set, since the host reports the URL. Must be read before
+	// RawQuery is cleared below.
+	personalType := automdm.PersonalEnrollmentTypeNone
+	if mdmSolutionName == automdm.WellKnownMDMAutoMDM && serverURL.Query().Get(apple_mdm.AutoMDMPersonalEnrollmentKey) == "1" {
+		hostMDM, err := ds.GetHostMDM(ctx, host.ID)
+		if err != nil && !automdm.IsNotFound(err) {
+			return ctxerr.Wrap(ctx, err, "getting host mdm for personal enrollment")
+		}
+		if hostMDM != nil && hostMDM.PersonalEnrollmentType == automdm.PersonalEnrollmentTypeManualProfile {
+			personalType = automdm.PersonalEnrollmentTypeManualProfile
+		}
+	}
+
+	// strip any query parameters from the URL
+	serverURL.RawQuery = ""
+
+	return ds.SetOrUpdateMDMData(ctx,
+		host.ID,
+		false,
+		enrolled,
+		serverURL.String(),
+		installedFromDep,
+		mdmSolutionName,
+		automdmEnrollRef,
+		personalType,
+	)
+}
+
+func deduceMDMNameMacOS(row map[string]string) string {
+	// If the PayloadIdentifier is AutoMDM's MDM then use AutoMDM as name of the MDM solution.
+	// (For AutoMDM we cannot use the URL because AutoMDM can be deployed On-Prem.)
+	if payloadIdentifier := row["payload_identifier"]; payloadIdentifier == apple_mdm.AutoMDMPayloadIdentifier {
+		return automdm.WellKnownMDMAutoMDM
+	}
+	return automdm.MDMNameFromServerURL(row["server_url"])
+}
+
+func deduceMDMNameWindows(data map[string]string) string {
+	serverURL := data["discovery_service_url"]
+	if serverURL == "" {
+		return ""
+	}
+
+	if name := data["provider_id"]; name == automdm.WellKnownMDMAutoMDM {
+		return name
+	}
+
+	return automdm.MDMNameFromServerURL(serverURL)
+}
+
+func directIngestMDMWindows(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) == 0 {
+		// no mdm information in the registry
+		return ds.SetOrUpdateMDMData(ctx, host.ID, false, false, "", false, "", "", automdm.PersonalEnrollmentTypeNone)
+	}
+	if len(rows) > 1 {
+		logger.WarnContext(ctx, fmt.Sprintf("mdm expected single result got %d",
+			len(rows)), "component", "service", "method", "directIngestMDMWindows")
+		// assume the extension is not there
+		return nil
+	}
+
+	if host.RefetchCriticalQueriesUntil != nil {
+		logger.DebugContext(ctx, "ingesting Windows mdm data during refetch critical queries window",
+			"host_id", host.ID,
+			"data", fmt.Sprintf("%+v", rows))
+	}
+
+	data := rows[0]
+	var enrolled bool
+	var automatic bool
+	serverURL := data["discovery_service_url"]
+	if serverURL != "" {
+		enrolled = true
+		if data["aad_resource_id"] != "" {
+			// NOTE: We intentionally nest this condition to eliminate `enrolled == false && automatic == true`
+			// as a possible status for Windows hosts (which would be otherwise be categorized as
+			// "Pending"). Currently, the "Pending" status is supported only for macOS hosts.
+			automatic = true
+			// We also must check the MDM Enrollment information on the team side here. If the host set the NotInOobe
+			// flag during enrollment, the enrollment is considered manual as it was user-initiated via the Settings app.
+			// There does not seem to be a way on the host to detect this via osquery.
+			windowsDevice, err := ds.MDMWindowsGetEnrolledDeviceWithHostUUID(ctx, host.UUID)
+			if err != nil && !automdm.IsNotFound(err) {
+				return ctxerr.Wrap(ctx, err, "checking windows enrolled device for AAD enrolled host")
+			}
+			// Not a big deal if we didn't find it - the query may not have been processed to link the host
+			// to the enrollment yet
+			if windowsDevice != nil {
+				automatic = !windowsDevice.MDMNotInOOBE
+			}
+		}
+	}
+	// A host the Autopilot sync created is an automatic enrollment by definition, whatever the enrollment's OOBE flag says.
+	if enrolled && !automatic {
+		isAutopilot, err := hostHasLiveAutopilotRecord(ctx, ds, host.ID)
+		if err != nil {
+			return err
+		}
+		automatic = isAutopilot
+	}
+
+	isServer := strings.Contains(strings.ToLower(data["installation_type"]), "server")
+
+	mdmSolutionName := deduceMDMNameWindows(data)
+	if !enrolled && mdmSolutionName != automdm.WellKnownMDMAutoMDM && host.RefetchCriticalQueriesUntil != nil {
+		// the host was unenrolled from a non-AutoMDM solution, and the refetch
+		// critical queries timestamp was set, so clear it.
+		host.RefetchCriticalQueriesUntil = nil
+	}
+
+	return ds.SetOrUpdateMDMData(ctx,
+		host.ID,
+		isServer,
+		enrolled,
+		serverURL,
+		automatic,
+		mdmSolutionName,
+		"",
+		automdm.PersonalEnrollmentTypeNone,
+	)
+}
+
+func directIngestMunkiInfo(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) == 0 {
+		// munki is not there, and we need to mark it deleted if it was there before
+		return ds.SetOrUpdateMunkiInfo(ctx, host.ID, "", []string{}, []string{})
+	}
+	if len(rows) > 1 {
+		logger.WarnContext(ctx, fmt.Sprintf("munki_info expected single result got %d",
+			len(rows)), "component", "service", "method", "ingestMunkiInfo")
+	}
+
+	errors, warnings := rows[0]["errors"], rows[0]["warnings"]
+	errList, warnList := str.SplitAndTrim(errors, ";", true), str.SplitAndTrim(warnings, ";", true)
+	return ds.SetOrUpdateMunkiInfo(ctx, host.ID, rows[0]["version"], errList, warnList)
+}
+
+func directIngestDiskEncryptionLinux(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	// On composefs (bootc) hosts "/" is an overlay with no block device, so it has no row; the root
+	// filesystem is at /sysroot.
+	var hasRoot, rootEncrypted, sysrootEncrypted bool
+	for _, row := range rows {
+		switch row["path"] {
+		case "/":
+			hasRoot = true
+			rootEncrypted = rootEncrypted || row["encrypted"] == "1"
+		case "/sysroot":
+			sysrootEncrypted = sysrootEncrypted || row["encrypted"] == "1"
+		}
+	}
+	encrypted := rootEncrypted || (!hasRoot && sysrootEncrypted)
+
+	return ds.SetOrUpdateHostDisksEncryption(ctx, host.ID, encrypted, nil)
+}
+
+func directIngestDiskEncryption(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	encrypted := len(rows) > 0
+	return ds.SetOrUpdateHostDisksEncryption(ctx, host.ID, encrypted, nil)
+}
+
+func directIngestDiskEncryptionWindows(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) == 0 {
+		return ds.SetOrUpdateHostDisksEncryption(ctx, host.ID, false, nil)
+	}
+
+	row := rows[0]
+
+	conversionStatus, err := strconv.Atoi(row["conversion_status"])
+	if err != nil {
+		return fmt.Errorf("parsing bitlocker conversion_status %q: %w", row["conversion_status"], err)
+	}
+	encrypted := conversionStatus == automdm.BitLockerConversionStatusFullyEncrypted
+
+	// Normalize protection_status=2 (unknown) to nil so downstream status
+	// logic treats it the same as hosts that haven't reported yet.
+	var protectionStatus *int
+	protectionStatusVal, err := strconv.Atoi(row["protection_status"])
+	if err != nil {
+		return fmt.Errorf("parsing bitlocker protection_status %q: %w", row["protection_status"], err)
+	}
+	if protectionStatusVal == automdm.BitLockerProtectionStatusOff || protectionStatusVal == automdm.BitLockerProtectionStatusOn {
+		protectionStatus = &protectionStatusVal
+	}
+	// protectionStatusVal == 2 (unknown) or any other value: leave protectionStatus as nil
+
+	return ds.SetOrUpdateHostDisksEncryption(ctx, host.ID, encrypted, protectionStatus)
+}
+
+// directIngestDiskEncryptionKeyFileDarwin ingests the FileVault key from the `filevault_prk`
+// extension table. It is the preferred method when a host has the extension table available.
+func directIngestDiskEncryptionKeyFileDarwin(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	if len(rows) == 0 {
+		// assume the extension is not there
+		logger.DebugContext(ctx, "no rows or failed",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	if len(rows) > 1 {
+		logger.DebugContext(ctx, fmt.Sprintf("filevault_prk should have a single row, but got %d", len(rows)),
+			"component", "service", "method", "directIngestDiskEncryptionKeyFileDarwin", "host", host.Hostname)
+	}
+
+	if rows[0]["encrypted"] != "1" {
+		logger.DebugContext(ctx, "host does not use disk encryption",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	// at this point we know that the disk is encrypted, if the key is
+	// empty then the disk is not decryptable. For example an user might
+	// have removed the `/var/db/FileVaultPRK.dat` or the computer might
+	// have been encrypted without FV escrow enabled.
+	var decryptable *bool
+	base64Key := rows[0]["filevault_key"]
+	if base64Key == "" {
+		decryptable = ptr.Bool(false)
+	}
+
+	// Only archive the key if disk encryption is enabled for this host (team / globally)
+	if !IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host) {
+		logger.DebugContext(ctx, "skipping key archival, disk encryption not enabled for host (automdm/globally)",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	// Only archive the key if the host is connected to AutoMDM's MDM. Without AutoMDM
+	// MDM, AutoMDM never installed the FileVault escrow profile, so a key found on
+	// disk (e.g. left over from a previous MDM) can't be decrypted or used.
+	// Escrowing it would record a misleading activity and store an unusable key.
+	connected, err := ds.IsHostConnectedToAutoMDMMDM(ctx, host)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking AutoMDM connection before disk encryption key archival")
+	}
+	if !connected {
+		logger.DebugContext(ctx, "skipping key archival, host not connected to AutoMDM",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	return storeDarwinDiskEncryptionKey(ctx, logger, host, ds, base64Key, decryptable)
+}
+
+func storeDarwinDiskEncryptionKey(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	base64Key string,
+	decryptable *bool,
+) error {
+	if base64Key != "" {
+		existing, err := ds.GetHostDiskEncryptionKey(ctx, host.ID)
+		if err != nil && !automdm.IsNotFound(err) {
+			return ctxerr.Wrap(ctx, err, "get existing disk encryption key")
+		}
+		if existing != nil && existing.Decryptable != nil && *existing.Decryptable &&
+			existing.Base64Encrypted != "" && existing.Base64Encrypted != base64Key {
+			// After a rotation, the key AutoMDM stored from the command reply and the
+			// on-disk FileVaultPRK.dat are separate CMS envelopes of the same key, so
+			// compare plaintext before treating the report as a new key.
+			same, err := sameDecryptedDiskEncryptionKey(ctx, ds, existing.Base64Encrypted, base64Key)
+			if err != nil {
+				logger.WarnContext(ctx, "comparing disk encryption key plaintext", "host_id", host.ID, "err", err)
+			} else if same {
+				_, err := ds.ReplaceHostDiskEncryptionKeyBlob(ctx, host.ID, existing.Base64Encrypted, base64Key)
+				return err
+			}
+		}
+	}
+
+	archived, err := ds.SetOrUpdateHostDiskEncryptionKey(ctx, host, base64Key, "", decryptable)
+	if err != nil {
+		return err
+	}
+	host.DiskEncryptionKeyEscrowed = archived
+	return nil
+}
+
+func sameDecryptedDiskEncryptionKey(ctx context.Context, ds automdm.Datastore, a, b string) (bool, error) {
+	certs, key, err := assets.CACertsAndKeyForDecryption(ctx, ds)
+	if err != nil {
+		return false, ctxerr.Wrap(ctx, err, "load CA assets")
+	}
+	plainA, err := mdm.DecryptBase64CMSWithCerts(a, key, certs)
+	if err != nil {
+		return false, ctxerr.Wrap(ctx, err, "decrypt stored key")
+	}
+	plainB, err := mdm.DecryptBase64CMSWithCerts(b, key, certs)
+	if err != nil {
+		return false, ctxerr.Wrap(ctx, err, "decrypt reported key")
+	}
+	return len(plainA) > 0 && bytes.Equal(plainA, plainB), nil
+}
+
+// directIngestDiskEncryptionKeyFileLinesDarwin ingests the FileVault key from the `file_lines`
+// extension table. It is the fallback method in cases where the preferred `filevault_prk` extension
+// table is not available on the host.
+func directIngestDiskEncryptionKeyFileLinesDarwin(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	if len(rows) == 0 {
+		// assume the extension is not there
+		logger.DebugContext(ctx, "no rows or failed",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileLinesDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	var hexLines []string
+	for _, row := range rows {
+		if row["encrypted"] != "1" {
+			logger.DebugContext(ctx, "host does not use disk encryption",
+				"component", "service",
+				"method", "directIngestDiskEncryptionKeyDarwin",
+				"host", host.Hostname)
+			return nil
+		}
+		hexLines = append(hexLines, row["hex_line"])
+	}
+	// We concatenate the lines in Go rather than using SQL `group_concat` because the order in
+	// which SQL appends the lines is not deterministic, nor guaranteed to be the right order.
+	// We assume that hexadecimal 0A (i.e. new line) was the delimiter used to split all lines;
+	// however, there are edge cases where this will not be true. It is a known limitation
+	// with the `file_lines` extension table and its reliance on bufio.ScanLines that carriage
+	// returns will be lost if the source file contains hexadecimal 0D0A (i.e. carriage
+	// return preceding new line). In such cases, the stored key will be incorrect.
+	b, err := hex.DecodeString(strings.Join(hexLines, "0A"))
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "decoding hex string")
+	}
+
+	// at this point we know that the disk is encrypted, if the key is
+	// empty then the disk is not decryptable. For example an user might
+	// have removed the `/var/db/FileVaultPRK.dat` or the computer might
+	// have been encrypted without FV escrow enabled.
+	var decryptable *bool
+	base64Key := base64.StdEncoding.EncodeToString(b)
+	if base64Key == "" {
+		decryptable = ptr.Bool(false)
+	}
+
+	// Only archive the key if disk encryption is enabled for this host (team/globally)
+	if !IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host) {
+		logger.DebugContext(ctx, "skipping key archival, disk encryption not enabled for host automdm/globally",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileLinesDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	// Only archive the key if the host is connected to AutoMDM's MDM. Without AutoMDM
+	// MDM, AutoMDM never installed the FileVault escrow profile, so a key found on
+	// disk (e.g. left over from a previous MDM) can't be decrypted or used.
+	// Escrowing it would record a misleading activity and store an unusable key.
+	connected, err := ds.IsHostConnectedToAutoMDMMDM(ctx, host)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking AutoMDM connection before disk encryption key archival")
+	}
+	if !connected {
+		logger.DebugContext(ctx, "skipping key archival, host not connected to AutoMDM",
+			"component", "service",
+			"method", "directIngestDiskEncryptionKeyFileLinesDarwin",
+			"host", host.Hostname)
+		return nil
+	}
+
+	return storeDarwinDiskEncryptionKey(ctx, logger, host, ds, base64Key, decryptable)
+}
+
+func buildConfigProfilesMacOSQuery(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore) (string, bool) {
+	query := `
+		SELECT
+			display_name,
+			identifier,
+			install_date
+		FROM
+			macos_profiles
+		WHERE
+			type = "Configuration"`
+
+	username, _, err := ds.GetNanoMDMUserEnrollmentUsernameAndUUID(ctx, host.UUID)
+	if err != nil {
+		logger.ErrorContext(ctx, "QueryFunc - macos config profiles", "component", "service", "err", err)
+		return "", false
+	}
+
+	if username != "" {
+		// SQLite has no backslash escapes, so Go's %q can't quote this device-reported name.
+		query += fmt.Sprintf(`
+			UNION
+
+			SELECT
+				display_name,
+				identifier,
+				install_date
+			FROM
+				macos_user_profiles
+			WHERE
+				username = '%s' AND
+				type = "Configuration"`, strings.ReplaceAll(username, "'", "''"))
+	}
+	return query, true
+}
+
+// parseMacOSProfileInstallDate parses the install_date reported by the
+// macos_profiles and macos_user_profiles tables. The value comes straight from
+// `/usr/bin/profiles -o stdout-xml`, which seemingly formats it using the host's
+// locale in certain cases which have been observed but unfortunately not reproduced.
+// Depending on region and macOS version the time portion can be 24-hour
+// (NSDate.description, the common case) or 12-hour with an AM/PM marker, and on
+// macOS 14+ (CLDR 42) the AM/PM marker is preceded by a narrow no-break space
+// (U+202F) instead of an ASCII space.
+func parseMacOSProfileInstallDate(installDate string) (time.Time, error) {
+	// Replace narrow and standard-no-break spaces with a common ' ' space
+	normalized := strings.NewReplacer("\u202f", " ", "\u00a0", " ").Replace(installDate)
+	for _, layout := range []string{
+		"2006-01-02 15:04:05 -0700",   // 24-hour
+		"2006-01-02 3:04:05 PM -0700", // 12-hour with AM/PM
+	} {
+		if t, err := time.Parse(layout, normalized); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported install_date format %q", installDate)
+}
+
+func directIngestMacOSProfiles(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	if len(rows) == 0 {
+		// assume the extension is not there
+		logger.DebugContext(ctx, "no rows or failed",
+			"component", "service",
+			"method", "directIngestMacOSProfiles",
+			"host", host.Hostname)
+		return nil
+	}
+
+	installed := make(map[string]*automdm.HostMacOSProfile, len(rows))
+	for _, row := range rows {
+		installDate, err := parseMacOSProfileInstallDate(row["install_date"])
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "directIngestMacOSProfiles parse install_date")
+		}
+		if installDate.IsZero() {
+			// this should never happen, but if it does, we should log it
+			logger.DebugContext(ctx, "profile install date is zero value",
+				"component", "service",
+				"method", "directIngestMacOSProfiles",
+				"host", host.Hostname)
+		}
+		if _, ok := installed[row["identifier"]]; ok {
+			// this should never happen, but if it does, we should log it
+			logger.DebugContext(ctx, "duplicate profile identifier",
+				"component", "service",
+				"method", "directIngestMacOSProfiles",
+				"host", host.Hostname,
+				"identifier", row["identifier"])
+		}
+		installed[row["identifier"]] = &automdm.HostMacOSProfile{
+			DisplayName: row["display_name"],
+			Identifier:  row["identifier"],
+			InstallDate: installDate,
+		}
+	}
+	return apple_mdm.VerifyHostMDMProfiles(ctx, ds, host, installed)
+}
+
+func directIngestMDMDeviceIDWindows(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) == 0 {
+		// this registry key is only going to be present if the device is enrolled to mdm so assume that mdm is turned off
+		return nil
+	}
+
+	if len(rows) > 1 {
+		return ctxerr.Errorf(ctx, "directIngestMDMDeviceIDWindows invalid number of rows: %d", len(rows))
+	}
+	// Plain osquery reports the device ID too, so only an orbit node key proves automdmd is on the device.
+	// Covers edge case where plain osquery is enrolled in AutoMDM when end user enrolls in MDM.
+	automdmdOnDevice := host.OrbitNodeKey != nil && *host.OrbitNodeKey != ""
+	_, err := LinkWindowsHostMDMEnrollment(ctx, logger, ds, host.ID, host.UUID, rows[0]["data"], automdmdOnDevice)
+	return err
+}
+
+// LinkWindowsHostMDMEnrollment associates the Windows MDM enrollment for mdmDeviceID with the host identified by
+// (hostID, hostUUID). On the first time the linkage is established (i.e. mdm_windows_enrollments.host_uuid changes, or
+// the enrollment's host was deleted and this host came back), it also reconciles the host's IDP device mapping, SCIM
+// user attribution, and DEP flag for Azure (Entra) enrollments.
+//
+// Returns true when UpdateMDMWindowsEnrollmentsHostUUID reported a new link, false when it did not. The "no change"
+// case covers two scenarios callers must not conflate with an error: (a) the enrollment was already linked to this
+// same hostUUID and its host was not deleted since; (b) no row matched mdmDeviceID at all (e.g. the enrollment was
+// deleted concurrently). Callers that depend on linkage being applied should re-read the enrollment
+// rather than infer it from the boolean alone.
+func LinkWindowsHostMDMEnrollment(
+	ctx context.Context, logger *slog.Logger, ds automdm.Datastore, hostID uint, hostUUID, mdmDeviceID string, automdmdOnDevice bool,
+) (bool, error) {
+	updated, err := ds.UpdateMDMWindowsEnrollmentsHostUUID(ctx, hostUUID, mdmDeviceID)
+	if err != nil {
+		return false, ctxerr.Wrap(ctx, err, "updating windows mdm device id")
+	}
+	if !updated {
+		return false, nil
+	}
+	device, err := ds.MDMWindowsGetEnrolledDeviceWithDeviceID(ctx, mdmDeviceID)
+	if err != nil {
+		return updated, ctxerr.Wrap(ctx, err, "getting windows mdm device after updating host uuid")
+	}
+	// An Autopilot device that enrolled as a host other than its pending one becomes identifiable only now.
+	if device != nil && device.ZTDRegistrationID != "" {
+		if _, err := ds.MoveWindowsAutopilotRecordToHost(ctx, hostID, device.ZTDRegistrationID, device.EntraDeviceID); err != nil {
+			// Best-effort: the duplicate pending host stays until the next link of this enrollment, or until an admin deletes it.
+			logger.ErrorContext(ctx, "failed to move autopilot record to the linked host", "err", err, "host_id", hostID)
+			ctxerr.Handle(ctx, err)
+		}
+	}
+	// Like a changed host_uuid, clearing the deleted host marker makes this bookkeeping run once. It is cleared only after the
+	// bookkeeping succeeds, so a failure is retried on the next link attempt.
+	clearDeletedHostMarker := func() error {
+		if err := ds.MDMWindowsClearDeletedHostTeam(ctx, mdmDeviceID); err != nil {
+			return ctxerr.Wrap(ctx, err, "clearing deleted host team of windows mdm device")
+		}
+		return nil
+	}
+	if device == nil || !microsoft_mdm.IsValidUPN(device.MDMEnrollUserID) {
+		return updated, clearDeletedHostMarker()
+	}
+	device.HostUUID = hostUUID // in case the read was stale due to replication lag
+	// automdmd reporting this enrollment from the device means it enrolled without the secret minted for AutoMDM's automdmd install, which
+	// the installer command line left readable on the device. We delete/invalidate it.
+	if automdmdOnDevice {
+		if err := ds.DeleteUnusedWindowsMDMOneTimeEnrollSecrets(ctx, device.ID); err != nil {
+			logger.ErrorContext(ctx, "failed to delete unused windows one-time enroll secrets", "err", err, "host_id", hostID)
+			ctxerr.Handle(ctx, err)
+		}
+	}
+	// Newly created hosts from user-driven enrollments are assigned the configured default team.
+	if err := maybeAssignWindowsEnrollmentDefaultTeam(ctx, logger, ds, hostID, device); err != nil {
+		// Best-effort. In the unlikely event of a failure, the host remains in Unassigned team.
+		logger.ErrorContext(ctx, "failed to assign windows enrollment default team", "err", err, "host_id", hostID)
+		ctxerr.Handle(ctx, err)
+	}
+	// Update the host's MDM enrolled flags to show it as a manual enrollment so it doesn't take two full refreshes to
+	// reflect this state. A pending Autopilot host is the exception.
+	if device.MDMNotInOOBE {
+		isAutopilot, err := hostHasLiveAutopilotRecord(ctx, ds, hostID)
+		if err != nil {
+			return updated, err
+		}
+		if !isAutopilot {
+			if err := ds.UpdateMDMInstalledFromDEP(ctx, hostID, false); err != nil {
+				return updated, ctxerr.Wrap(ctx, err, "updating windows mdm installed from dep flag")
+			}
+		}
+	}
+	mapping := []*automdm.HostDeviceMapping{
+		{
+			HostID: hostID,
+			Email:  device.MDMEnrollUserID,
+			Source: automdm.DeviceMappingMDMIdpAccounts,
+		},
+	}
+	if err := ds.ReplaceHostDeviceMapping(ctx, hostID, mapping, automdm.DeviceMappingMDMIdpAccounts); err != nil {
+		return updated, ctxerr.Wrap(ctx, err, "replacing host device mapping for windows mdm enrolled device")
+	}
+	// Check if the user is a valid SCIM user to manage the join table.
+	scimUser, err := ds.ScimUserByUserNameOrEmail(ctx, device.MDMEnrollUserID, device.MDMEnrollUserID)
+	if err != nil && !automdm.IsNotFound(err) && err != sql.ErrNoRows {
+		return updated, ctxerr.Wrap(ctx, err, "find SCIM user for Windows Azure enrollment linking by username or email")
+	}
+	if err == nil && scimUser != nil {
+		// User exists in SCIM, create/update the mapping for additional attributes (idp_full_name, idp_groups, etc.).
+		if _, err := ds.SetOrUpdateHostSCIMUserMapping(ctx, hostID, scimUser.ID); err != nil {
+			// Log the error but don't fail the linkage since the main IDP mapping succeeded.
+			logger.DebugContext(ctx, "failed to set SCIM user mapping", "err", err)
+		}
+	} else {
+		// User doesn't exist in SCIM, remove any existing SCIM mapping for this host.
+		if _, err := ds.DeleteHostSCIMUserMapping(ctx, hostID); err != nil && !automdm.IsNotFound(err) {
+			logger.DebugContext(ctx, "failed to delete SCIM user mapping", "err", err)
+		}
+	}
+	return updated, clearDeletedHostMarker()
+}
+
+// maybeAssignWindowsEnrollmentDefaultTeam moves a host to the configured Windows enrollment default team iff all of: the linked
+// enrollment is user-driven, a default team is configured, the host has no team, and the host record was created at or after
+// the enrollment row (MDM-first ordering, as in Autopilot, where AutoMDM installs automdmd after MDM enrollment). Hosts that enrolled
+// automdmd first keep the team their enroll secret chose. Pre-existing hosts are never moved, including hosts deliberately parked
+// in Unassigned, matching macOS ABM re-enrollment behavior. A deleted host that came back keeps the team its enroll secret put it
+// in: a shared secret's team, or for a one-time secret, the team the host was in when deleted.
+func maybeAssignWindowsEnrollmentDefaultTeam(ctx context.Context, logger *slog.Logger, ds automdm.Datastore, hostID uint, device *automdm.MDMWindowsEnrolledDevice) error {
+	if device.DeletedHostTeamID != nil {
+		return nil
+	}
+	teamID, teamName, err := ds.GetWindowsEnrollmentDefaultTeam(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "get windows enrollment default team")
+	}
+	if teamID == nil {
+		return nil
+	}
+	// replica lag could permanently lose the assignment by a NotFound on a hosts row that orbit enroll inserted seconds ago.
+	ctxPrimary := ctxdb.RequirePrimary(ctx, true)
+	host, err := ds.HostLiteByID(ctxPrimary, hostID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "get host for windows enrollment default team assignment")
+	}
+	if host.TeamID != nil {
+		return nil
+	}
+	if host.CreatedAt.Before(device.CreatedAt) {
+		// The host existed before this MDM enrollment: keep its team (Unassigned included).
+		return nil
+	}
+	if err := ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(teamID, []uint{hostID})); err != nil {
+		return ctxerr.Wrap(ctx, err, "assign windows enrollment default team")
+	}
+	// Same side effect as a manual transfer so the new team's profiles reconcile immediately
+	if _, err := ds.BulkSetPendingMDMHostProfiles(ctx, []uint{hostID}, nil, nil, nil); err != nil {
+		return ctxerr.Wrap(ctx, err, "bulk set pending profiles after windows enrollment default team assignment")
+	}
+	logger.InfoContext(ctx, "assigned windows enrollment default team",
+		"host_id", hostID, "team_id", *teamID, "team_name", teamName, "mdm_device_id", device.MDMDeviceID)
+	return nil
+}
+
+func directIngestMDMMacOSSoftwareUpdateID(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	// Use bridge-model (T2), board-id (Intel), or compatible (Apple Silicon) depending on what's present.
+	var boardID, bridgeModel, compatible string
+	for _, row := range rows {
+		if val, ok := row["key"]; ok && val == "board-id" {
+			// board-id identifies Intel-based Macs.
+			boardID = row["value"]
+		} else if val, ok := row["key"]; ok && val == "bridge-model" {
+			// bridge-model identifies Intel Macs with a T2 chip; takes priority over board-id.
+			bridgeModel = row["value"]
+		} else if val, ok := row["key"]; ok && val == "compatible" {
+			// compatible identifies Apple Silicon Macs. On Intel Macs it may also
+			// be present, but board-id or bridge-model will take precedence below.
+			v := row["value"]
+			compatible = strings.Split(v, "\x00")[0] // take the first element of the null-separated list. While queries checked does not return multiple, the HEX value does (indicating truncation happens indirectly elsewhere upstream.)
+		}
+	}
+
+	var deviceID string
+	if compatible != "" {
+		deviceID = compatible
+	}
+
+	// Always take boardID over compatible.
+	if boardID != "" {
+		deviceID = boardID
+	}
+
+	// Always take bridge-model over boardID
+	if bridgeModel != "" {
+		deviceID = bridgeModel
+	}
+
+	if deviceID == "" {
+		return ctxerr.Errorf(ctx, "directIngestMDMMacOSSoftwareUpdateID empty software update device ID")
+	}
+
+	return ds.InsertAppleSoftwareUpdateDeviceID(ctx, host.UUID, deviceID)
+}
+
+var luksVerifyQuery = DetailQuery{
+	Platforms: automdm.HostLinuxOSs,
+	Discovery: fmt.Sprintf(
+		`SELECT 1 WHERE EXISTS (%s) AND EXISTS (%s);`,
+		discoveryTable("lsblk"),
+		discoveryTable("cryptsetup_luks_salt"),
+	),
+	QueryFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore) (string, bool) {
+		if host.OrbitNodeKey == nil || *host.OrbitNodeKey == "" || !host.IsLUKSSupported() {
+			return "", false
+		}
+
+		if _, err := ds.GetHostDiskEncryptionKey(ctx, host.ID); err != nil {
+			if automdm.IsNotFound(err) {
+				return "", false
+			}
+		}
+
+		// Returns the key_slot and salt of the LUKS block device where '/' is mounted.
+		query := `
+		WITH RECURSIVE
+		devices AS (
+			SELECT
+				parent,
+				MAX(CASE WHEN key = 'path' THEN value ELSE NULL END) AS path,
+				MAX(CASE WHEN key = 'kname' THEN value ELSE NULL END) AS kname,
+				MAX(CASE WHEN key = 'pkname' THEN value ELSE NULL END) AS pkname,
+				MAX(CASE WHEN key = 'fstype' THEN value ELSE NULL END) AS fstype,
+				MAX(CASE WHEN key = 'mountpoint' THEN value ELSE NULL END) as mountpoint
+			FROM lsblk
+			GROUP BY parent
+		HAVING path <> '' AND fstype <> ''
+		),
+		-- lsblk lists every mount point of a device under "mountpoints" and keeps only
+		-- one of them in "mountpoint". A btrfs root with subvolumes (Omarchy) mounts the
+		-- same device at /, /home and more, so '/' may appear only in the list.
+		root_devices AS (
+			SELECT substr(parent, 1, length(parent) - length('/mountpoints')) AS parent
+			FROM lsblk
+			WHERE parent LIKE '%/mountpoints' AND value = '/'
+		),
+		root_mount AS (
+			SELECT
+				path,
+				kname,
+				-- if '/' is mounted in a LUKS FS, then we don't need to transverse the tree
+				CASE WHEN fstype = 'crypto_LUKS' THEN NULL ELSE pkname END as pkname,
+				fstype
+			FROM devices
+			WHERE mountpoint = '/' OR parent IN (SELECT parent FROM root_devices)
+		),
+		luks_h(path, kname, pkname, fstype) AS (
+			SELECT
+				rtm.path,
+				rtm.kname,
+				rtm.pkname,
+				rtm.fstype
+			FROM root_mount rtm
+			UNION
+		   SELECT
+				dv.path,
+				dv.kname,
+				dv.pkname,
+				dv.fstype
+		   FROM devices dv
+		   JOIN luks_h ON dv.kname=luks_h.pkname
+		)
+		SELECT salt, key_slot
+		FROM cryptsetup_luks_salt
+		WHERE device = (SELECT path FROM luks_h WHERE fstype = 'crypto_LUKS' LIMIT 1)`
+		return query, true
+	},
+}
+
+// We need to define the ingest function inline like this because we need access to the server private key
+var luksVerifyQueryIngester = func(decrypter func(string) (string, error)) func(
+	ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
+	return func(
+		ctx context.Context,
+		logger *slog.Logger,
+		host *automdm.Host,
+		ds automdm.Datastore,
+		rows []map[string]string,
+	) error {
+		if len(rows) == 0 || host == nil || !host.IsLUKSSupported() {
+			return nil
+		}
+
+		dek, err := ds.GetHostDiskEncryptionKey(ctx, host.ID)
+		if err != nil {
+			if automdm.IsNotFound(err) {
+				logger.ErrorContext(ctx, "unexpected missing LUKS2 disk encryption key",
+					"component", "service",
+					"method", "luksVerifyQueryIngester",
+					"err", err)
+				return nil
+			}
+			logger.ErrorContext(ctx, "unexpected error", "component", "service", "method", "luksVerifyQueryIngester", "err", err)
+			return err
+		}
+		if dek == nil || dek.Base64EncryptedSalt == "" || dek.KeySlot == nil {
+			return nil
+		}
+
+		storedSalt, err := decrypter(dek.Base64EncryptedSalt)
+		if err != nil {
+			logger.DebugContext(ctx, "failed to decrypt stored salt", "component", "service", "method", "luksVerifyQueryIngester", "host", host.ID, "err", err)
+			return err
+		}
+		storedKeySlot := fmt.Sprintf("%d", *dek.KeySlot)
+
+		var entryFound bool
+		for _, row := range rows {
+			hostSalt, okSalt := row["salt"]
+			hostKeySlot, okKeySlot := row["key_slot"]
+
+			if !okSalt || !okKeySlot {
+				logger.ErrorContext(ctx, "luks_verify expected some salt and a key_slot",
+					"component", "service",
+					"method", "luksVerifyQueryIngester",
+					"host", host.ID)
+				continue
+			}
+			if hostSalt == storedSalt && hostKeySlot == storedKeySlot {
+				entryFound = true
+				break
+			}
+		}
+		if !entryFound {
+			logger.InfoContext(ctx, "LUKS key do not match, deleting",
+				"component", "service",
+				"method", "luksVerifyQueryIngester",
+				"host", host.ID)
+			return ds.DeleteLUKSData(ctx, host.ID, *dek.KeySlot)
+		}
+		return nil
+	}
+}
+
+// bitLockerPresent matches a host where BitLocker can be used at all: it is either built in, and so never appears as
+// an optional feature, or it appears and is enabled. Every BitLocker discovery clause starts from this. osquery enumerates
+// all of Win32_OptionalFeature, which has one row per name, each time the table is referenced, so it is referenced once.
+const bitLockerPresent = `NOT EXISTS(SELECT 1 FROM windows_optional_features WHERE name = 'BitLocker' AND state IS NOT 1)`
+
+// bitLockerPresentDiscovery is the complete discovery clause for a query whose only precondition is that BitLocker is
+// usable on the host.
+var bitLockerPresentDiscovery = fmt.Sprintf(`
+			WITH should_run(yes) AS (
+			SELECT
+				%s
+			)
+			SELECT 1 FROM should_run WHERE yes = 1`, bitLockerPresent)
+
+// bitLockerDiscovery is the discovery clause for a query that needs BitLocker to be usable and the given conditions to hold.
+// The conditions sit behind CASE because osquery's SQLite evaluates every operand of AND, and bitlocker_key_protectors errors
+// where BitLocker is absent. A failing discovery query makes osquery drop the host's whole distributed batch.
+func bitLockerDiscovery(conditions string) string {
+	return fmt.Sprintf(`
+			WITH should_run(yes) AS (
+			SELECT
+				CASE WHEN %s THEN (%s
+				) ELSE 0 END
+			)
+			SELECT 1 FROM should_run WHERE yes = 1`, bitLockerPresent, conditions)
+}
+
+// bitlockerPolicyQueries run wherever AutoMDM enforces Windows disk encryption, whether or not a startup PIN is required.
+var bitlockerPolicyQueries = map[string]DetailQuery{
+	// An admin, third-party software, or a previous MDM can leave a volume encrypted but unprotected while policy forbids the
+	// TPM-only protector the agent has to create, and Windows offers the end user no way to add a protector to an unprotected volume.
+	"bitlocker_startup_policy_relax": {
+		Platforms: []string{"windows"},
+		// We only want to run this query iff:
+		// - BitLocker is not an optional component (is built in) OR is an optional component and enabled.
+		// - And no protector that can release the volume master key at boot exists, so the agent has to create one.
+		// - And the volume is fully encrypted, whether or not protection is currently on.
+		Discovery: bitLockerDiscovery(`
+				-- 1, 4, 5, 6 are the TPM-family protectors; 2 is an external startup key on a USB stick.
+				NOT EXISTS(SELECT 1 FROM bitlocker_key_protectors WHERE drive_letter = 'C:' AND key_protector_type IN (1,2,4,5,6))
+				-- Volume is fully encrypted.
+				AND EXISTS(SELECT 1 FROM bitlocker_info WHERE drive_letter = 'C:' AND conversion_status = 1)`),
+		Query: "SELECT data FROM registry WHERE path='HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\FVE\\UseTPM'",
+		DirectIngestFunc: func(
+			ctx context.Context,
+			logger *slog.Logger,
+			host *automdm.Host,
+			ds automdm.Datastore,
+			rows []map[string]string,
+		) error {
+			if host == nil || host.UUID == "" {
+				logger.DebugContext(ctx, "Ingestion not run, host is nil or UUID is empty", "query", "bitlocker_startup_policy_relax")
+				return nil
+			}
+
+			if len(rows) > 1 {
+				return ctxerr.Errorf(
+					ctx,
+					"bitlocker_startup_policy_relax query: invalid number of rows: %d", len(rows),
+				)
+			}
+
+			// Only an explicit "disallowed" blocks the agent. Any other value, including an unset dropdown, already
+			// permits a TPM-only protector, so there is nothing to clear and no command worth sending.
+			if len(rows) == 0 || rows[0]["data"] != fmt.Sprintf("%d", microsoft_mdm.PolicyOptDropdownDisallowed) {
+				return nil
+			}
+
+			logger.InfoContext(ctx, "Clearing a startup policy that blocks restoring BitLocker protection",
+				"query", "bitlocker_startup_policy_relax",
+				"host_id", host.ID)
+			// The same payload tpm_pin_config_verify sends, because every dropdown defaults to 'optional'.
+			cmd, err := microsoft_mdm.SystemDriveRequiresStartupAuthCmd(
+				microsoft_mdm.SystemDriveRequiresStartupAuthSpec{
+					CmdUUID: uuid.NewString(),
+					Enabled: true,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			return ds.MDMWindowsInsertCommandForHosts(ctx, []string{host.UUID}, cmd)
+		},
+	},
+	// Protectors can be deleted while BitLocker protection stays on. This also records whether a startup PIN is set, which
+	// only matters where a PIN is required but is read from the same table. bitlocker_key_protectors runs PowerShell on every
+	// scan, so both answers come from a single aggregate scan rather than one EXISTS per column.
+	"bitlocker_key_protectors_verify": {
+		Platforms: []string{"windows"},
+		Discovery: bitLockerPresentDiscovery,
+		Query: `
+			SELECT
+				-- 1, 4, 5, 6 are the TPM-family protectors; 2 is an external startup key on a USB stick.
+				COALESCE(MAX(key_protector_type IN (1,2,4,5,6)), 0) AS boot_protector_set,
+				-- 4: TPM And PIN. 6: TPM And PIN And Startup key.
+				COALESCE(MAX(key_protector_type IN (4,6)), 0) AS tpm_pin_set
+			FROM bitlocker_key_protectors
+			WHERE drive_letter = 'C:'`,
+		DirectIngestFunc: func(
+			ctx context.Context,
+			logger *slog.Logger,
+			host *automdm.Host,
+			ds automdm.Datastore,
+			rows []map[string]string,
+		) error {
+			if host == nil || host.UUID == "" {
+				logger.DebugContext(ctx, "Ingestion not run, host is nil or UUID is empty", "query", "bitlocker_key_protectors_verify")
+				return nil
+			}
+			// Anything other than the single expected row means the answer is unknown. Leave the columns alone: a NULL boot
+			// protector already reads as "nothing to act on" everywhere downstream.
+			if len(rows) != 1 {
+				logger.DebugContext(ctx, "Ingestion not run, unexpected row count",
+					"query", "bitlocker_key_protectors_verify", "rows", len(rows))
+				return nil
+			}
+			return ds.SetOrUpdateHostDiskBitLockerProtectors(ctx, host.ID,
+				rows[0]["boot_protector_set"] == "1", rows[0]["tpm_pin_set"] == "1")
+		},
+	},
+}
+
+var tpmPINQueries = map[string]DetailQuery{
+	// The tpm_pin_config_verify query checks the Windows registry to verify whether the host's BitLocker policies allow
+	// the PIN AutoMDM's flow sets: a TPM PIN protector, enhanced PIN characters, the minimum PIN length AutoMDM validates, and
+	// standard users changing their own PIN. If any is off, one MDM command sets all of them.
+	"tpm_pin_config_verify": {
+		Platforms: []string{"windows"},
+		// We only want to run this query iff:
+		// - BitLocker is not an optional component (is built in) OR is an optional component and enabled.
+		// - And a TPM PIN is not yet set.
+		// - And the volume is encrypted (to avoid errors while trying to apply the policy).
+		Discovery: bitLockerDiscovery(`
+				-- PIN is already set, so regardless of the current config, we don't need to enforce it:
+				-- 4: TPM And PIN.
+				-- 6: TPM And PIN And Startup key.
+				NOT EXISTS(SELECT 1 FROM bitlocker_key_protectors WHERE drive_letter = 'C:' AND key_protector_type IN (4,6))
+				-- Volume is encrypted
+				AND EXISTS(SELECT 1 FROM bitlocker_info WHERE drive_letter = 'C:' AND protection_status = 1)`),
+		// Every value under the policy key, matched by name in Go because registry value names are case-insensitive.
+		Query: "SELECT name, data FROM registry WHERE key = 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Microsoft\\FVE'",
+		DirectIngestFunc: func(
+			ctx context.Context,
+			logger *slog.Logger,
+			host *automdm.Host,
+			ds automdm.Datastore,
+			rows []map[string]string,
+		) error {
+			if host == nil || host.UUID == "" {
+				logger.DebugContext(ctx, "Ingestion not run, host is nil or UUID is empty", "query", "tpm_pin_config_verify")
+				return nil
+			}
+
+			values := make(map[string]string, len(rows))
+			for _, row := range rows {
+				values[strings.ToLower(row["name"])] = strings.TrimSpace(row["data"])
+			}
+			useTPMPIN := values["usetpmpin"]
+			minimumPIN, minimumPINSet := values["minimumpin"]
+			disallowPINChange, disallowPINChangeSet := values["disallowstandarduserpinreset"]
+
+			// Only a required or optional UseTPMPIN permits a PIN protector. An unset UseEnhancedPin does not permit enhanced characters. An
+			// unset MinimumPIN or DisallowStandardUserPINReset is Windows' default, which is already what AutoMDM wants.
+			if (useTPMPIN != strconv.Itoa(microsoft_mdm.PolicyOptDropdownRequired) &&
+				useTPMPIN != strconv.Itoa(microsoft_mdm.PolicyOptDropdownOptional)) ||
+				values["useenhancedpin"] != "1" ||
+				(minimumPINSet && minimumPIN != strconv.Itoa(microsoft_mdm.BitLockerPINMinLength)) ||
+				(disallowPINChangeSet && disallowPINChange != "0") {
+				logger.InfoContext(ctx, "Updating TPM PIN protector configuration via MDM",
+					"query", "tpm_pin_config_verify",
+					"host_id", host.ID)
+				cmd, err := microsoft_mdm.SystemDriveRequiresStartupAuthCmd(
+					microsoft_mdm.SystemDriveRequiresStartupAuthSpec{
+						CmdUUID:              uuid.NewString(),
+						Enabled:              true,
+						ConfigurePIN:         new(uint(microsoft_mdm.PolicyOptDropdownOptional)),
+						ConfigurePINPolicies: true,
+					},
+				)
+				if err != nil {
+					return err
+				}
+				return ds.MDMWindowsInsertCommandForHosts(ctx, []string{host.UUID}, cmd)
+			}
+			return nil
+		},
+	},
+}
+
+//go:generate go run gen_queries_doc.go "../../../docs/Contributing/host-vitals/understanding-host-vitals.md"
+
+type Integrations struct {
+	ConditionalAccessMicrosoft bool
+}
+
+func GetDetailQueries(
+	ctx context.Context,
+	automdmConfig config.AutoMDMConfig,
+	appConfig *automdm.AppConfig,
+	features *automdm.Features,
+	integrations Integrations,
+	teamMDMConfig *automdm.TeamMDM,
+) map[string]DetailQuery {
+	generatedMap := make(map[string]DetailQuery)
+	for key, query := range hostDetailQueries {
+		generatedMap[key] = query
+	}
+	for key, query := range extraDetailQueries {
+		generatedMap[key] = query
+	}
+
+	if features != nil && features.EnableSoftwareInventory {
+		generatedMap["software_macos"] = softwareMacOS
+		generatedMap["software_linux"] = softwareLinux
+		generatedMap["software_windows"] = softwareWindows
+		generatedMap["software_chrome"] = softwareChrome
+		generatedMap["software_python_packages"] = softwarePythonPackages
+		generatedMap["software_python_packages_with_users_dir"] = softwarePythonPackagesWithUsersDir
+		generatedMap["software_vscode_extensions"] = softwareVSCodeExtensions
+		generatedMap["software_linux_automdmd_pacman"] = softwareLinuxPacman
+		generatedMap["software_linux_automdmd_nix"] = softwareLinuxNix
+		generatedMap["software_jetbrains_plugins"] = softwareJetbrainsPlugins
+		generatedMap["software_adobe_plugins"] = softwareAdobePlugins
+		generatedMap["software_go_binaries"] = softwareGoBinaries
+		if license.IsPremium(ctx) {
+			generatedMap["software_ai_tools"] = softwareAITools
+		}
+
+		for key, query := range SoftwareOverrideQueries {
+			generatedMap["software_"+key] = query
+		}
+	}
+
+	if features != nil && features.EnableHostUsers {
+		generatedMap["users"] = usersQuery
+		generatedMap["users_chrome"] = usersQueryChrome
+	}
+
+	if automdmConfig.App.EnableScheduledQueryStats {
+		generatedMap["scheduled_query_stats"] = scheduledQueryStats
+	}
+
+	if appConfig != nil && (appConfig.MDM.EnabledAndConfigured || appConfig.MDM.WindowsEnabledAndConfigured) {
+		for key, query := range mdmQueries {
+			if slices.Equal(query.Platforms, []string{"windows"}) && !appConfig.MDM.WindowsEnabledAndConfigured {
+				continue
+			}
+			generatedMap[key] = query
+		}
+
+		// Add TPM PIN Queries iff Win MDM is enabled and ready to go
+		if appConfig.MDM.WindowsEnabledAndConfigured {
+			enableDiskEncryption := appConfig.MDM.WindowsSettings.EnableDiskEncryption.Value
+			requireTPMPin := appConfig.MDM.BitLockerPINRequired()
+
+			// If the host is part of a team, we need to look at the related team config
+			// instead of the App config ...
+			if teamMDMConfig != nil {
+				enableDiskEncryption = teamMDMConfig.WindowsSettings.EnableDiskEncryption.Value
+				requireTPMPin = teamMDMConfig.DiskEncryptionConfig().BitLockerPINRequired
+			}
+
+			if enableDiskEncryption {
+				maps.Copy(generatedMap, bitlockerPolicyQueries)
+			}
+
+			if enableDiskEncryption && requireTPMPin {
+				for key, query := range tpmPINQueries {
+					generatedMap[key] = query
+				}
+			}
+		}
+	}
+
+	if integrations.ConditionalAccessMicrosoft {
+		generatedMap["conditional_access_microsoft_device_id_windows"] = windowsEntraIDDetails
+	}
+
+	// IdP host vitals and AI agent sessions are premium features.
+	if license.IsPremium(ctx) {
+		generatedMap["entra_join_user_windows"] = windowsEntraJoinUser
+		if appConfig == nil || !appConfig.ServerSettings.AISessionsDisabled {
+			generatedMap["ai_agent_sessions"] = aiAgentSessions
+			if automdmConfig.Osquery.AISessionMaxToolCalls > 0 {
+				generatedMap["ai_agent_session_events"] = aiAgentSessionEventsQuery(
+					automdmConfig.Osquery.AISessionMaxToolCalls, automdmConfig.Osquery.AISessionMaxToolCallsPerRefresh)
+			}
+		}
+	}
+
+	// the host team's setting is effective when the host is on a team
+	luksEscrowEnabled := appConfig != nil && appConfig.MDM.LinuxSettings.EnableEscrowDiskEncryptionKey.Value
+	if teamMDMConfig != nil {
+		luksEscrowEnabled = teamMDMConfig.LinuxSettings.EnableEscrowDiskEncryptionKey.Value
+	}
+	if luksEscrowEnabled {
+		luksVerifyQuery.DirectIngestFunc = luksVerifyQueryIngester(func(privateKey string) func(string) (string, error) {
+			return func(encrypted string) (string, error) {
+				return mdm.DecodeAndDecrypt(encrypted, privateKey)
+			}
+		}(automdmConfig.Server.PrivateKey))
+		generatedMap["luks_verify"] = luksVerifyQuery
+	}
+
+	return generatedMap
+}
+
+var rxExtractUsernameFromHostCertPath = regexp.MustCompile(`^/Users/([^/]+)/Library/Keychains/login\.keychain\-db$`)
+
+func directIngestHostCertificatesDarwin(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	if len(rows) == 0 {
+		// if there are no results, it probably may indicate a problem so we log it
+		logger.DebugContext(ctx, "no rows returned", "component", "service", "method", "directIngestHostCertificates", "host_id", host.ID)
+		return nil
+	}
+
+	certs := make([]*automdm.HostCertificateRecord, 0, len(rows))
+	for _, row := range rows {
+		// Unescape \xHH sequences in fields that may contain non-ASCII
+		// characters (e.g. Cyrillic) in the certificate's distinguished name.
+		row["common_name"] = automdm.DecodeHexEscapes(row["common_name"])
+		row["subject"] = automdm.DecodeHexEscapes(row["subject"])
+		row["issuer"] = automdm.DecodeHexEscapes(row["issuer"])
+
+		csum, err := hex.DecodeString(row["sha1"])
+		if err != nil {
+			logger.ErrorContext(ctx, "decoding sha1", "component", "service", "method", "directIngestHostCertificates", "err", err)
+			continue
+		}
+		subject, err := automdm.ExtractDetailsFromOsqueryDistinguishedName(host.Platform, row["subject"])
+		if err != nil {
+			logger.ErrorContext(ctx, "extracting subject details", "component", "service", "method", "directIngestHostCertificates", "err", err)
+			continue
+		}
+		issuer, err := automdm.ExtractDetailsFromOsqueryDistinguishedName(host.Platform, row["issuer"])
+		if err != nil {
+			logger.ErrorContext(ctx, "extracting issuer details", "component", "service", "method", "directIngestHostCertificates", "err", err)
+			continue
+		}
+		source := automdm.HostCertificateSource(row["source"])
+		if !source.IsValid() {
+			// should never happen as the source is hard-coded in the query
+			logger.ErrorContext(ctx, "invalid certificate source", "component", "service", "method", "directIngestHostCertificates", "err", fmt.Errorf("invalid source %s", row["source"]))
+			continue
+		}
+
+		var username string
+		if source == automdm.UserHostCertificate {
+			// extract the username from the keychain path
+			matches := rxExtractUsernameFromHostCertPath.FindStringSubmatch(row["path"])
+			if len(matches) > 1 {
+				username = matches[1]
+			} else {
+				// if we cannot extract the username, we log it but continue
+				logger.ErrorContext(ctx, "could not extract username from path", "component", "service", "method", "directIngestHostCertificates", "err", fmt.Errorf("no username found in path %q", row["path"]))
+			}
+		}
+
+		certs = append(certs, &automdm.HostCertificateRecord{
+			HostID:                    host.ID,
+			SHA1Sum:                   csum,
+			NotValidAfter:             time.Unix(cast.ToInt64(row["not_valid_after"]), 0).UTC(),
+			NotValidBefore:            time.Unix(cast.ToInt64(row["not_valid_before"]), 0).UTC(),
+			CertificateAuthority:      cast.ToBool(row["ca"]),
+			CommonName:                row["common_name"],
+			KeyAlgorithm:              row["key_algorithm"],
+			KeyStrength:               cast.ToInt(row["key_strength"]),
+			KeyUsage:                  row["key_usage"],
+			Serial:                    row["serial"],
+			SigningAlgorithm:          row["signing_algorithm"],
+			SubjectCountry:            subject.Country,
+			SubjectOrganizationalUnit: subject.OrganizationalUnit,
+			SubjectOrganization:       subject.Organization,
+			SubjectCommonName:         subject.CommonName,
+			IssuerCountry:             issuer.Country,
+			IssuerOrganizationalUnit:  issuer.OrganizationalUnit,
+			IssuerOrganization:        issuer.Organization,
+			IssuerCommonName:          issuer.CommonName,
+			Source:                    source,
+			Username:                  username,
+		})
+	}
+
+	if len(certs) == 0 {
+		// don't overwrite existing certs if we were unable to parse any new ones
+		return nil
+	}
+
+	return ds.UpdateHostCertificates(ctx, host.ID, host.UUID, certs, automdm.HostCertificateOriginOsquery, nil)
+}
+
+func directIngestHostCertificatesWindows(
+	ctx context.Context,
+	logger *slog.Logger,
+	host *automdm.Host,
+	ds automdm.Datastore,
+	rows []map[string]string,
+) error {
+	if len(rows) == 0 {
+		// if there are no results, it indicates we may have a problem so we log it
+		logger.DebugContext(ctx, "no rows returned", "component", "service", "method", "directIngestHostCertificates", "host_id", host.ID)
+		return nil
+	}
+
+	certs := make([]*automdm.HostCertificateRecord, 0, len(rows))
+	// On Windows, osquery enumerates the same certificate from multiple redundant registry hives (the LocalSystem
+	// account's CurrentUser/Services views, per-user `_Classes` sub-hives, etc.), so we deduplicate by SHA1 + scope +
+	// username.
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		// Unescape \xHH sequences in fields that may contain non-ASCII
+		// characters (e.g. Cyrillic) in the certificate's distinguished name.
+		row["common_name"] = automdm.DecodeHexEscapes(row["common_name"])
+		row["subject2"] = automdm.DecodeHexEscapes(row["subject2"])
+		row["issuer2"] = automdm.DecodeHexEscapes(row["issuer2"])
+
+		csum, err := hex.DecodeString(row["sha1"])
+		if err != nil {
+			logger.ErrorContext(ctx, "decoding sha1", "component", "service", "method", "directIngestHostCertificates", "err", err)
+			continue
+		}
+		subject, err := automdm.ExtractDetailsFromOsqueryDistinguishedName(host.Platform, row["subject2"])
+		if err != nil {
+			logger.ErrorContext(ctx, "malformed certificate subject distinguished name", "component", "service", "method", "directIngestHostCertificates", "host_id", host.ID, "err", err)
+			ctxerr.Handle(ctx, err)
+		}
+		issuer, err := automdm.ExtractDetailsFromOsqueryDistinguishedName(host.Platform, row["issuer2"])
+		if err != nil {
+			logger.ErrorContext(ctx, "malformed certificate issuer distinguished name", "component", "service", "method", "directIngestHostCertificates", "host_id", host.ID, "err", err)
+			ctxerr.Handle(ctx, err)
+		}
+
+		// Classify scope from the registry hive security identifier (sid), not the owner name.
+		// S-1-5-21-... is local or AD account
+		// S-1-12-1-... is Entra ID account
+		source := automdm.SystemHostCertificate
+		username := ""
+		if sid := row["sid"]; strings.HasPrefix(sid, "S-1-5-21-") || strings.HasPrefix(sid, "S-1-12-1-") {
+			source = automdm.UserHostCertificate
+			username = row["username"]
+		}
+
+		cert := &automdm.HostCertificateRecord{
+			HostID:                    host.ID,
+			SHA1Sum:                   csum,
+			NotValidAfter:             time.Unix(cast.ToInt64(row["not_valid_after"]), 0).UTC(),
+			NotValidBefore:            time.Unix(cast.ToInt64(row["not_valid_before"]), 0).UTC(),
+			CertificateAuthority:      cast.ToBool(row["ca"]),
+			CommonName:                row["common_name"],
+			KeyAlgorithm:              row["key_algorithm"],
+			KeyStrength:               cast.ToInt(row["key_strength"]),
+			KeyUsage:                  row["key_usage"],
+			Serial:                    row["serial"],
+			SigningAlgorithm:          row["signing_algorithm"],
+			SubjectCountry:            subject.Country,
+			SubjectOrganizationalUnit: subject.OrganizationalUnit,
+			SubjectOrganization:       subject.Organization,
+			SubjectCommonName:         subject.CommonName,
+			IssuerCountry:             issuer.Country,
+			IssuerOrganizationalUnit:  issuer.OrganizationalUnit,
+			IssuerOrganization:        issuer.Organization,
+			IssuerCommonName:          issuer.CommonName,
+			Source:                    source,
+			Username:                  username,
+		}
+
+		// Deduplicate by SHA1 + scope + username. System rows all collapse (username forced to ""), and a user's
+		// redundant hive views collapse into one entry per username.
+		key := fmt.Sprintf("%x|%s|%s", csum, source, username)
+		if _, ok := seen[key]; ok {
+			// Don't log user/cert identifiers here (PII).
+			logger.DebugContext(ctx, "skipping duplicate certificate for sha1+scope+user",
+				"component", "service",
+				"method", "directIngestHostCertificates",
+				"host_id", host.ID,
+				"source", source,
+				"sha1", fmt.Sprintf("%x", csum))
+			continue
+		}
+		seen[key] = struct{}{}
+		certs = append(certs, cert)
+	}
+
+	if len(certs) == 0 {
+		// don't overwrite existing certs if we were unable to parse any new ones
+		return nil
+	}
+
+	// Tell the datastore which scopes we actually observed this run so it does not soft-delete a logged-off user's
+	// certificates.
+	return ds.UpdateHostCertificates(ctx, host.ID, host.UUID, certs, automdm.HostCertificateOriginOsquery, windowsObservedCertScopes(certs))
+}
+
+// windowsObservedCertScopes returns the set of (source, username) scopes that osquery could authoritatively enumerate in
+// this report. System scope is always included because the LocalMachine store is always readable; each user that
+// reported at least one certificate is included as its own scope.
+func windowsObservedCertScopes(certs []*automdm.HostCertificateRecord) []automdm.HostCertificateScope {
+	scopes := []automdm.HostCertificateScope{{Source: automdm.SystemHostCertificate}}
+	seen := map[string]struct{}{string(automdm.SystemHostCertificate) + "|": {}}
+	for _, c := range certs {
+		if c.Source != automdm.UserHostCertificate {
+			continue
+		}
+		key := string(c.Source) + "|" + c.Username
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		scopes = append(scopes, automdm.HostCertificateScope{Source: c.Source, Username: c.Username})
+	}
+	return scopes
+}
+
+func maybeUpdateLastRestartedAt(now time.Time, host *automdm.Host) {
+	// If the uptime is 0, don't change the last restarted at time.
+	if host.Uptime == 0 {
+		return
+	}
+	// Calculate the last restart date.
+	newLastRestartedAt := now.Add(-host.Uptime)
+
+	// If we have a previous last restarted at time, compare it to the new one.
+	if !host.LastRestartedAt.IsZero() {
+		diff := newLastRestartedAt.Sub(host.LastRestartedAt)
+		// The new date should always be later, so if it's not, ignore.
+		if diff < 0 {
+			return
+		}
+		// If the new date is within 30 seconds of the previous one, ignore.
+		// This accounts for small differences between when the uptime
+		// reading was taken and when we process it here.
+		if diff < 30*time.Second {
+			return
+		}
+	}
+
+	// Update the last restarted at time.
+	host.LastRestartedAt = newLastRestartedAt
+}
+
+// hostHasLiveAutopilotRecord reports whether the host was created by the Windows Autopilot sync and its device is still
+// registered, which is what distinguishes an Autopilot enrollment from an ordinary Windows one.
+func hostHasLiveAutopilotRecord(ctx context.Context, ds automdm.Datastore, hostID uint) (bool, error) {
+	_, err := ds.GetHostAutopilotDevice(ctx, hostID)
+	switch {
+	case err == nil:
+		return true, nil
+	case automdm.IsNotFound(err):
+		return false, nil
+	default:
+		return false, ctxerr.Wrap(ctx, err, "get host autopilot device")
+	}
+}

@@ -1,0 +1,181 @@
+import classnames from "classnames";
+import React, { useEffect, useState } from "react";
+
+import Button from "components/buttons/Button";
+import CustomLink from "components/CustomLink";
+import InputField from "components/forms/fields/InputField";
+import InputFieldWithIcon from "components/forms/fields/InputFieldWithIcon";
+import { isValidEmail, isPresent } from "components/forms/validators";
+import TooltipWrapper from "components/TooltipWrapper";
+import useFormValidation, { IFormErrors } from "hooks/useFormValidation";
+import { ISSOSettings } from "interfaces/ssoSettings";
+import { ILoginUserData } from "interfaces/user";
+import paths from "router/paths";
+
+const baseClass = "login-form";
+
+interface ILoginFormProps {
+  handleSubmit: (formData: ILoginUserData) => Promise<false | void>;
+  isSubmitting: boolean;
+  pendingEmail: boolean;
+  ssoSettings?: ISSOSettings;
+  handleSSOSignOn?: () => void;
+}
+
+const validate = ({ email, password }: ILoginUserData): IFormErrors => {
+  const errors: IFormErrors = {};
+
+  if (!isPresent(email)) {
+    errors.email = "Enter your email";
+  } else if (!isValidEmail(email)) {
+    errors.email = "Enter a valid email";
+  }
+
+  if (!isPresent(password)) {
+    errors.password = "Enter your password";
+  }
+
+  return errors;
+};
+
+const LoginForm = ({
+  handleSubmit,
+  isSubmitting: isRequestPending,
+  pendingEmail,
+  ssoSettings,
+  handleSSOSignOn,
+}: ILoginFormProps): JSX.Element => {
+  const {
+    idp_name: idpName,
+    idp_image_url: imageURL,
+    sso_enabled: ssoEnabled,
+  } = ssoSettings || {}; // TODO: Consider refactoring ssoSettings undefined
+
+  const loginFormClass = classnames(baseClass);
+
+  const {
+    formData,
+    getTextFieldProps,
+    handleSubmit: onSubmit,
+    isSubmitting,
+  } = useFormValidation<ILoginUserData>({
+    initialFormData: { email: "", password: "" },
+    validate,
+    isSubmitting: isRequestPending,
+    skipTrim: ["password"],
+  });
+
+  const [showPendingEmail, setShowPendingEmail] = useState(pendingEmail);
+
+  useEffect(() => {
+    setShowPendingEmail(pendingEmail);
+  }, [pendingEmail]);
+
+  const renderSingleSignOnButton = () => {
+    const button = (
+      <Button
+        className={`${baseClass}__sso-btn`}
+        type="button"
+        variant="secondary"
+        onClick={handleSSOSignOn}
+        tabIndex={0}
+      >
+        {imageURL && (
+          <img src={imageURL} alt="" className={`${baseClass}__sso-image`} />
+        )}
+        <span className={`${baseClass}__sso-legend`}>Sign in with SSO</span>
+      </Button>
+    );
+
+    // The label is always the generic "Sign in with SSO"; the configured IdP's
+    // name is surfaced only on hover so a long name can't overflow the button.
+    if (!idpName) {
+      return button;
+    }
+
+    return (
+      <TooltipWrapper
+        className={`${baseClass}__sso-tooltip`}
+        tipContent={`Sign in with ${idpName}`}
+        position="top"
+        showArrow
+        underline={false}
+      >
+        {button}
+      </TooltipWrapper>
+    );
+  };
+
+  if (showPendingEmail) {
+    return (
+      <div className="two-factor-check-email">
+        <>
+          <Button
+            onClick={() => setShowPendingEmail(false)}
+            variant="subdued"
+            className="back-link"
+            icon="chevron-left"
+          >
+            Back to login
+          </Button>
+          <h1>Check your email</h1>
+          <p className={`${baseClass}__text`}>
+            We sent an email to you at <b>{formData.email}</b>. <br />
+            Please click the magic link in the email to sign in.
+          </p>
+        </>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={onSubmit(handleSubmit)}
+      className={loginFormClass}
+      noValidate
+    >
+      <div className={`${baseClass}__form`}>
+        <InputFieldWithIcon
+          {...getTextFieldProps("email")}
+          autofocus
+          type="email"
+          label="Email"
+          placeholder="Email"
+          ignore1Password={false}
+          disabled={isSubmitting}
+        />
+        <InputField
+          {...getTextFieldProps("password")}
+          label="Password"
+          placeholder="Password"
+          type="password"
+          enableShowSecret
+          ignore1password={false}
+          disabled={isSubmitting}
+        />
+      </div>
+      {/* Actions displayed using CSS column-reverse to preserve tab order */}
+      <div className={`${baseClass}__actions`}>
+        <div className={`${baseClass}__login-actions`}>
+          <Button
+            className={`${baseClass}__login-btn`}
+            isLoading={isSubmitting}
+            disabled={isSubmitting}
+            type="submit"
+            tabIndex={0}
+          >
+            Log in
+          </Button>
+          {ssoEnabled && renderSingleSignOnButton()}
+        </div>
+        <CustomLink
+          className={`${baseClass}__forgot-link`}
+          url={paths.FORGOT_PASSWORD}
+          text="Forgot password?"
+        />
+      </div>
+    </form>
+  );
+};
+
+export default LoginForm;

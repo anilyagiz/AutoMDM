@@ -1,0 +1,58 @@
+.hqr-table {
+  @include vertical-card-layout;
+
+  .performance-impact {
+    font-size: $x-small;
+  }
+
+  .last-fetched {
+    font-weight: initial;
+    @include grey-text;
+  }
+
+  &__results-cta {
+    display: flex;
+    gap: $gap-table-elements;
+  }
+
+  &__query-info {
+    display: flex;
+    flex-direction: column;
+    gap: $pad-small;
+
+    h2 {
+      flex: 1;
+      min-width: 0;
+      font-size: $small;
+      font-weight: $bold;
+      margin: 0;
+      overflow: hidden;
+    }
+    h3 {
+      font-size: $xx-small;
+      font-weight: $regular;
+      color: $ui-automdm-black-75;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &__query-info-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: $pad-medium;
+
+    @media (max-width: $break-sm) {
+      flex-direction: column;
+    }
+  }
+
+  .data-table {
+    overflow-x: auto;
+  }
+
+  .empty-table__container {
+    margin: $pad-large auto 48px;
+  }
+}

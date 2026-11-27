@@ -1,0 +1,1 @@
+- Fixed automdmd on Linux and Windows calling the setup experience status endpoint after enrolling when setup experience isn't enabled. On AutoMDM Free, each call failed with a `missing or invalid license` error, on every config poll until automdmd restarted.

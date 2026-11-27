@@ -1,0 +1,378 @@
+%automdmicon {
+  display: inline-block;
+  font: normal normal normal 14px/1 "automdmicons";
+  font-size: inherit;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[class^="automdmicon-"],
+[class*=" automdmicon-"],
+.automdmicon {
+  @extend %automdmicon;
+}
+
+.automdmicon-lg {
+  font-size: 1.33333333em;
+  line-height: 0.75em;
+  vertical-align: -15%;
+}
+
+.automdmicon-2x {
+  font-size: 2em;
+}
+
+.automdmicon-3x {
+  font-size: 3em;
+}
+
+.automdmicon-4x {
+  font-size: 4em;
+}
+
+.automdmicon-5x {
+  font-size: 5em;
+}
+
+.automdmicon-fw {
+  width: 1.28571429em;
+  text-align: center;
+}
+
+.automdmicon-chevrondown:before {
+  content: "\f004";
+}
+
+.automdmicon-chevronleft:before {
+  content: "\f006";
+}
+
+.automdmicon-chevronright:before {
+  content: "\f008";
+}
+
+.automdmicon-chevronup:before {
+  content: "\f00a";
+}
+
+.automdmicon-cpu:before {
+  content: "\f00c";
+}
+
+.automdmicon-downcaret:before {
+  content: "\f00d";
+}
+
+.automdmicon-filter:before {
+  content: "\f00f";
+}
+
+.automdmicon-mac:before {
+  content: "\f012";
+}
+
+.automdmicon-memory:before {
+  content: "\f013";
+}
+
+.automdmicon-storage:before {
+  content: "\f019";
+}
+
+.automdmicon-upcaret:before {
+  content: "\f01b";
+}
+
+.automdmicon-uptime:before {
+  content: "\f01c";
+}
+
+.automdmicon-world:before {
+  content: "\f01d";
+}
+
+.automdmicon-osquery:before {
+  content: "\f021";
+}
+
+.automdmicon-join:before {
+  content: "\f022";
+}
+
+.automdmicon-add-button:before {
+  content: "\f029";
+}
+
+.automdmicon-help:before {
+  content: "\f030";
+}
+
+.automdmicon-admin:before {
+  content: "\f031";
+}
+
+.automdmicon-config:before {
+  content: "\f032";
+}
+
+.automdmicon-success-check:before {
+  content: "\f035";
+}
+
+.automdmicon-offline:before {
+  content: "\f036";
+}
+
+.automdmicon-windows-original:before {
+  content: "\f037";
+}
+
+.automdmicon-centos-original:before {
+  content: "\f038";
+}
+
+.automdmicon-ubuntu-original:before {
+  content: "\f039";
+}
+
+.automdmicon-apple-original:before {
+  content: "\f03a";
+}
+
+.automdmicon-search:before {
+  content: "\f03b";
+}
+
+.automdmicon-all-hosts:before {
+  content: "\f03c";
+}
+
+.automdmicon-alerts:before {
+  content: "\f03e";
+}
+
+.automdmicon-logout:before {
+  content: "\f03f";
+}
+
+.automdmicon-account:before {
+  content: "\f040";
+}
+
+.automdmicon-clipboard:before {
+  content: "\f043";
+}
+
+.automdmicon-list-select:before {
+  content: "\f044";
+}
+
+.automdmicon-grid-select:before {
+  content: "\f045";
+}
+
+.automdmicon-label:before {
+  content: "\f033";
+}
+
+.automdmicon-docker:before {
+  content: "\f046";
+}
+
+.automdmicon-cloud:before {
+  content: "\f047";
+}
+
+.automdmicon-self-hosted:before {
+  content: "\f048";
+}
+
+.automdmicon-help-solid:before {
+  content: "\f049";
+}
+
+.automdmicon-help-stroke:before {
+  content: "\f04a";
+}
+
+.automdmicon-warning-filled:before {
+  content: "\f04b";
+}
+
+.automdmicon-delete-cloud:before {
+  content: "\f04c";
+}
+
+.automdmicon-pdf:before {
+  content: "\f04d";
+}
+
+.automdmicon-credit-card-small:before {
+  content: "\f04e";
+}
+
+.automdmicon-billing-card:before {
+  content: "\f04f";
+}
+
+.automdmicon-lock-big:before {
+  content: "\f050";
+}
+
+.automdmicon-link-big:before {
+  content: "\f051";
+}
+
+.automdmicon-briefcase:before {
+  content: "\f052";
+}
+
+.automdmicon-name-card:before {
+  content: "\f053";
+}
+
+.automdmicon-business:before {
+  content: "\f055";
+}
+
+.automdmicon-clock:before {
+  content: "\f056";
+}
+
+.automdmicon-host-large:before {
+  content: "\f057";
+}
+
+.automdmicon-single-host:before {
+  content: "\f03d";
+}
+
+.automdmicon-username:before {
+  content: "\f02a";
+}
+
+.automdmicon-password:before {
+  content: "\f02b";
+}
+
+.automdmicon-email:before {
+  content: "\f02c";
+}
+
+.automdmicon-hosts:before {
+  content: "\f02e";
+}
+
+.automdmicon-query:before {
+  content: "\f02d";
+}
+
+.automdmicon-import:before {
+  content: "\f058";
+}
+
+.automdmicon-pencil:before {
+  content: "\f059";
+}
+
+.automdmicon-add-plus:before {
+  content: "\f05a";
+}
+
+.automdmicon-x:before {
+  content: "\f05b";
+}
+
+.automdmicon-right-arrow:before {
+  content: "\f05d";
+}
+
+.automdmicon-camera:before {
+  content: "\f05e";
+}
+
+.automdmicon-plus-minus:before {
+  content: "\f05f";
+}
+
+.automdmicon-bold-plus:before {
+  content: "\f060";
+}
+
+.automdmicon-linux-original:before {
+  content: "\f061";
+}
+
+.automdmicon-clock2:before {
+  content: "\f063";
+}
+
+.automdmicon-trash:before {
+  content: "\f064";
+}
+
+.automdmicon-laptop-plus:before {
+  content: "\f066";
+}
+
+.automdmicon-wrench-hand:before {
+  content: "\f067";
+}
+
+.automdmicon-external-link:before {
+  content: "\f068";
+}
+
+.automdmicon-fullscreen:before {
+  content: "\f069";
+}
+
+.automdmicon-windowed:before {
+  content: "\f06a";
+}
+
+.automdmicon-heroku:before {
+  content: "\f06b";
+}
+
+.automdmicon-ubuntu:before {
+  content: "\f06c";
+}
+
+.automdmicon-windows:before {
+  content: "\f06d";
+}
+
+.automdmicon-centos:before {
+  content: "\f06e";
+}
+
+.automdmicon-apple:before {
+  content: "\f06f";
+}
+
+.automdmicon-linux:before {
+  content: "\f070";
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.sr-only-focusable:active,
+.sr-only-focusable:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+}

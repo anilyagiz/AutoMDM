@@ -1,0 +1,190 @@
+package apiendpoints
+
+import (
+	"net/http"
+	"regexp"
+	"strings"
+	"testing"
+
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestValidateAPIEndpoints(t *testing.T) {
+	originalEndpoints := apiEndpoints
+	t.Cleanup(func() {
+		apiEndpoints = originalEndpoints
+	})
+
+	endpoints := []automdm.APIEndpoint{
+		automdm.NewAPIEndpointFromTpl("GET", "/api/v1/automdm/hosts"),
+		automdm.NewAPIEndpointFromTpl("POST", "/api/v1/automdm/hosts/:id/refetch"),
+	}
+	apiEndpoints = endpoints
+
+	routerWithEndpoints := func(endpoints []automdm.APIEndpoint) *endpointer.Router {
+		r := endpointer.NewRouter()
+		ep := &endpointer.CommonEndpointer[any]{Router: r, Versions: []string{"v1"}}
+		for _, e := range endpoints {
+			ep.HandleHTTPHandler(e.Path, http.NotFoundHandler(), e.Method)
+		}
+		return r
+	}
+
+	t.Run("all routes present", func(t *testing.T) {
+		err := Validate(routerWithEndpoints(endpoints))
+		require.NoError(t, err)
+	})
+
+	t.Run("missing route returns error", func(t *testing.T) {
+		err := Validate(routerWithEndpoints(endpoints[:1]))
+		require.ErrorContains(t, err, endpoints[1].Method+" "+endpoints[1].Path)
+	})
+
+	t.Run("no routes registered returns error listing all missing", func(t *testing.T) {
+		err := Validate(endpointer.NewRouter())
+		require.ErrorContains(t, err, "the following API endpoints are unknown")
+	})
+
+	t.Run("non-mux handler returns error", func(t *testing.T) {
+		err := Validate(http.NewServeMux())
+		require.ErrorContains(t, err, "expected *endpointer.Router")
+	})
+
+	t.Run("empty endpoint list always passes", func(t *testing.T) {
+		apiEndpoints = nil
+		err := Validate(endpointer.NewRouter())
+		require.NoError(t, err)
+	})
+}
+
+// catalogBlocklistRule is a rule used by TestCatalogBlocklist to forbid
+// catalog entries matching (method, path).
+type catalogBlocklistRule struct {
+	method string
+	path   *regexp.Regexp // matched against the catalog entry's Path; anchor with ^...$
+	reason string
+}
+
+// catalogBlocklistRules guards against catalog drift: endpoints that would let
+// an api_only user with a restrictive allowlist bypass their own restrictions
+// must never be added to api_endpoints.yml.
+//
+// The allowlist is a narrowing layer over RBAC, so endpoints that are simply
+// destructive (e.g. DELETE /sessions/:id, DELETE /users/:id) are still gated
+// by RBAC and are NOT covered here. The patterns below cover cases where
+// adding the endpoint to the catalog would let the holder circumvent the
+// allowlist itself:
+//
+//   - User-creation endpoints that return a session token in the response —
+//     a restricted api_only user could mint a clone of themselves with no
+//     allowlist and use the returned token to operate without restrictions.
+//   - User-modification endpoints that touch the api_endpoints field —
+//     direct allowlist broadening (self-modify is blocked, but any future
+//     code change that loosens that check would expose this).
+//   - Invite creation/modification — same as user creation, mints a new
+//     account with a chosen role.
+//
+// If you are intentionally exposing a new endpoint that matches one of these
+// patterns, justify the change in a security review and update the rules.
+var catalogBlocklistRules = []catalogBlocklistRule{
+	{"POST", regexp.MustCompile(`^/api/v1/automdm/users(?:/.*)?$`), "user creation can return a session token (allowlist bypass via clone)"},
+	{"PATCH", regexp.MustCompile(`^/api/v1/automdm/users(?:/.*)?$`), "user modification can change the api_endpoints allowlist"},
+	{"POST", regexp.MustCompile(`^/api/v1/automdm/invites(?:/.*)?$`), "invite creation = mint user with chosen role"},
+	{"PATCH", regexp.MustCompile(`^/api/v1/automdm/invites(?:/.*)?$`), "invite modification = change role on a pending user"},
+}
+
+func findBlocklistViolations(endpoints []automdm.APIEndpoint) []string {
+	var msgs []string
+	for _, ep := range endpoints {
+		for _, r := range catalogBlocklistRules {
+			if strings.EqualFold(ep.Method, r.method) && r.path.MatchString(ep.Path) {
+				msgs = append(msgs, "  "+ep.Method+" "+ep.Path+" — "+r.reason)
+				break
+			}
+		}
+	}
+	return msgs
+}
+
+func TestCatalogBlocklist(t *testing.T) {
+	t.Run("current catalog is clean", func(t *testing.T) {
+		loaded, err := loadAPIEndpoints()
+		require.NoError(t, err)
+		violations := findBlocklistViolations(loaded)
+		if len(violations) > 0 {
+			t.Fatalf("api_endpoints.yml contains forbidden routes (would let an api_only user bypass their allowlist):\n%s\n\n"+
+				"If this is intentional, justify the change in a security review and update catalogBlocklistRules.",
+				strings.Join(violations, "\n"))
+		}
+	})
+
+	t.Run("rules catch each forbidden pattern", func(t *testing.T) {
+		// Fault-injection: every forbidden pattern must produce a violation.
+		// Failure here means a rule was deleted or its regex no longer matches
+		// the example path it was meant to cover.
+		examples := []automdm.APIEndpoint{
+			{Method: "POST", Path: "/api/v1/automdm/users"},
+			{Method: "POST", Path: "/api/v1/automdm/users/admin"},
+			{Method: "POST", Path: "/api/v1/automdm/users/api_only"},
+			{Method: "PATCH", Path: "/api/v1/automdm/users/:id"},
+			{Method: "PATCH", Path: "/api/v1/automdm/users/api_only/:id"},
+			{Method: "POST", Path: "/api/v1/automdm/invites"},
+			{Method: "PATCH", Path: "/api/v1/automdm/invites/:id"},
+		}
+		for _, ex := range examples {
+			t.Run(ex.Method+" "+ex.Path, func(t *testing.T) {
+				violations := findBlocklistViolations([]automdm.APIEndpoint{ex})
+				require.Len(t, violations, 1, "expected this endpoint to be blocked but the rules let it through")
+			})
+		}
+	})
+
+	t.Run("rules do not flag legitimate catalog entries", func(t *testing.T) {
+		// Sanity check: read-only entries on the same resources stay allowed.
+		ok := []automdm.APIEndpoint{
+			{Method: "GET", Path: "/api/v1/automdm/users"},
+			{Method: "GET", Path: "/api/v1/automdm/users/:id"},
+			{Method: "GET", Path: "/api/v1/automdm/sessions/:id"},
+			{Method: "DELETE", Path: "/api/v1/automdm/sessions/:id"},
+		}
+		violations := findBlocklistViolations(ok)
+		require.Empty(t, violations, "expected these entries to pass: %v", violations)
+	})
+}
+
+// TestCatalogHasNoRemovedPaths fails when api_endpoints.yml offers a path that AutoMDM removed. Validate doesn't catch it, because a
+// removed path still has a route: the one that answers 410.
+func TestCatalogHasNoRemovedPaths(t *testing.T) {
+	loaded, err := loadAPIEndpoints()
+	require.NoError(t, err)
+	catalog := make(map[string]struct{}, len(loaded))
+	for _, e := range loaded {
+		catalog[e.Fingerprint()] = struct{}{}
+	}
+
+	// A fingerprint ignores variable names, so it can't tell these removed paths from the live route with the same shape.
+	sameShapeAsLiveRoute := map[string]struct{}{
+		"DELETE /api/_version_/automdm/reports/{name}": {}, // DELETE /reports/{id}
+	}
+
+	allMethods := []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
+	removedPaths := removednames.Filter(removednames.KindPath, removednames.ScopeRequest)
+	require.NotEmpty(t, removedPaths)
+	for _, entry := range removedPaths {
+		methods := allMethods
+		if entry.Context != "" {
+			methods = []string{entry.Context}
+		}
+		for _, method := range methods {
+			if _, ok := sameShapeAsLiveRoute[method+" "+entry.Old]; ok {
+				continue
+			}
+			_, listed := catalog[automdm.NewAPIEndpointFromTpl(method, entry.Old).Fingerprint()]
+			assert.False(t, listed, "api_endpoints.yml lists %s %s, which was removed", method, entry.Old)
+		}
+	}
+}

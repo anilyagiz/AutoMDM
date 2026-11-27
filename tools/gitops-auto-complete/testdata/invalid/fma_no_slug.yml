@@ -1,0 +1,4 @@
+# An automdm_maintained_apps entry must set slug (or path/paths); this one has none.
+software:
+  automdm_maintained_apps:
+    - self_service: true

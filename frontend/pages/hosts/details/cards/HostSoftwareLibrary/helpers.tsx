@@ -1,0 +1,121 @@
+import { trimEnd, upperFirst } from "lodash";
+import React from "react";
+
+import { getErrorReason } from "interfaces/errors";
+import { IHostSoftware, IVPPHostSoftware } from "interfaces/software";
+
+const INSTALL_SOFTWARE_ERROR_PREFIX = "Couldn't install.";
+const DEFAULT_INSTALL_ERROR_MESSAGE = `${INSTALL_SOFTWARE_ERROR_PREFIX} Please try again.`;
+
+const UNINSTALL_SOFTWARE_ERROR_PREFIX = "Couldn't uninstall.";
+const DEFAULT_UNINSTALL_ERROR_MESSAGE = `${UNINSTALL_SOFTWARE_ERROR_PREFIX} Please try again.`;
+
+export type IHostSWLibraryDropdownFilterVal = "available" | "selfService";
+
+export const DROPDOWN_OPTIONS = [
+  {
+    disabled: false,
+    label: "All available",
+    value: "available",
+    helpText: "Software that can be installed on this host.",
+  },
+  {
+    disabled: false,
+    label: "Self service",
+    value: "selfService",
+    helpText: (
+      <>
+        Software that end users can install from <b>AutoMDM Desktop</b> {">"}
+        <b>Self service</b>.
+      </>
+    ),
+  },
+];
+
+const createOnlyInstallableOnMacOSMessage = (reason: string) =>
+  `Couldn't install. ${reason.replace("darwin", "macOS")}.`;
+
+// Pass the backend reason through verbatim so any token name format (including
+// one with embedded quotes that Go's %q escapes as \") renders unambiguously.
+// Extracting the name with a regex misses escaped quotes and silently falls
+// back to the generic install error.
+const createVPPTokenExpiredMessage = (apiReason: string) => (
+  <>
+    {apiReason.replace(/\.?\s*Please renew it and try again\.?$/, "")}. Go to{" "}
+    <b>
+      Settings {">"} Integration {">"} Volume Purchasing Program
+    </b>{" "}
+    and renew token.
+  </>
+);
+
+const isVPPTokenExpiredReason = (reason: string) =>
+  reason.includes("VPP token") && reason.includes("is expired");
+
+// determines if we want to show the API message as is to the user.
+const showAPIMessage = (message: string) => {
+  return (
+    message.includes("MDM is turned off") ||
+    message.includes("No available licenses") ||
+    message.includes("Software title is not available for install") ||
+    // BYOD VPP install before nanomdm has surfaced the host's Managed Apple ID.
+    message.includes("hasn't received a Managed Apple ID")
+  );
+};
+
+export const getInstallErrorMessage = (e: unknown) => {
+  const reason = upperFirst(trimEnd(getErrorReason(e), "."));
+
+  // Check VPP expiration first so a token whose location happens to contain a
+  // later branch's trigger phrase (automdmd installed, can be installed only on)
+  // still gets the Settings guidance and token-name surfacing.
+  if (isVPPTokenExpiredReason(reason)) {
+    return createVPPTokenExpiredMessage(reason);
+  }
+  if (reason.includes("automdmd installed")) {
+    return `${INSTALL_SOFTWARE_ERROR_PREFIX}. ${reason}.`;
+  }
+  if (reason.includes("can be installed only on")) {
+    return createOnlyInstallableOnMacOSMessage(reason);
+  }
+  if (
+    reason.includes("unresolvable AutoMDM variable in managed app configuration")
+  ) {
+    return `${INSTALL_SOFTWARE_ERROR_PREFIX} Couldn't resolve an AutoMDM variable in the managed app configuration for this host.`;
+  }
+  if (showAPIMessage(reason)) {
+    return reason;
+  }
+
+  return DEFAULT_INSTALL_ERROR_MESSAGE;
+};
+
+export const getUninstallErrorMessage = (e: unknown) => {
+  const reason = upperFirst(trimEnd(getErrorReason(e), "."));
+
+  if (
+    reason.includes("run script") ||
+    reason.includes("running script") ||
+    reason.includes("have automdmd") ||
+    reason.includes("only on")
+  ) {
+    return `${UNINSTALL_SOFTWARE_ERROR_PREFIX} ${reason}.`;
+  } else if (reason.startsWith("Couldn't uninstall software.")) {
+    return reason.replace(
+      "Couldn't uninstall software.",
+      "Couldn't uninstall."
+    );
+  } else if (reason.startsWith("No uninstall script exists")) {
+    return `${UNINSTALL_SOFTWARE_ERROR_PREFIX}. An uninstall script does not exist for this package.`;
+  }
+
+  return DEFAULT_UNINSTALL_ERROR_MESSAGE;
+};
+
+export const getLastInstall = (software: IHostSoftware | IVPPHostSoftware) =>
+  software.package?.last_install ||
+  software.app_store_app?.last_install ||
+  null;
+
+export const getLastUninstall = (software: IHostSoftware) =>
+  software.package?.last_uninstall || null;

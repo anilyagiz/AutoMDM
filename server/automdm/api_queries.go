@@ -1,0 +1,171 @@
+package automdm
+
+////////////////////////////////////////////////////////////////////////////////
+// Get Query
+////////////////////////////////////////////////////////////////////////////////
+
+type GetQueryRequest struct {
+	ID uint `url:"id"`
+}
+
+type GetQueryResponse struct {
+	Report *Query `json:"report,omitempty"`
+	Err    error  `json:"error,omitempty"`
+}
+
+func (r GetQueryResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// List Queries
+////////////////////////////////////////////////////////////////////////////////
+
+type ListQueriesRequest struct {
+	ListOptions ListOptions `url:"list_options"`
+	// TeamID url argument set to 0 means global.
+	TeamID         uint `query:"team_id,optional"`
+	MergeInherited bool `query:"merge_inherited,optional"`
+	// only return queries targeted to run on this platform
+	Platform string `query:"platform,optional"`
+}
+
+type ListQueriesResponse struct {
+	Queries             []Query             `json:"reports"`
+	Count               int                 `json:"count"`
+	InheritedQueryCount int                 `json:"inherited_report_count"`
+	Meta                *PaginationMetadata `json:"meta"`
+	Err                 error               `json:"error,omitempty"`
+}
+
+func (r ListQueriesResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Query Reports
+////////////////////////////////////////////////////////////////////////////////
+
+type GetQueryReportRequest struct {
+	ID     uint  `url:"id"`
+	TeamID *uint `query:"team_id,optional"`
+	// ListOptions supports page, per_page, order_key, order_direction and query.
+	// Results are paginated only when per_page is set; otherwise all rows are returned.
+	ListOptions ListOptions `url:"list_options"`
+}
+
+// SortsByAnyColumn exempts order_key from the removed sort key check, since a report's result columns can be named team_id.
+func (GetQueryReportRequest) SortsByAnyColumn() {}
+
+type GetQueryReportResponse struct {
+	QueryID       uint                 `json:"report_id"`
+	Results       []HostQueryResultRow `json:"results"`
+	ReportClipped bool                 `json:"report_clipped"`
+	// Count is the total number of rows matching the request, across all pages.
+	Count int                 `json:"count"`
+	Meta  *PaginationMetadata `json:"meta,omitempty"`
+	Err   error               `json:"error,omitempty"`
+}
+
+func (r GetQueryReportResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Create Query
+////////////////////////////////////////////////////////////////////////////////
+
+type CreateQueryRequest struct {
+	QueryPayload
+}
+
+type CreateQueryResponse struct {
+	Report *Query `json:"report,omitempty"`
+	Err    error  `json:"error,omitempty"`
+}
+
+func (r CreateQueryResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Modify Query
+////////////////////////////////////////////////////////////////////////////////
+
+type ModifyQueryRequest struct {
+	ID uint `json:"-" url:"id"`
+	QueryPayload
+}
+
+type ModifyQueryResponse struct {
+	Report *Query `json:"report,omitempty"`
+	Err    error  `json:"error,omitempty"`
+}
+
+func (r ModifyQueryResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Delete Query By ID
+////////////////////////////////////////////////////////////////////////////////
+
+type DeleteQueryByIDRequest struct {
+	ID uint `url:"id"`
+}
+
+type DeleteQueryByIDResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r DeleteQueryByIDResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Delete Queries
+////////////////////////////////////////////////////////////////////////////////
+
+type DeleteQueriesRequest struct {
+	IDs []uint `json:"ids"`
+}
+
+type DeleteQueriesResponse struct {
+	Deleted uint  `json:"deleted"`
+	Err     error `json:"error,omitempty"`
+}
+
+func (r DeleteQueriesResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Apply Query Specs
+////////////////////////////////////////////////////////////////////////////////
+
+type ApplyQuerySpecsRequest struct {
+	Specs []*QuerySpec `json:"specs"`
+}
+
+type ApplyQuerySpecsResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r ApplyQuerySpecsResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Get Query Specs
+////////////////////////////////////////////////////////////////////////////////
+
+type GetQuerySpecsRequest struct {
+	TeamID uint `url:"team_id,optional"`
+}
+
+type GetQuerySpecsResponse struct {
+	Specs []*QuerySpec `json:"specs"`
+	Err   error        `json:"error,omitempty"`
+}
+
+func (r GetQuerySpecsResponse) Error() error { return r.Err }
+
+////////////////////////////////////////////////////////////////////////////////
+// Get Query Spec
+////////////////////////////////////////////////////////////////////////////////
+
+type GetQuerySpecRequest struct {
+	Name   string `url:"name"`
+	TeamID uint   `query:"team_id,optional"`
+}
+
+type GetQuerySpecResponse struct {
+	Spec *QuerySpec `json:"specs,omitempty"`
+	Err  error      `json:"error,omitempty"`
+}
+
+func (r GetQuerySpecResponse) Error() error { return r.Err }

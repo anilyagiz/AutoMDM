@@ -1,0 +1,1812 @@
+package service
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/api/androidmanagement/v1"
+)
+
+func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
+	ctx := context.Background()
+	t := s.T()
+
+	s.setVPPTokenForTeam(0)
+	appConf, err := s.ds.AppConfig(context.Background())
+	require.NoError(s.T(), err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(context.Background(), appConf)
+	require.NoError(s.T(), err)
+
+	// Adding android app before android MDM is turned on should fail
+	var addAppResp addAppStoreAppResponse
+	s.DoJSON(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.should.fail", Platform: automdm.AndroidPlatform},
+		http.StatusBadRequest,
+		&addAppResp,
+	)
+
+	s.enableAndroidMDM(t)
+
+	// Android MDM setup
+	androidApp := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
+				AdamID:   "com.whatsapp",
+				Platform: automdm.AndroidPlatform,
+			},
+		},
+		Name:             "WhatsApp",
+		BundleIdentifier: "com.whatsapp",
+		IconURL:          "https://example.com/images/2",
+	}
+
+	// Invalid application ID format: should fail
+	r := s.Do(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "thisisnotanappid", Platform: automdm.AndroidPlatform},
+		http.StatusUnprocessableEntity,
+	)
+	require.Contains(t, extractServerErrorText(r.Body), "Application ID must be a valid Android application ID")
+
+	// AutoMDM agent app: should fail (cannot be added manually)
+	for _, automdmAgentPkg := range []string{
+		"com.fleetdm.agent",
+		"com.fleetdm.agent.pingali",
+		"com.fleetdm.agent.private.testuser",
+	} {
+		r = s.Do(
+			"POST",
+			"/api/latest/automdm/software/app_store_apps",
+			&addAppStoreAppRequest{AppStoreID: automdmAgentPkg, Platform: automdm.AndroidPlatform},
+			http.StatusUnprocessableEntity,
+		)
+		require.Contains(t, extractServerErrorText(r.Body), "The AutoMDM agent cannot be added manually",
+			"expected AutoMDM Agent package %s to be blocked", automdmAgentPkg)
+	}
+
+	// Missing platform: should fail
+	r = s.Do(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.valid.app.id"},
+		http.StatusUnprocessableEntity,
+	)
+	s.Contains(extractServerErrorText(r.Body), "Couldn't add software. \"com.valid.app.id\" isn't available in Apple Business or Play Store. Please purchase a license in Apple Business or find the app in Play Store and try again.")
+
+	// Valid application ID format, but app isn't found: should fail
+	// Update mock to return a 404
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return nil, &notFoundError{}
+	}
+
+	r = s.Do(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.app.id.not.found", Platform: automdm.AndroidPlatform},
+		http.StatusUnprocessableEntity,
+	)
+	s.Assert().Contains(extractServerErrorText(r.Body), "Couldn't add software. The application ID \"com.app.id.not.found\" isn't available in Play Store. Please find ID on the Play Store and try again.")
+
+	amapiConfig := struct {
+		AppIDsToNames                     map[string]string
+		EnterprisesPoliciesPatchValidator func(policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts)
+	}{
+		AppIDsToNames:                     map[string]string{},
+		EnterprisesPoliciesPatchValidator: func(policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) {},
+	}
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		title := amapiConfig.AppIDsToNames[packageName]
+
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: title}, nil
+	}
+
+	s.androidAPIClient.EnterprisesPoliciesPatchFunc = func(ctx context.Context, policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) (*androidmanagement.Policy, error) {
+		amapiConfig.EnterprisesPoliciesPatchValidator(policyName, policy, opts)
+
+		return &androidmanagement.Policy{}, nil
+	}
+	s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFunc = func(ctx context.Context, policyName string, packageNames []string) (*androidmanagement.Policy, error) {
+		return &androidmanagement.Policy{}, nil
+	}
+
+	// Valid application ID format, but wrong platform specified: should fail
+	r = s.Do(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.valid", Platform: automdm.MacOSPlatform},
+		http.StatusUnprocessableEntity,
+	)
+	require.Contains(t, extractServerErrorText(r.Body), "Couldn't add software. \"com.valid\" isn't available in Apple Business or Play Store. Please purchase a license in Apple Business or find the app in Play Store and try again.")
+
+	// Add Android app
+	s.DoJSON(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: androidApp.AdamID, Platform: automdm.AndroidPlatform},
+		http.StatusOK,
+		&addAppResp,
+	)
+
+	// self_service is coerced to be true
+	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+		var selfService bool
+		err := sqlx.GetContext(ctx, q, &selfService, "SELECT self_service FROM vpp_apps_teams WHERE adam_id = ?", androidApp.AdamID)
+		s.Require().NoError(err)
+		s.Assert().True(selfService)
+		return nil
+	})
+
+	secrets, err := s.ds.GetEnrollSecrets(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
+	require.NoError(t, err)
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
+	require.NotEmpty(t, pubsubToken.Value)
+
+	deviceID1 := createAndroidDeviceID("test-android")
+	deviceID2 := createAndroidDeviceID("test-android-2")
+
+	enterpriseSpecificID1 := strings.ToUpper(uuid.New().String())
+	enterpriseSpecificID2 := strings.ToUpper(uuid.New().String())
+	var req android_service.PubSubPushRequest
+	for _, d := range []struct {
+		id  string
+		esi string
+	}{{deviceID1, enterpriseSpecificID1}, {deviceID2, enterpriseSpecificID2}} {
+		enrollmentMessage := enrollmentMessageWithEnterpriseSpecificID(
+			t,
+			androidmanagement.Device{
+				Name:                d.id,
+				EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
+			},
+			d.esi,
+		)
+
+		req = android_service.PubSubPushRequest{
+			PubSubMessage: *enrollmentMessage,
+		}
+
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+	}
+
+	var hosts listHostsResponse
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts)
+
+	assert.Len(t, hosts.Hosts, 2)
+
+	host1 := hosts.Hosts[0]
+	assert.Equal(t, host1.Platform, string(automdm.AndroidPlatform))
+
+	// Should see it in host software library
+	getHostSw := getHostSoftwareResponse{}
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host1.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
+	assert.Len(t, getHostSw.Software, 1)
+	s.Assert().NotNil(getHostSw.Software[0].AppStoreApp)
+	s.Assert().Equal(androidApp.AdamID, getHostSw.Software[0].AppStoreApp.AppStoreID)
+
+	// Should see it in software titles
+	err = s.ds.SyncHostsSoftware(context.Background(), time.Now())
+	require.NoError(t, err)
+	err = s.ds.SyncHostsSoftwareTitles(context.Background(), time.Now())
+	require.NoError(t, err)
+
+	var listSWTitles listSoftwareTitlesResponse
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(0))
+
+	s.Assert().Len(listSWTitles.SoftwareTitles, 1)
+	s.Equal(androidApp.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID)
+	s.Empty(listSWTitles.SoftwareTitles[0].AppStoreApps[0].Version)
+
+	// Google AMAPI hasn't been hit yet
+	s.Assert().False(s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFuncInvoked)
+
+	// Run worker, should run the job that assigns the app to the host's MDM policy
+	s.runWorkerUntilDone()
+
+	// Should have hit the android API endpoint
+	s.Assert().True(s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFuncInvoked)
+	s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFuncInvoked = false
+
+	s.DoJSON(
+		"PATCH",
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", getHostSw.Software[0].ID),
+		&updateAppStoreAppRequest{SelfService: ptr.Bool(false)},
+		http.StatusOK,
+		&addAppResp,
+	)
+
+	// Even though we sent self_service: false, self_service remains true
+	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+		var selfService bool
+		err := sqlx.GetContext(ctx, q, &selfService, "SELECT self_service FROM vpp_apps_teams WHERE adam_id = ?", getHostSw.Software[0].AppStoreApp.AppStoreID)
+		s.Require().NoError(err)
+		s.Assert().True(selfService)
+		return nil
+	})
+
+	// Add some apps to a different team. They shouldn't be sent to our existing host
+	var newTeamResp teamResponse
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
+	team := newTeamResp.Team
+	// Add Android app
+	androidAppNewTeam := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
+				AdamID:   "com.my.cool.app",
+				Platform: automdm.AndroidPlatform,
+			},
+		},
+		Name:             "My cool app",
+		BundleIdentifier: "com.my.cool.app",
+		IconURL:          "https://example.com/images/3",
+	}
+	s.DoJSON(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: androidAppNewTeam.AdamID, Platform: automdm.AndroidPlatform, TeamID: &team.ID},
+		http.StatusOK,
+		&addAppResp,
+	)
+
+	// New app should not show up in "No team" library
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(0))
+	s.Assert().Len(listSWTitles.SoftwareTitles, 1)
+	s.Equal(androidApp.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID) // just the app we had before
+	s.Empty(listSWTitles.SoftwareTitles[0].AppStoreApps[0].Version)
+
+	// New app SHOULD show up in our new team library
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(team.ID))
+	s.Assert().Len(listSWTitles.SoftwareTitles, 1)
+	s.Equal(androidAppNewTeam.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID)
+	s.Empty(listSWTitles.SoftwareTitles[0].AppStoreApps[0].Version)
+
+	androidAppNewTeam2 := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
+				AdamID:   "com.my.cool.app.two",
+				Platform: automdm.AndroidPlatform,
+			},
+		},
+		Name:             "My cool app 2",
+		BundleIdentifier: "com.my.cool.app.two",
+		IconURL:          "https://example.com/images/4",
+	}
+
+	amapiConfig.AppIDsToNames[androidAppNewTeam2.AdamID] = androidAppNewTeam2.Name
+
+	s.DoJSON(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: androidAppNewTeam2.AdamID, Platform: automdm.AndroidPlatform, TeamID: &team.ID},
+		http.StatusOK,
+		&addAppResp,
+	)
+	require.Equal(t, androidAppNewTeam2.Name, addAppResp.Name)
+
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(team.ID))
+	s.Assert().Len(listSWTitles.SoftwareTitles, 2)
+	s.Assert().True(slices.ContainsFunc(listSWTitles.SoftwareTitles, func(t automdm.SoftwareTitleListResult) bool {
+		return t.AppStoreApps[0].AppStoreID == androidAppNewTeam.AdamID || t.AppStoreApps[0].AppStoreID == androidAppNewTeam2.AdamID
+	}))
+
+	s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %s, "platform": "%s", "self_service": true}`, team.Name, androidAppNewTeam2.Name, addAppResp.TitleID, androidAppNewTeam2.AdamID, fmt.Sprint(team.ID), androidAppNewTeam2.Platform), nil), 0)
+
+	s.androidAPIClient.EnterprisesPoliciesPatchFuncInvoked = false
+	s.runWorkerUntilDone()
+	// We shouldn't have hit the AMAPI, since there are no hosts in the team
+	s.Assert().False(s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFuncInvoked)
+	s.Assert().False(s.androidAPIClient.EnterprisesPoliciesPatchFuncInvoked)
+
+	amapiConfig.EnterprisesPoliciesPatchValidator = func(policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) {
+		var appIDs []string
+		for _, a := range policy.Applications {
+			appIDs = append(appIDs, a.PackageName)
+		}
+
+		// the patch still lists the "No team" app, the removal sent after it takes it out of the policy
+		s.ElementsMatch(appIDs, []string{androidAppNewTeam.AdamID, androidAppNewTeam2.AdamID, androidApp.AdamID, "com.fleetdm.agent"})
+		s.Assert().Contains(policyName, host1.UUID)
+	}
+
+	// the device reports applying its own policy, then transfer it to the team and run the worker and the Android profile
+	// schedule, it should get the team's apps
+	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+		_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = ? WHERE host_id = ?`, host1.UUID, host1.ID)
+		return err
+	})
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
+		TeamID:  &team.ID,
+		HostIDs: []uint{host1.ID},
+	}, http.StatusOK, &addHostsToTeamResponse{})
+
+	s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFuncInvoked = false
+	s.runWorkerUntilDone()
+	s.awaitTriggerAndroidProfileSchedule(t)
+	s.Assert().True(s.androidAPIClient.EnterprisesPoliciesPatchFuncInvoked)
+	s.True(s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFuncInvoked)
+
+	// Transfer host back to "No team"
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
+		TeamID:  nil,
+		HostIDs: []uint{host1.ID},
+	}, http.StatusOK, &addHostsToTeamResponse{})
+
+	// =========================================
+	//       Android app configurations
+	// =========================================
+
+	// Title with no configuration should omit it from response
+	var getAppResp map[string]any
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", addAppResp.TitleID), &getSoftwareTitleRequest{
+		ID:     addAppResp.TitleID,
+		TeamID: nil,
+	}, http.StatusOK, &getAppResp)
+	require.Nil(t, getAppResp["configuration"])
+
+	// Android app with configuration
+	appConfiguration := json.RawMessage(`{"workProfileWidgets": "WORK_PROFILE_WIDGETS_ALLOWED"}`)
+	androidAppWithConfig := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
+				AdamID:   "com.fooooooo",
+				Platform: automdm.AndroidPlatform,
+			},
+			Configuration: appConfiguration,
+		},
+		Name:             "foo",
+		BundleIdentifier: "com.fooooooo",
+		IconURL:          "https://example.com/images/2",
+	}
+
+	amapiConfig.AppIDsToNames[androidAppWithConfig.AdamID] = androidAppWithConfig.Name
+
+	// Add Android app
+	var appWithConfigResp addAppStoreAppResponse
+	s.DoJSON(
+		"POST",
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{
+			AppStoreID:    androidAppWithConfig.AdamID,
+			Platform:      androidAppWithConfig.VPPAppID.Platform,
+			Configuration: androidAppWithConfig.Configuration,
+		},
+		http.StatusOK,
+		&appWithConfigResp,
+	)
+	require.Equal(t, androidAppWithConfig.Name, appWithConfigResp.Name)
+
+	// Verify that activity includes configuration
+	s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %s, "platform": "%s", "self_service": true,"configuration": %s}`, automdm.DisplayNameNoTeam, androidAppWithConfig.Name, appWithConfigResp.TitleID, androidAppWithConfig.AdamID, "null", androidAppWithConfig.Platform, androidAppWithConfig.Configuration), nil), 0)
+
+	// Should see it in host software library
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host1.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
+	assert.Len(t, getHostSw.Software, 2)
+	s.Assert().NotNil(getHostSw.Software[1].AppStoreApp)
+	s.Assert().Equal(androidAppWithConfig.AdamID, getHostSw.Software[1].AppStoreApp.AppStoreID)
+
+	// Edit app without changing configuration
+	s.DoJSON(
+		"PATCH",
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", appWithConfigResp.TitleID),
+		&updateAppStoreAppRequest{},
+		http.StatusOK,
+		&addAppResp,
+	)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(), "", 0)
+
+	var titleWithConfigResp getSoftwareTitleResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", appWithConfigResp.TitleID), &getSoftwareTitleRequest{
+		ID:     appWithConfigResp.TitleID,
+		TeamID: nil,
+	}, http.StatusOK, &titleWithConfigResp, "team_id", "0")
+
+	require.Len(t, titleWithConfigResp.SoftwareTitle.AppStoreApps, 1)
+	require.Contains(t, string(titleWithConfigResp.SoftwareTitle.AppStoreApps[0].Configuration), "workProfileWidgets")
+
+	// Edit app and change configuration
+	newConfig := json.RawMessage(`{"managedConfiguration": {"key": "value"}}`)
+	s.DoJSON(
+		"PATCH",
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", appWithConfigResp.TitleID),
+		&updateAppStoreAppRequest{
+			Configuration: newConfig,
+		},
+		http.StatusOK,
+		&addAppResp,
+	)
+
+	// Verify that configuration changed and last activity is correct
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_icon_url":"https://example.com/1.jpg", "software_title_id": %d, "app_store_id": "%s", "team_id": %s, "software_display_name":"", "platform": "%s", "self_service": true,"configuration": %s}`, "", androidAppWithConfig.Name, appWithConfigResp.TitleID, androidAppWithConfig.AdamID, "null", androidAppWithConfig.Platform, newConfig), nil), 0)
+}
+
+func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
+	t := s.T()
+	s.enableAndroidMDM(t)
+
+	app1 := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
+				AdamID:   "com.test1",
+				Platform: automdm.AndroidPlatform,
+			},
+		},
+		Name:             "Test1",
+		BundleIdentifier: "com.test1",
+		IconURL:          "https://example.com/1",
+	}
+	app2 := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
+				AdamID:   "com.test2",
+				Platform: automdm.AndroidPlatform,
+			},
+		},
+		Name:             "Test2",
+		BundleIdentifier: "com.test2",
+		IconURL:          "https://example.com/2",
+	}
+
+	androidApps := []*automdm.VPPApp{app1, app2}
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		for _, app := range androidApps {
+			if app.AdamID == packageName {
+				return &androidmanagement.Application{IconUrl: app.IconURL, Title: app.Name}, nil
+			}
+		}
+		return nil, &notFoundError{}
+	}
+
+	// add Android app 1
+	var addAppResp addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: app1.AdamID,
+		Platform:   automdm.AndroidPlatform,
+	}, http.StatusOK, &addAppResp)
+	app1TitleID := addAppResp.TitleID
+
+	// add Android app 2
+	addAppResp = addAppStoreAppResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: app2.AdamID,
+		Platform:   automdm.AndroidPlatform,
+	}, http.StatusOK, &addAppResp)
+	app2TitleID := addAppResp.TitleID
+
+	require.NotEqual(t, app1TitleID, app2TitleID)
+
+	// add app 1 to Android setup experience
+	var putResp putSetupExperienceSoftwareResponse
+	s.DoJSON("PUT", "/api/latest/automdm/setup_experience/software", &putSetupExperienceSoftwareRequest{
+		Platform: string(automdm.AndroidPlatform),
+		TeamID:   0,
+		TitleIDs: []uint{app1TitleID},
+	}, http.StatusOK, &putResp)
+
+	// verify that the expected activity got created
+	s.lastActivityOfTypeMatches(automdm.ActivityEditedSetupExperienceSoftware{}.ActivityName(),
+		`{"platform": "android", "team_id": 0, "team_name": ""}`, 0)
+
+	// list the available setup experience software and verify that only app 1 is installed at setup
+	var getResp getSetupExperienceSoftwareResponse
+	s.DoJSON("GET", "/api/latest/automdm/setup_experience/software", nil, http.StatusOK, &getResp,
+		"team_id", "0", "platform", string(automdm.AndroidPlatform), "order_key", "name")
+	require.Len(t, getResp.SoftwareTitles, 2)
+	require.Equal(t, app1TitleID, getResp.SoftwareTitles[0].ID)
+	require.Equal(t, app1.Name, getResp.SoftwareTitles[0].Name)
+	require.Equal(t, app1.AdamID, getResp.SoftwareTitles[0].AppStoreApp.AppStoreID)
+	require.NotNil(t, getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
+	require.True(t, *getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
+	require.Equal(t, app2TitleID, getResp.SoftwareTitles[1].ID)
+	require.Equal(t, app2.Name, getResp.SoftwareTitles[1].Name)
+	require.Equal(t, app2.AdamID, getResp.SoftwareTitles[1].AppStoreApp.AppStoreID)
+	require.NotNil(t, getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
+	require.False(t, *getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
+
+	// set app1 and app2 to be installed at setup
+	s.DoJSON("PUT", "/api/latest/automdm/setup_experience/software", &putSetupExperienceSoftwareRequest{
+		Platform: string(automdm.AndroidPlatform),
+		TeamID:   0,
+		TitleIDs: []uint{app1TitleID, app2TitleID},
+	}, http.StatusOK, &putResp)
+
+	getResp = getSetupExperienceSoftwareResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/setup_experience/software", nil, http.StatusOK, &getResp,
+		"team_id", "0", "platform", string(automdm.AndroidPlatform), "order_key", "name")
+	require.Len(t, getResp.SoftwareTitles, 2)
+	require.Equal(t, app1TitleID, getResp.SoftwareTitles[0].ID)
+	require.NotNil(t, getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
+	require.True(t, *getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
+	require.Equal(t, app2TitleID, getResp.SoftwareTitles[1].ID)
+	require.NotNil(t, getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
+	require.True(t, *getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
+
+	// unset all apps to be installed at setup
+	s.DoJSON("PUT", "/api/latest/automdm/setup_experience/software", &putSetupExperienceSoftwareRequest{
+		Platform: string(automdm.AndroidPlatform),
+		TeamID:   0,
+		TitleIDs: []uint{},
+	}, http.StatusOK, &putResp)
+
+	getResp = getSetupExperienceSoftwareResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/setup_experience/software", nil, http.StatusOK, &getResp,
+		"team_id", "0", "platform", string(automdm.AndroidPlatform), "order_key", "name")
+	require.Len(t, getResp.SoftwareTitles, 2)
+	require.Equal(t, app1TitleID, getResp.SoftwareTitles[0].ID)
+	require.NotNil(t, getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
+	require.False(t, *getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
+	require.Equal(t, app2TitleID, getResp.SoftwareTitles[1].ID)
+	require.NotNil(t, getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
+	require.False(t, *getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
+}
+
+func (s *integrationMDMTestSuite) enableAndroidMDM(t *testing.T) string {
+	appConf, err := s.ds.AppConfig(context.Background())
+	require.NoError(s.T(), err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(context.Background(), appConf)
+	require.NoError(s.T(), err)
+
+	t.Cleanup(func() {
+		appConf, err := s.ds.AppConfig(context.Background())
+		require.NoError(s.T(), err)
+		appConf.MDM.AndroidEnabledAndConfigured = true
+		err = s.ds.SaveAppConfig(context.Background(), appConf)
+		require.NoError(s.T(), err)
+	})
+
+	enterpriseID := androidTestEnterpriseID
+	enterpriseSignupURL := "https://enterprise.google.com/signup/android/email?origin=android&thirdPartyToken=B4D779F1C4DD9A440"
+	s.androidAPIClient.InitCommonMocks()
+
+	s.androidAPIClient.EnterprisesCreateFunc = func(_ context.Context, _ androidmgmt.EnterprisesCreateRequest) (androidmgmt.EnterprisesCreateResponse, error) {
+		return androidmgmt.EnterprisesCreateResponse{
+			EnterpriseName: "enterprises/" + enterpriseID,
+			TopicName:      "projects/android/topics/ae98ed130-5ce2-4ddb-a90a-191ec76976d5",
+		}, nil
+	}
+
+	s.androidAPIClient.EnterprisesPoliciesPatchFunc = func(_ context.Context, policyName string, _ *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) (*androidmanagement.Policy, error) {
+		assert.Contains(t, policyName, enterpriseID)
+		return &androidmanagement.Policy{}, nil
+	}
+
+	s.androidAPIClient.EnterpriseDeleteFunc = func(_ context.Context, enterpriseName string) error {
+		assert.Equal(t, "enterprises/"+enterpriseID, enterpriseName)
+		return nil
+	}
+
+	s.androidAPIClient.SignupURLsCreateFunc = func(_ context.Context, _, callbackURL string) (*android.SignupDetails, error) {
+		s.proxyCallbackURL = callbackURL
+		return &android.SignupDetails{
+			Url:  enterpriseSignupURL,
+			Name: "signupUrls/Cb08124d0999c464f",
+		}, nil
+	}
+
+	s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFunc = func(ctx context.Context, policyName string, appPolicies []*androidmanagement.ApplicationPolicy) (*androidmanagement.Policy, error) {
+		return &androidmanagement.Policy{}, nil
+	}
+
+	s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFunc = func(ctx context.Context, policyName string, packageNames []string) (*androidmanagement.Policy, error) {
+		return &androidmanagement.Policy{}, nil
+	}
+
+	s.androidAPIClient.EnterprisesDevicesPatchFunc = func(ctx context.Context, deviceName string, device *androidmanagement.Device) (*androidmanagement.Device, error) {
+		return &androidmanagement.Device{}, nil
+	}
+
+	// Create enterprise
+	var signupResp android.EnterpriseSignupResponse
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
+
+	const enterpriseToken = "enterpriseToken"
+
+	// callback URL includes the host, need to extract the path so we can call it with our
+	// HTTP request helpers
+	u, err := url.Parse(s.proxyCallbackURL)
+	require.NoError(t, err)
+	s.Do("GET", u.Path, nil, http.StatusOK, "enterpriseToken", enterpriseToken)
+
+	// Update the LIST mock to return the enterprise after "creation"
+	s.androidAPIClient.EnterprisesListFunc = func(_ context.Context, _ string) ([]*androidmanagement.Enterprise, error) {
+		return []*androidmanagement.Enterprise{
+			{Name: "enterprises/" + enterpriseID},
+		}, nil
+	}
+
+	resp := android.GetEnterpriseResponse{}
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusOK, &resp)
+	assert.Equal(t, enterpriseID, resp.EnterpriseID)
+
+	return enterpriseID
+}
+
+func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
+	t := s.T()
+	ctx := context.Background()
+
+	appConf, err := s.ds.AppConfig(ctx)
+	require.NoError(s.T(), err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(ctx, appConf)
+	require.NoError(s.T(), err)
+
+	s.enableAndroidMDM(t)
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: "Test App"}, nil
+	}
+
+	teamName := "Android Team For All Tests"
+	var createTeamResp teamResponse
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{
+		Name: teamName,
+	}, http.StatusOK, &createTeamResp)
+	require.NotZero(t, createTeamResp.Team.ID)
+	teamID := &createTeamResp.Team.ID
+
+	t.Run("android app configurations", func(t *testing.T) {
+		// Android app with configuration
+		exampleConfiguration := json.RawMessage(`{"workProfileWidgets":"WORK_PROFILE_WIDGETS_ALLOWED","credentialProviderPolicy":"CREDENTIAL_PROVIDER_ALLOWED"}`)
+		androidAppFoo := &automdm.VPPApp{
+			VPPAppTeam: automdm.VPPAppTeam{
+				AppTeamID: ptr.ValOrZero(teamID),
+				VPPAppID: automdm.VPPAppID{
+					AdamID:   "com.foo",
+					Platform: automdm.AndroidPlatform,
+				},
+				Configuration: exampleConfiguration,
+			},
+		}
+
+		// Add Android app
+		var appWithConfigResp addAppStoreAppResponse
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
+			&addAppStoreAppRequest{
+				TeamID:        teamID,
+				AppStoreID:    androidAppFoo.AdamID,
+				Platform:      androidAppFoo.VPPAppID.Platform,
+				Configuration: androidAppFoo.Configuration,
+			},
+			http.StatusOK, &appWithConfigResp,
+		)
+
+		// Verify that activity includes configuration
+		s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+			withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": true,"configuration": %s}`, teamName, "Test App", appWithConfigResp.TitleID, androidAppFoo.AdamID, ptr.ValOrZero(teamID), androidAppFoo.Platform, androidAppFoo.Configuration), nil), 0)
+
+		var listSWTitles listSoftwareTitlesResponse
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
+		s.Assert().Len(listSWTitles.SoftwareTitles, 1)
+		s.Equal(androidAppFoo.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID)
+
+		// Batch app store apps call won't create an activity
+		var batchResp batchAssociateAppStoreAppsResponse
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_2", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_3", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_4", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: exampleConfiguration},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
+		s.Assert().Len(listSWTitles.SoftwareTitles, 4)
+		// Look up title IDs by app store ID (ordering within tied hosts_count is by ID, not name).
+		var titleApp1, titleApp2 uint
+		for _, st := range listSWTitles.SoftwareTitles {
+			if len(st.AppStoreApps) > 0 {
+				switch st.AppStoreApps[0].AppStoreID {
+				case "app_1":
+					titleApp1 = st.ID
+				case "app_2":
+					titleApp2 = st.ID
+				}
+			}
+		}
+		require.NotZero(t, titleApp1)
+		require.NotZero(t, titleApp2)
+
+		// Batch app store apps call won't create an activity
+
+		// Add apps to team 0
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_2", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_3", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_4", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+				},
+			}, http.StatusOK, &batchResp,
+		)
+
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(0))
+		s.Assert().Len(listSWTitles.SoftwareTitles, 4)
+
+		// Update configurations
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, Configuration: nil},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, Configuration: exampleConfiguration},
+					{AppStoreID: "app_3", Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_4", Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
+		s.Assert().Len(listSWTitles.SoftwareTitles, 4)
+
+		var titleResp getSoftwareTitleResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp1), &getSoftwareTitleRequest{
+			ID:     titleApp1,
+			TeamID: teamID,
+		}, http.StatusOK, &titleResp)
+		require.Equal(t, "app_1", *titleResp.SoftwareTitle.ApplicationID)
+		require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
+		require.JSONEq(t, `{}`, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration))
+
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp2), &getSoftwareTitleRequest{
+			ID:     titleApp2,
+			TeamID: teamID,
+		}, http.StatusOK, &titleResp)
+		require.Equal(t, "app_2", *titleResp.SoftwareTitle.ApplicationID)
+		require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
+		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"workProfileWidgets": "WORK_PROFILE_WIDGETS_ALLOWED"`)
+		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"credentialProviderPolicy": "CREDENTIAL_PROVIDER_ALLOWED"`)
+
+		// Remove 2 other apps, 2 configurations should be deleted and 2 should be emptied/remain
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, Configuration: nil},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, Configuration: exampleConfiguration},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
+		s.Assert().Len(listSWTitles.SoftwareTitles, 2)
+
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp1), &getSoftwareTitleRequest{
+			ID:     titleApp1,
+			TeamID: teamID,
+		}, http.StatusOK, &titleResp)
+		require.Equal(t, "app_1", *titleResp.SoftwareTitle.ApplicationID)
+		require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
+		require.JSONEq(t, `{}`, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration))
+
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp2), &getSoftwareTitleRequest{
+			ID:     titleApp2,
+			TeamID: teamID,
+		}, http.StatusOK, &titleResp)
+		require.Equal(t, "app_2", *titleResp.SoftwareTitle.ApplicationID)
+		require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
+		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"workProfileWidgets": "WORK_PROFILE_WIDGETS_ALLOWED"`)
+		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"credentialProviderPolicy": "CREDENTIAL_PROVIDER_ALLOWED"`)
+
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps:   []automdm.VPPBatchPayload{},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+	})
+	t.Run("android app setup experience", func(t *testing.T) {
+		// Get initial count of edited setup experience activities
+		var initialCount int
+		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+			err := sqlx.GetContext(ctx, q, &initialCount, `SELECT COUNT(id) FROM activity_past WHERE activity_type = 'edited_setup_experience_software'`)
+			require.NoError(t, err)
+			return nil
+		})
+
+		var batchResp batchAssociateAppStoreAppsResponse
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps:   []automdm.VPPBatchPayload{},
+			},
+			http.StatusOK, &batchResp,
+		)
+		// Should create an edited setup experience activity, as new software was added
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(false)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+
+		// Should not create an edited setup experience activity, nothing changed
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(false)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+
+		// Should create an edited setup experience activity, existing software changed
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+
+		// Should create an edited setup experience activity, as new software was added
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+			batchAssociateAppStoreAppsRequest{
+				DryRun: false,
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+					{AppStoreID: "app_3", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				},
+			},
+			http.StatusOK, &batchResp, "team_name", teamName,
+		)
+		var count int
+		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+			err := sqlx.GetContext(ctx, q, &count, `SELECT COUNT(id) FROM activity_past WHERE activity_type = 'edited_setup_experience_software'`)
+			require.NoError(t, err)
+			return nil
+		})
+		require.Equal(t, initialCount+3, count)
+	})
+}
+
+func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
+	ctx := context.Background()
+	t := s.T()
+
+	s.setSkipWorkerJobs(t)
+	s.setVPPTokenForTeam(0)
+	appConf, err := s.ds.AppConfig(ctx)
+	require.NoError(t, err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(ctx, appConf)
+	require.NoError(t, err)
+
+	// create a team for the test host that will not be affected
+	var createTeamResp teamResponse
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: "test"}, http.StatusOK, &createTeamResp)
+	teamID := createTeamResp.Team.ID
+
+	s.enableAndroidMDM(t)
+
+	amapiConfig := struct {
+		AppIDsToNames                     map[string]string
+		EnterprisesPoliciesPatchValidator func(policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts)
+	}{
+		AppIDsToNames:                     map[string]string{},
+		EnterprisesPoliciesPatchValidator: func(policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) {},
+	}
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		title := amapiConfig.AppIDsToNames[packageName]
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: title}, nil
+	}
+
+	// sorted packages of the app list last sent to each host's policy, by host UUID
+	sentAppLists := map[string][]string{}
+	s.androidAPIClient.EnterprisesPoliciesPatchFunc = func(ctx context.Context, policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) (*androidmanagement.Policy, error) {
+		amapiConfig.EnterprisesPoliciesPatchValidator(policyName, policy, opts)
+		if !opts.ExcludeApps {
+			packages := make([]string, 0, len(policy.Applications))
+			for _, app := range policy.Applications {
+				packages = append(packages, app.PackageName)
+			}
+			slices.Sort(packages)
+			sentAppLists[policyName[strings.LastIndex(policyName, "/")+1:]] = packages
+		}
+		return &androidmanagement.Policy{}, nil
+	}
+	// sorted packages last removed from each host's policy, by host UUID
+	removedApps := map[string][]string{}
+	s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFunc = func(ctx context.Context, policyName string, packageNames []string) (*androidmanagement.Policy, error) {
+		removedApps[policyName[strings.LastIndex(policyName, "/")+1:]] = slices.Sorted(slices.Values(packageNames))
+		return &androidmanagement.Policy{}, nil
+	}
+
+	// add some Android apps
+	androidApps := make([]*automdm.VPPApp, 5)
+	titleIDs := make([]uint, len(androidApps))
+	for i := range androidApps {
+		androidApps[i] = &automdm.VPPApp{
+			VPPAppTeam: automdm.VPPAppTeam{
+				VPPAppID: automdm.VPPAppID{AdamID: "com.app" + fmt.Sprint(i), Platform: automdm.AndroidPlatform},
+			},
+			Name:             "App" + fmt.Sprint(i),
+			BundleIdentifier: "com.app" + fmt.Sprint(i),
+			IconURL:          "https://example.com/images/" + fmt.Sprint(i),
+		}
+		amapiConfig.AppIDsToNames[androidApps[i].AdamID] = androidApps[i].Name
+
+		var addAppResp addAppStoreAppResponse
+
+		// last app goes on the team, will not affect the test
+		var teamIDPtr *uint
+		if i == len(androidApps)-1 {
+			teamIDPtr = &teamID
+		}
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+			AppStoreID: androidApps[i].AdamID,
+			Platform:   automdm.AndroidPlatform,
+			TeamID:     teamIDPtr,
+		}, http.StatusOK, &addAppResp)
+		titleIDs[i] = addAppResp.TitleID
+	}
+
+	// delete app [0] and run the Android profile schedule, no host exists yet so no app list should be sent
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleIDs[0]), nil, http.StatusNoContent, "team_id", "0")
+	s.awaitTriggerAndroidProfileSchedule(t)
+	require.Empty(t, sentAppLists)
+
+	// enroll a few Android devices
+	secrets, err := s.ds.GetEnrollSecrets(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
+	require.NoError(t, err)
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
+	require.NotEmpty(t, pubsubToken.Value)
+
+	deviceID1 := createAndroidDeviceID("test-android")
+	deviceID2 := createAndroidDeviceID("test-android-2")
+	deviceID3 := createAndroidDeviceID("test-android-3")
+
+	enterpriseSpecificID1 := strings.ToUpper(uuid.New().String())
+	enterpriseSpecificID2 := strings.ToUpper(uuid.New().String())
+	enterpriseSpecificID3 := strings.ToUpper(uuid.New().String())
+	var req android_service.PubSubPushRequest
+	for _, d := range []struct {
+		id  string
+		esi string
+	}{{deviceID1, enterpriseSpecificID1}, {deviceID2, enterpriseSpecificID2}, {deviceID3, enterpriseSpecificID3}} {
+		enrollmentMessage := enrollmentMessageWithEnterpriseSpecificID(t, androidmanagement.Device{
+			Name:                d.id,
+			EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
+		}, d.esi)
+		req = android_service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+	}
+
+	var hosts listHostsResponse
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts)
+	require.Len(t, hosts.Hosts, 3)
+	host1 := hosts.Hosts[0]
+	host2 := hosts.Hosts[1]
+	host3 := hosts.Hosts[2] // isolated host, not affected by test
+
+	// transfer host3 to the team
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
+		TeamID:  &teamID,
+		HostIDs: []uint{host3.ID},
+	}, http.StatusOK, &addHostsToTeamResponse{})
+
+	// run the worker, the hosts get their team's android apps as self-service-available
+	s.runWorkerUntilDone()
+
+	// the devices report applying their own policies, so later app changes are sent to them, and run the Android profile
+	// schedule so each host has had its app list before the changes below
+	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+		_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = enterprise_specific_id WHERE host_id IN (?, ?, ?)`,
+			host1.ID, host2.ID, host3.ID)
+		return err
+	})
+	s.awaitTriggerAndroidProfileSchedule(t)
+	clear(sentAppLists)
+
+	// the devices report applying their own policies, so later app changes are sent to them
+	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+		_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = enterprise_specific_id WHERE host_id IN (?, ?, ?)`,
+			host1.ID, host2.ID, host3.ID)
+		return err
+	})
+
+	for _, host := range []automdm.HostResponse{host1, host2} {
+		var getHostSw getHostSoftwareResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+			"available_for_install", "true", "order_key", "name")
+		require.Len(t, getHostSw.Software, 3)
+		require.NotNil(t, getHostSw.Software[0].AppStoreApp)
+		require.Equal(t, androidApps[1].AdamID, getHostSw.Software[0].AppStoreApp.AppStoreID)
+		require.NotNil(t, getHostSw.Software[1].AppStoreApp)
+		require.Equal(t, androidApps[2].AdamID, getHostSw.Software[1].AppStoreApp.AppStoreID)
+		require.NotNil(t, getHostSw.Software[2].AppStoreApp)
+		require.Equal(t, androidApps[3].AdamID, getHostSw.Software[2].AppStoreApp.AppStoreID)
+	}
+
+	// delete app [1] and run the Android profile schedule, both hosts should get only a removal of it and the team
+	// host nothing
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleIDs[1]), nil, http.StatusNoContent, "team_id", "0")
+	s.awaitTriggerAndroidProfileSchedule(t)
+	require.Empty(t, sentAppLists)
+	require.Equal(t, map[string][]string{
+		host1.UUID: {androidApps[1].AdamID},
+		host2.UUID: {androidApps[1].AdamID},
+	}, removedApps)
+	clear(removedApps)
+
+	for _, host := range []automdm.HostResponse{host1, host2} {
+		var getHostSw getHostSoftwareResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+			"available_for_install", "true", "order_key", "name")
+		require.Len(t, getHostSw.Software, 2)
+		require.NotNil(t, getHostSw.Software[0].AppStoreApp)
+		require.Equal(t, androidApps[2].AdamID, getHostSw.Software[0].AppStoreApp.AppStoreID)
+		require.NotNil(t, getHostSw.Software[1].AppStoreApp)
+		require.Equal(t, androidApps[3].AdamID, getHostSw.Software[1].AppStoreApp.AppStoreID)
+	}
+
+	// batch-set to keep only app [3] (effectively deletes app[2]), as per a gitops run
+	var batchResp batchAssociateAppStoreAppsResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+		Apps: []automdm.VPPBatchPayload{
+			{AppStoreID: androidApps[3].AdamID, SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+		},
+	}, http.StatusOK, &batchResp)
+
+	// run the Android profile schedule, both hosts should get an app list with app [3]'s new configuration and app [2]
+	// still in it, then a removal of app [2]
+	s.awaitTriggerAndroidProfileSchedule(t)
+	require.Equal(t, map[string][]string{
+		host1.UUID: {androidApps[2].AdamID, androidApps[3].AdamID, "com.fleetdm.agent"},
+		host2.UUID: {androidApps[2].AdamID, androidApps[3].AdamID, "com.fleetdm.agent"},
+	}, sentAppLists)
+	clear(sentAppLists)
+	require.Equal(t, map[string][]string{
+		host1.UUID: {androidApps[2].AdamID},
+		host2.UUID: {androidApps[2].AdamID},
+	}, removedApps)
+	clear(removedApps)
+
+	for _, host := range []automdm.HostResponse{host1, host2} {
+		var getHostSw getHostSoftwareResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+			"available_for_install", "true", "order_key", "name")
+		require.Len(t, getHostSw.Software, 1)
+		require.NotNil(t, getHostSw.Software[0].AppStoreApp)
+		require.Equal(t, androidApps[3].AdamID, getHostSw.Software[0].AppStoreApp.AppStoreID)
+	}
+
+	// batch-set to remove all apps
+	batchResp = batchAssociateAppStoreAppsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+		Apps: []automdm.VPPBatchPayload{},
+	}, http.StatusOK, &batchResp)
+
+	// run the Android profile schedule, both hosts should get only a removal of app [3]
+	s.awaitTriggerAndroidProfileSchedule(t)
+	require.Empty(t, sentAppLists)
+	require.Equal(t, map[string][]string{
+		host1.UUID: {androidApps[3].AdamID},
+		host2.UUID: {androidApps[3].AdamID},
+	}, removedApps)
+	clear(removedApps)
+
+	for _, host := range []automdm.HostResponse{host1, host2} {
+		var getHostSw getHostSoftwareResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+			"available_for_install", "true", "order_key", "name")
+		require.Len(t, getHostSw.Software, 0)
+	}
+
+	// batch-set again without any app and run the Android profile schedule, no app list should be sent
+	batchResp = batchAssociateAppStoreAppsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+		Apps: []automdm.VPPBatchPayload{},
+	}, http.StatusOK, &batchResp)
+
+	s.awaitTriggerAndroidProfileSchedule(t)
+	require.Empty(t, sentAppLists)
+
+	// isolated host was unaffected, still has the same team app
+	var getHostSw getHostSoftwareResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host3.ID), nil, http.StatusOK, &getHostSw,
+		"available_for_install", "true", "order_key", "name")
+	require.Len(t, getHostSw.Software, 1)
+	require.NotNil(t, getHostSw.Software[0].AppStoreApp)
+	require.Equal(t, androidApps[4].AdamID, getHostSw.Software[0].AppStoreApp.AppStoreID)
+}
+
+func (s *integrationMDMTestSuite) TestAndroidWebApps() {
+	ctx := context.Background()
+	t := s.T()
+
+	s.setSkipWorkerJobs(t)
+	appConf, err := s.ds.AppConfig(ctx)
+	require.NoError(t, err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(ctx, appConf)
+	require.NoError(t, err)
+
+	// attempt to create a webapp before android MDM is enabled
+	body, headers := generateMultipartRequest(t, "", "", nil, s.token, map[string][]string{
+		"title": {"Web App"},
+		"url":   {"https://example.com"},
+	})
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusBadRequest, headers)
+	require.Contains(t, extractServerErrorText(res.Body), "Android MDM isn't turned on.")
+
+	enterpriseID := s.enableAndroidMDM(t)
+
+	s.androidAPIClient.EnterprisesWebAppsCreateFunc = func(ctx context.Context, enterpriseName string, app *androidmanagement.WebApp) (*androidmanagement.WebApp, error) {
+		id := uuid.NewString()
+		return &androidmanagement.WebApp{Name: fmt.Sprintf("enterprises/%s/webApps/%s", enterpriseID, id)}, nil
+	}
+	cases := []struct {
+		desc     string
+		title    string
+		url      string
+		iconFile string // filename in testdata/icons/
+
+		wantStatus int
+		wantErrMsg string
+	}{
+		{
+			desc:       "missing title",
+			title:      "",
+			url:        "http://example.com",
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "title multipart field is required",
+		},
+		{
+			desc:       "missing url",
+			title:      "WebApp",
+			url:        "",
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "url multipart field is required",
+		},
+		{
+			desc:       "invalid url",
+			title:      "WebApp",
+			url:        "non-absolute-url",
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "The start URL must be a valid absolute URL.",
+		},
+		{
+			desc:       "valid without icon",
+			title:      "WebApp",
+			url:        "http://example.com",
+			wantStatus: http.StatusOK,
+			wantErrMsg: "",
+		},
+		{
+			desc:       "invalid icon not a png",
+			title:      "WebApp",
+			url:        "http://example.com",
+			iconFile:   "not-a-png.txt",
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "The icon must be a PNG file and square, with dimensions of at least 512 x 512px.",
+		},
+		{
+			desc:       "invalid icon not square",
+			title:      "WebApp",
+			url:        "http://example.com",
+			iconFile:   "non-square.png",
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "The icon must be a PNG file and square, with dimensions of at least 512 x 512px.",
+		},
+		{
+			desc:       "invalid icon too small",
+			title:      "WebApp",
+			url:        "http://example.com",
+			iconFile:   "200px-square.png",
+			wantStatus: http.StatusBadRequest,
+			wantErrMsg: "The icon must be a PNG file and square, with dimensions of at least 512 x 512px.",
+		},
+		{
+			desc:       "valid with icon",
+			title:      "WebApp",
+			url:        "http://example.com",
+			iconFile:   "512px-square.png",
+			wantStatus: http.StatusOK,
+			wantErrMsg: "",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			var filename string
+			var iconData []byte
+			if c.iconFile != "" {
+				filename = c.iconFile
+				b, err := os.ReadFile(filepath.Join("testdata", "icons", c.iconFile))
+				require.NoError(t, err)
+				iconData = b
+			}
+
+			body, headers := generateMultipartRequest(t, "icon", filename, iconData, s.token, map[string][]string{
+				"title": {c.title},
+				"url":   {c.url},
+			})
+			res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), c.wantStatus, headers)
+			if c.wantErrMsg != "" {
+				require.Contains(t, extractServerErrorText(res.Body), c.wantErrMsg)
+			} else {
+				var resp createAndroidWebAppResponse
+				err := json.NewDecoder(res.Body).Decode(&resp)
+				require.NoError(t, err)
+				require.NotEmpty(t, resp.AppStoreID)
+			}
+		})
+	}
+}
+
+func (s *integrationMDMTestSuite) TestAndroidWebAppsCannotSetConfiguration() {
+	ctx := context.Background()
+	t := s.T()
+
+	s.setSkipWorkerJobs(t)
+	appConf, err := s.ds.AppConfig(ctx)
+	require.NoError(t, err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(ctx, appConf)
+	require.NoError(t, err)
+
+	enterpriseID := s.enableAndroidMDM(t)
+	var count int
+	s.androidAPIClient.EnterprisesWebAppsCreateFunc = func(ctx context.Context, enterpriseName string, app *androidmanagement.WebApp) (*androidmanagement.WebApp, error) {
+		count++
+		id := "abc" + fmt.Sprint(count)
+		return &androidmanagement.WebApp{Name: fmt.Sprintf("enterprises/%s/webApps/com.google.enterprise.webapp.%s", enterpriseID, id)}, nil
+	}
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		ix := strings.LastIndex(packageName, ".") // title is the final segment
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: packageName[ix+1:]}, nil
+	}
+
+	// create a webapp
+	body, headers := generateMultipartRequest(t, "", "", nil, s.token, map[string][]string{
+		"title": {"Web App"},
+		"url":   {"https://example.com"},
+	})
+	var resp createAndroidWebAppResponse
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusOK, headers)
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	require.NoError(t, err)
+	webAppID := resp.AppStoreID
+
+	// add it to AutoMDM with configuration, will fail
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`),
+	}, http.StatusUnprocessableEntity)
+	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
+
+	// add it without configuration, will work
+	var addResp addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID, Platform: automdm.AndroidPlatform,
+	}, http.StatusOK, &addResp)
+	webAppTitleID := addResp.TitleID
+
+	// update it with configuration, will fail
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", webAppTitleID),
+		&updateAppStoreAppRequest{Configuration: json.RawMessage(`{"key":"value"}`)},
+		http.StatusUnprocessableEntity)
+	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
+
+	// update it without configuration, will work
+	var updateResp updateAppStoreAppResponse
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", webAppTitleID),
+		&updateAppStoreAppRequest{DisplayName: ptr.String("MyWebApp")},
+		http.StatusOK, &updateResp)
+	require.Equal(t, webAppID, updateResp.AppStoreApp.AdamID)
+	require.Equal(t, "MyWebApp", updateResp.AppStoreApp.DisplayName)
+	require.Equal(t, automdm.DefaultAppStoreAppVersionName, updateResp.AppStoreApp.VersionName)
+	require.True(t, updateResp.AppStoreApp.SelfService)
+	require.Nil(t, updateResp.AppStoreApp.Configuration)
+
+	// batch-set with configuration, will fail
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
+		batchAssociateAppStoreAppsRequest{
+			DryRun: false,
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: webAppID, SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`)},
+			},
+		}, http.StatusUnprocessableEntity)
+	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
+
+	// batch-set with multiple Android apps, with configuration on the webApp, will fail
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
+		batchAssociateAppStoreAppsRequest{
+			DryRun: false,
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: webAppID, SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`)},
+				{AppStoreID: "com.google.chrome", SelfService: true, Platform: automdm.AndroidPlatform},
+			},
+		}, http.StatusUnprocessableEntity)
+	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
+
+	// batch-set without configuration, will work
+	var batchResp batchAssociateAppStoreAppsResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
+		batchAssociateAppStoreAppsRequest{
+			DryRun: false,
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: webAppID, SelfService: true, Platform: automdm.AndroidPlatform},
+				{AppStoreID: "com.google.chrome", SelfService: true, Platform: automdm.AndroidPlatform},
+			},
+		}, http.StatusOK, &batchResp)
+	require.Len(t, batchResp.Apps, 2)
+}
+
+func (s *integrationMDMTestSuite) TestAndroidWebAppsDuplicateName() {
+	ctx := context.Background()
+	t := s.T()
+
+	s.setSkipWorkerJobs(t)
+	appConf, err := s.ds.AppConfig(ctx)
+	require.NoError(t, err)
+	appConf.MDM.AndroidEnabledAndConfigured = false
+	err = s.ds.SaveAppConfig(ctx, appConf)
+	require.NoError(t, err)
+
+	enterpriseID := s.enableAndroidMDM(t)
+	var count int
+	s.androidAPIClient.EnterprisesWebAppsCreateFunc = func(ctx context.Context, enterpriseName string, app *androidmanagement.WebApp) (*androidmanagement.WebApp, error) {
+		count++
+		id := "dup" + fmt.Sprint(count)
+		return &androidmanagement.WebApp{Name: fmt.Sprintf("enterprises/%s/webApps/com.google.enterprise.webapp.%s", enterpriseID, id)}, nil
+	}
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return &androidmanagement.Application{IconUrl: "https://example.com/icon.jpg", Title: "Duplicate Web App"}, nil
+	}
+
+	// create two web apps with the same title (this is fine — POST /web_apps is just a Google API wrapper)
+	body, headers := generateMultipartRequest(t, "", "", nil, s.token, map[string][]string{
+		"title": {"Duplicate Web App"},
+		"url":   {"https://example.com"},
+	})
+	var resp1 createAndroidWebAppResponse
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusOK, headers)
+	err = json.NewDecoder(res.Body).Decode(&resp1)
+	require.NoError(t, err)
+	webAppID1 := resp1.AppStoreID
+
+	body, headers = generateMultipartRequest(t, "", "", nil, s.token, map[string][]string{
+		"title": {"Duplicate Web App"},
+		"url":   {"https://different-url.com"},
+	})
+	var resp2 createAndroidWebAppResponse
+	res = s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusOK, headers)
+	err = json.NewDecoder(res.Body).Decode(&resp2)
+	require.NoError(t, err)
+	webAppID2 := resp2.AppStoreID
+
+	// create a team to add the apps to
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
+	require.NoError(t, err)
+
+	// add the first web app to the team
+	var addResp addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID1, Platform: automdm.AndroidPlatform, TeamID: &tm.ID,
+	}, http.StatusOK, &addResp)
+
+	// add the second web app (same name) to the same team
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID2, Platform: automdm.AndroidPlatform, TeamID: &tm.ID,
+	}, http.StatusConflict)
+	errMsg := extractServerErrorText(res.Body)
+	require.Contains(t, errMsg, `Couldn't add.`)
+	require.Contains(t, errMsg, `"Duplicate Web App"`)
+	require.Contains(t, errMsg, "already exists in this team")
+
+	// add the second web app (same name, rejected from team 1) to a different team
+	tm2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "2"})
+	require.NoError(t, err)
+	var addResp2 addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID2, Platform: automdm.AndroidPlatform, TeamID: &tm2.ID,
+	}, http.StatusOK, &addResp2)
+}
+
+func (s *integrationMDMTestSuite) TestAndroidAppConfigAutoMDMVariables() {
+	t := s.T()
+
+	s.enableAndroidMDM(t)
+	s.setVPPTokenForTeam(0)
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: "Duo"}, nil
+	}
+
+	// ---- Supported variables should be accepted ----
+
+	supportedConfig := json.RawMessage(`{"managedConfiguration": {"deviceId": "$AUTOMDM_VAR_HOST_UUID", "serial": "${AUTOMDM_VAR_HOST_HARDWARE_SERIAL}"}}`)
+	var addResp addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{
+			AppStoreID:    "com.duo.security",
+			Platform:      automdm.AndroidPlatform,
+			Configuration: supportedConfig,
+		},
+		http.StatusOK, &addResp,
+	)
+
+	// Verify the config was stored correctly with variables (not yet substituted)
+	var titleResp getSoftwareTitleResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", addResp.TitleID),
+		&getSoftwareTitleRequest{ID: addResp.TitleID},
+		http.StatusOK, &titleResp, "team_id", "0",
+	)
+	require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
+	require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), "$AUTOMDM_VAR_HOST_UUID")
+	require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), "${AUTOMDM_VAR_HOST_HARDWARE_SERIAL}")
+
+	// ---- Unsupported variables should be rejected ----
+
+	unsupportedConfig := json.RawMessage(`{"managedConfiguration": {"chal": "$AUTOMDM_VAR_NDES_SCEP_CHALLENGE"}}`)
+	r := s.Do("POST", "/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{
+			AppStoreID:    "com.unsupported.var",
+			Platform:      automdm.AndroidPlatform,
+			Configuration: unsupportedConfig,
+		},
+		http.StatusBadRequest,
+	)
+	require.Contains(t, extractServerErrorText(r.Body), "Unsupported variable $AUTOMDM_VAR_NDES_SCEP_CHALLENGE")
+
+	// ---- Batch (GitOps) path: unsupported variables rejected ----
+
+	batchUnsupported := []automdm.VPPBatchPayload{
+		{
+			AppStoreID:    "com.batch.unsupported",
+			Platform:      automdm.AndroidPlatform,
+			SelfService:   true,
+			Configuration: json.RawMessage(`{"managedConfiguration": {"url": "$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_MyCA"}}`),
+		},
+	}
+	s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
+		&batchAssociateAppStoreAppsRequest{Apps: batchUnsupported},
+		http.StatusBadRequest,
+	)
+
+	// ---- Batch (GitOps) path: supported variables accepted ----
+
+	batchSupported := []automdm.VPPBatchPayload{
+		{
+			AppStoreID:    "com.batch.supported",
+			Platform:      automdm.AndroidPlatform,
+			SelfService:   true,
+			Configuration: json.RawMessage(`{"managedConfiguration": {"uuid": "$AUTOMDM_VAR_HOST_UUID"}}`),
+		},
+	}
+	s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
+		&batchAssociateAppStoreAppsRequest{Apps: batchSupported, DryRun: true},
+		http.StatusOK,
+	)
+}
+
+func (s *integrationMDMTestSuite) TestAndroidAppConfigCustomHostVitals() {
+	t := s.T()
+
+	s.enableAndroidMDM(t)
+	s.setVPPTokenForTeam(0)
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: "Duo"}, nil
+	}
+
+	vital, err := s.ds.CreateCustomHostVital(context.Background(), t.Name())
+	require.NoError(t, err)
+	vitalToken := fmt.Sprintf("$%s%d", automdm.CustomHostVitalPrefix, vital.ID)
+
+	// ---- Single add: a reference to an unknown vital ID is rejected ----
+
+	r := s.Do("POST", "/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{
+			AppStoreID:    "com.unknown.vital",
+			Platform:      automdm.AndroidPlatform,
+			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_999999"}}`),
+		},
+		http.StatusUnprocessableEntity,
+	)
+	require.Contains(t, extractServerErrorText(r.Body), "is not defined")
+
+	// ---- Single add: a malformed vital reference is rejected ----
+
+	r = s.Do("POST", "/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{
+			AppStoreID:    "com.malformed.vital",
+			Platform:      automdm.AndroidPlatform,
+			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_asset_tag"}}`),
+		},
+		http.StatusUnprocessableEntity,
+	)
+	require.Contains(t, extractServerErrorText(r.Body), "Invalid custom host vital reference")
+
+	// ---- Single add: a valid vital reference is accepted ----
+
+	var addResp addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{
+			AppStoreID:    "com.valid.vital",
+			Platform:      automdm.AndroidPlatform,
+			Configuration: json.RawMessage(fmt.Sprintf(`{"managedConfiguration": {"assetTag": "%s"}}`, vitalToken)),
+		},
+		http.StatusOK, &addResp,
+	)
+
+	// ---- Update: a reference to an unknown vital ID is rejected ----
+
+	r = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", addResp.TitleID),
+		&updateAppStoreAppRequest{
+			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_999999"}}`),
+		},
+		http.StatusUnprocessableEntity,
+	)
+	require.Contains(t, extractServerErrorText(r.Body), "is not defined")
+}
+
+func (s *integrationMDMTestSuite) TestAndroidPubSubStatusReport_MissingHardwareInfo() {
+	ctx := context.Background()
+	t := s.T()
+
+	s.enableAndroidMDM(t)
+
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
+	require.NoError(t, err)
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
+	require.NotEmpty(t, pubsubToken.Value)
+
+	deviceJSON := fmt.Sprintf(`{"name":%q,"appliedState":"ACTIVE"}`, createAndroidDeviceID("missing-hardware-info"))
+	req := android_service.PubSubPushRequest{
+		PubSubMessage: android.PubSubMessage{
+			Attributes: map[string]string{"notificationType": string(android.PubSubStatusReport)},
+			Data:       base64.StdEncoding.EncodeToString([]byte(deviceJSON)),
+		},
+	}
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+}
+
+func (s *integrationMDMTestSuite) TestAndroidAppsLabelScope() {
+	t := s.T()
+	ctx := t.Context()
+
+	s.setSkipWorkerJobs(t)
+	s.enableAndroidMDM(t)
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: packageName}, nil
+	}
+
+	// policy IDs (host UUIDs) that were sent each package in an app list
+	madeAvailable := map[string][]string{}
+	s.androidAPIClient.EnterprisesPoliciesPatchFunc = func(ctx context.Context, policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) (*androidmanagement.Policy, error) {
+		if opts.ExcludeApps {
+			return &androidmanagement.Policy{}, nil
+		}
+		policyID := policyName[strings.LastIndex(policyName, "/")+1:]
+		assert.NotEmpty(t, policyID, "app change sent to an empty policy ID")
+		for _, app := range policy.Applications {
+			madeAvailable[app.PackageName] = append(madeAvailable[app.PackageName], policyID)
+		}
+		return &androidmanagement.Policy{}, nil
+	}
+
+	secrets, err := s.ds.GetEnrollSecrets(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
+	require.NoError(t, err)
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
+	require.NotEmpty(t, pubsubToken.Value)
+
+	for _, name := range []string{"label-scope-pilot-a", "label-scope-pilot-b", "label-scope-other"} {
+		enrollmentMessage := enrollmentMessageWithEnterpriseSpecificID(t, androidmanagement.Device{
+			Name:                createAndroidDeviceID(name),
+			EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
+		}, strings.ToUpper(uuid.New().String()))
+		req := android_service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+	}
+	// run the enrollment jobs before the app exists, so only the app's own delivery is recorded
+	s.runWorkerUntilDone()
+
+	var hostsResp listHostsResponse
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hostsResp, "platform", "android", "order_key", "id")
+	require.Len(t, hostsResp.Hosts, 3)
+	pilotHostA, pilotHostB, otherHost := hostsResp.Hosts[0], hostsResp.Hosts[1], hostsResp.Hosts[2]
+
+	// the devices report applying their own policies, as they would after the setup experience
+	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+		_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = enterprise_specific_id WHERE host_id IN (?, ?, ?)`,
+			pilotHostA.ID, pilotHostB.ID, otherHost.ID)
+		return err
+	})
+
+	var labelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{
+		Name:    "Android pilot " + t.Name(),
+		HostIDs: []uint{pilotHostA.ID, pilotHostB.ID},
+	}, http.StatusOK, &labelResp)
+	pilotLabel := labelResp.Label
+
+	const appID = "com.example.labelscope"
+	clear(madeAvailable)
+	var addAppResp addAppStoreAppResponse
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID:       appID,
+		Platform:         automdm.AndroidPlatform,
+		LabelsIncludeAny: []string{pilotLabel.Name},
+	}, http.StatusOK, &addAppResp)
+
+	var titleResp getSoftwareTitleResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", addAppResp.TitleID), nil, http.StatusOK, &titleResp, "team_id", "0")
+	require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
+	require.Len(t, titleResp.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny, 1)
+	require.Equal(t, pilotLabel.ID, titleResp.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny[0].LabelID)
+
+	// run the Android profile schedule, only the hosts in the label should get the app
+	s.awaitTriggerAndroidProfileSchedule(t)
+	require.ElementsMatch(t, []string{pilotHostA.UUID, pilotHostB.UUID}, madeAvailable[appID])
+}
+
+// TestAndroidAppsTargetHostOwnPolicy checks that app changes go to the host's own policy, and skip
+// hosts that haven't reported applying it yet, instead of going to the policy a device last
+// reported: that is the default policy every device enrolls with, or none at all.
+func (s *integrationMDMTestSuite) TestAndroidAppsTargetHostOwnPolicy() {
+	t := s.T()
+	ctx := t.Context()
+
+	s.setSkipWorkerJobs(t)
+	s.enableAndroidMDM(t)
+
+	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
+		return &androidmanagement.Application{IconUrl: "https://example.com/1.jpg", Title: packageName}, nil
+	}
+
+	// policy IDs of every request that changes a policy's apps, by kind
+	appChanges := map[string][]string{}
+	recordAppChange := func(kind, policyName string) {
+		appChanges[kind] = append(appChanges[kind], policyName[strings.LastIndex(policyName, "/")+1:])
+	}
+	s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFunc = func(ctx context.Context, policyName string, appPolicies []*androidmanagement.ApplicationPolicy) (*androidmanagement.Policy, error) {
+		recordAppChange("add", policyName)
+		return &androidmanagement.Policy{}, nil
+	}
+	s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFunc = func(ctx context.Context, policyName string, packageNames []string) (*androidmanagement.Policy, error) {
+		recordAppChange("remove", policyName)
+		return &androidmanagement.Policy{}, nil
+	}
+	s.androidAPIClient.EnterprisesPoliciesPatchFunc = func(ctx context.Context, policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) (*androidmanagement.Policy, error) {
+		if !opts.ExcludeApps {
+			recordAppChange("set", policyName)
+		}
+		return &androidmanagement.Policy{}, nil
+	}
+
+	secrets, err := s.ds.GetEnrollSecrets(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
+	require.NoError(t, err)
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
+	require.NotEmpty(t, pubsubToken.Value)
+	for _, name := range []string{"own-policy", "default-policy", "no-policy"} {
+		enrollmentMessage := enrollmentMessageWithEnterpriseSpecificID(t, androidmanagement.Device{
+			Name:                createAndroidDeviceID("target-" + name),
+			EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
+		}, strings.ToUpper(uuid.New().String()))
+		req := android_service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+	}
+	// run the enrollment jobs before the apps exist, so only the app changes below are recorded
+	s.runWorkerUntilDone()
+
+	var hostsResp listHostsResponse
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hostsResp, "platform", "android", "order_key", "id")
+	require.Len(t, hostsResp.Hosts, 3)
+	onOwnPolicy, onDefaultPolicy, noPolicyReported := hostsResp.Hosts[0], hostsResp.Hosts[1], hostsResp.Hosts[2]
+	setAppliedPolicy := func(host automdm.HostResponse, policyID *string) {
+		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
+			_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = ? WHERE host_id = ?`, policyID, host.ID)
+			return err
+		})
+	}
+	setAppliedPolicy(onOwnPolicy, &onOwnPolicy.UUID)
+	setAppliedPolicy(onDefaultPolicy, new(fmt.Sprint(android.DefaultAndroidPolicyID)))
+	setAppliedPolicy(noPolicyReported, nil)
+
+	// run the Android profile schedule before the apps exist, so the host on its own policy gets its first app list
+	// and only the app changes below are recorded
+	s.awaitTriggerAndroidProfileSchedule(t)
+
+	const appID = "com.example.ownpolicy"
+	var titleID uint
+
+	t.Run("adding an app", func(t *testing.T) {
+		clear(appChanges)
+		var addAppResp addAppStoreAppResponse
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+			AppStoreID: appID,
+			Platform:   automdm.AndroidPlatform,
+		}, http.StatusOK, &addAppResp)
+		titleID = addAppResp.TitleID
+
+		// run the Android profile schedule, only the host on its own policy should get its app list
+		s.awaitTriggerAndroidProfileSchedule(t)
+		require.Equal(t, map[string][]string{"set": {onOwnPolicy.UUID}}, appChanges)
+	})
+
+	t.Run("a GitOps run setting the apps", func(t *testing.T) {
+		clear(appChanges)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: appID, SelfService: true, Platform: automdm.AndroidPlatform},
+				{AppStoreID: appID + ".second", SelfService: true, Platform: automdm.AndroidPlatform},
+			},
+		}, http.StatusOK, &batchAssociateAppStoreAppsResponse{})
+
+		// run the Android profile schedule, only the host on its own policy should get its app list with the second app
+		s.awaitTriggerAndroidProfileSchedule(t)
+		require.Equal(t, map[string][]string{"set": {onOwnPolicy.UUID}}, appChanges)
+	})
+
+	t.Run("deleting the app", func(t *testing.T) {
+		clear(appChanges)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "team_id", "0")
+
+		// run the Android profile schedule, only the host on its own policy should get a removal of the app
+		s.awaitTriggerAndroidProfileSchedule(t)
+		require.Equal(t, map[string][]string{"remove": {onOwnPolicy.UUID}}, appChanges)
+	})
+}

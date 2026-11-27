@@ -1,0 +1,4992 @@
+package service
+
+import (
+	"bytes"
+	"cmp"
+	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/http"
+	"net/url"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/VividCortex/mysqlerr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/cryptoutil"
+	mdmlifecycle "github.com/anilyagiz/automdm/v4/server/mdm/lifecycle"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	nanomdm "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/worker"
+	"github.com/go-sql-driver/mysql"
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /apns
+////////////////////////////////////////////////////////////////////////////////
+
+type getAppleMDMResponse struct {
+	*automdm.AppleMDM
+	Err error `json:"error,omitempty"`
+}
+
+func (r getAppleMDMResponse) Error() error { return r.Err }
+
+func getAppleMDMEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	appleMDM, err := svc.GetAppleMDM(ctx)
+	if err != nil {
+		return getAppleMDMResponse{Err: err}, nil
+	}
+
+	return getAppleMDMResponse{AppleMDM: appleMDM}, nil
+}
+
+func (svc *Service) GetAppleMDM(ctx context.Context) (*automdm.AppleMDM, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppleMDM{}, automdm.ActionRead); err != nil {
+		return nil, err
+	}
+
+	apns, err := assets.X509Cert(ctx, svc.ds, automdm.MDMAssetAPNSCert)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "parse certificate")
+	}
+
+	appleMDM := &automdm.AppleMDM{
+		CommonName: apns.Subject.CommonName,
+		Issuer:     apns.Issuer.CommonName,
+		RenewDate:  apns.NotAfter,
+	}
+	if apns.SerialNumber != nil {
+		appleMDM.SerialNumber = apns.SerialNumber.String()
+	}
+
+	return appleMDM, nil
+}
+
+func (svc *Service) VerifyMDMAppleConfigured(ctx context.Context) error {
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return err
+	}
+	if !appCfg.MDM.EnabledAndConfigured {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return automdm.ErrMDMNotConfigured
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// POST /setup_experience/eula
+////////////////////////////////////////////////////////////////////////////////
+
+type createMDMEULARequest struct {
+	EULA     *multipart.FileHeader
+	DryRun   bool `query:"dry_run,optional"` // if true, apply validation but do not save changes
+	Platform automdm.MDMEULAPlatform
+}
+
+func (createMDMEULARequest) DecodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	// The route limit bounds the body; operators can raise it per endpoint.
+	eula, dryRun, err := decodeEULAUpload(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if eula.Size > automdm.MaxEULASize {
+		return nil, &automdm.BadRequestError{
+			Message: fmt.Sprintf("Uploaded EULA exceeds maximum allowed size of %d MiB", automdm.MaxEULASize/1024/1024),
+		}
+	}
+
+	// Metadata takes the platform in the query string, so the upload accepts it
+	// there too; the form field, as in other uploads, takes precedence.
+	platform := automdm.MDMEULAPlatform(r.URL.Query().Get("platform"))
+	if v := r.MultipartForm.Value["platform"]; len(v) > 0 && v[0] != "" {
+		if platform != "" && platform != automdm.MDMEULAPlatform(v[0]) {
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("platform", "the form and the query string name different platforms"))
+		}
+		platform = automdm.MDMEULAPlatform(v[0])
+	}
+	return &createMDMEULARequest{
+		EULA:     eula,
+		DryRun:   dryRun,
+		Platform: platform,
+	}, nil
+}
+
+// decodeEULAUpload parses an EULA upload: the file in the eula field and the
+// dry_run flag.
+func decodeEULAUpload(r *http.Request) (*multipart.FileHeader, bool, error) {
+	err := r.ParseMultipartForm(platform_http.MaxMultipartFormSize) //nolint:gosec // G120: bounded by the route limit
+	if err != nil {
+		return nil, false, &automdm.BadRequestError{
+			Message:     "failed to parse multipart form",
+			InternalErr: err,
+		}
+	}
+
+	files := r.MultipartForm.File["eula"]
+	if len(files) == 0 {
+		return nil, false, &automdm.BadRequestError{
+			Message: "eula multipart field is required",
+		}
+	}
+
+	dryRun := false
+	if v := r.URL.Query().Get("dry_run"); v != "" {
+		// A mistyped dry run must not save.
+		if dryRun, err = strconv.ParseBool(v); err != nil {
+			return nil, false, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode dry_run bool in query: %s", err.Error())}
+		}
+	}
+	return files[0], dryRun, nil
+}
+
+// writeEULAFile writes an EULA download, macOS or Windows. nosniff keeps the
+// browser on contentType, and an attachment is saved rather than rendered.
+func writeEULAFile(ctx context.Context, w http.ResponseWriter, eula *automdm.MDMEULA, contentType string, attachment bool) {
+	w.Header().Set("Content-Length", strconv.Itoa(len(eula.Bytes)))
+	w.Header().Set("Content-Type", contentType)
+	if attachment {
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": eula.Name}))
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// The token is the only secret; a cached copy would outlive a delete.
+	w.Header().Set("Cache-Control", "no-store")
+
+	// OK to just log the error here as writing anything on
+	// `http.ResponseWriter` sets the status code to 200 (and it can't be
+	// changed.) Clients should rely on matching content-length with the
+	// header provided
+	if n, err := w.Write(eula.Bytes); err != nil {
+		logging.WithExtras(ctx, "err", err, "bytes_copied", n)
+	}
+}
+
+type createMDMEULAResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r createMDMEULAResponse) Error() error { return r.Err }
+
+func createMDMEULAEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*createMDMEULARequest)
+	ff, err := req.EULA.Open()
+	if err != nil {
+		return createMDMEULAResponse{Err: err}, nil
+	}
+	defer ff.Close()
+
+	if err := svc.MDMCreateEULA(ctx, req.Platform, req.EULA.Filename, ff, req.DryRun); err != nil {
+		return createMDMEULAResponse{Err: err}, nil
+	}
+
+	return createMDMEULAResponse{}, nil
+}
+
+func (svc *Service) MDMCreateEULA(ctx context.Context, platform automdm.MDMEULAPlatform, name string, file io.ReadSeeker, dryRun bool) error {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	// The MDM error comes before the license one, as when middleware checked it.
+	if _, err := automdm.ValidateEULAPlatform(ctx, svc, platform); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+	return automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /setup_experience/eula/{token}
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMEULARequest struct {
+	Token string `url:"token"`
+}
+
+type getMDMEULAResponse struct {
+	Err error `json:"error,omitempty"`
+
+	// fields used in hijackRender to build the response
+	eula *automdm.MDMEULA
+}
+
+func (r getMDMEULAResponse) Error() error { return r.Err }
+
+func (r getMDMEULAResponse) HijackRender(ctx context.Context, w http.ResponseWriter) {
+	if r.eula.Platform == automdm.MDMEULAPlatformWindows {
+		// Markdown is downloaded, never rendered as a page in the browser.
+		writeEULAFile(ctx, w, r.eula, "text/markdown; charset=utf-8", true)
+		return
+	}
+	writeEULAFile(ctx, w, r.eula, "application/pdf", false)
+}
+
+func getMDMEULAEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMEULARequest)
+
+	eula, err := svc.MDMGetEULABytes(ctx, req.Token)
+	if err != nil {
+		return getMDMEULAResponse{Err: err}, nil
+	}
+
+	return getMDMEULAResponse{eula: eula}, nil
+}
+
+func (svc *Service) MDMGetEULABytes(ctx context.Context, token string) (*automdm.MDMEULA, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return nil, automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /setup_experience/eula/metadata
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMEULAMetadataRequest struct {
+	Platform string `query:"platform,optional"`
+}
+
+type getMDMEULAMetadataResponse struct {
+	*automdm.MDMEULA
+	Err error `json:"error,omitempty"`
+}
+
+func (r getMDMEULAMetadataResponse) Error() error { return r.Err }
+
+func getMDMEULAMetadataEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMEULAMetadataRequest)
+	eula, err := svc.MDMGetEULAMetadata(ctx, automdm.MDMEULAPlatform(req.Platform))
+	if err != nil && !automdm.IsNotFound(err) {
+		return getMDMEULAMetadataResponse{Err: err}, nil
+	}
+
+	if eula == nil {
+		// We return the error here not as part of the response object, to signal an error to the server, but avoid logging it as an error.
+		return nil, newNotFoundError()
+	}
+
+	return getMDMEULAMetadataResponse{MDMEULA: eula}, nil
+}
+
+func (svc *Service) MDMGetEULAMetadata(ctx context.Context, platform automdm.MDMEULAPlatform) (*automdm.MDMEULA, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	// The MDM error comes before the license one, as when middleware checked it.
+	if _, err := automdm.ValidateEULAPlatform(ctx, svc, platform); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+	return nil, automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DELETE /setup_experience/eula/{token}
+////////////////////////////////////////////////////////////////////////////////
+
+type deleteMDMEULARequest struct {
+	Token  string `url:"token"`
+	DryRun bool   `query:"dry_run,optional"` // if true, apply validation but do not delete
+}
+
+type deleteMDMEULAResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r deleteMDMEULAResponse) Error() error { return r.Err }
+
+func deleteMDMEULAEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*deleteMDMEULARequest)
+	if err := svc.MDMDeleteEULA(ctx, req.Token, req.DryRun); err != nil {
+		return deleteMDMEULAResponse{Err: err}, nil
+	}
+	return deleteMDMEULAResponse{}, nil
+}
+
+func (svc *Service) MDMDeleteEULA(ctx context.Context, token string, dryRun bool) error {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Windows MDM Middleware
+////////////////////////////////////////////////////////////////////////////////
+
+func (svc *Service) VerifyMDMWindowsConfigured(ctx context.Context) error {
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return err
+	}
+
+	// Windows MDM configuration setting
+	if !appCfg.MDM.WindowsEnabledAndConfigured {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return automdm.ErrWindowsMDMNotConfigured
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Android MDM Middleware
+////////////////////////////////////////////////////////////////////////////////
+
+func (svc *Service) VerifyMDMAndroidConfigured(ctx context.Context) error {
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return err
+	}
+
+	// Android MDM configuration setting
+	if !appCfg.MDM.AndroidEnabledAndConfigured {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return automdm.ErrAndroidMDMNotConfigured
+	}
+
+	return nil
+}
+
+// VerifyAnyMDMConfigured checks that at least one MDM platform (Apple, Windows,
+// or Android) is configured so callers that rely on MDM functionality can proceed.
+func (svc *Service) VerifyAnyMDMConfigured(ctx context.Context) error {
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return err
+	}
+
+	// Apple, Windows, or Android MDM configuration setting
+	if !appCfg.MDM.EnabledAndConfigured && !appCfg.MDM.WindowsEnabledAndConfigured && !appCfg.MDM.AndroidEnabledAndConfigured {
+		// skipauth: Authorization is currently for user endpoints only.
+		svc.authz.SkipAuthorization(ctx)
+		return automdm.ErrMDMNotConfigured
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Run MDM Command (Apple, Windows, or Android)
+////////////////////////////////////////////////////////////////////////////////
+
+type runMDMCommandRequest struct {
+	Command   string   `json:"command"`
+	HostUUIDs []string `json:"host_uuids"`
+}
+
+type runMDMCommandResponse struct {
+	*automdm.CommandEnqueueResult
+	Err error `json:"error,omitempty"`
+}
+
+func (r runMDMCommandResponse) Error() error { return r.Err }
+
+func runMDMCommandEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*runMDMCommandRequest)
+	result, err := svc.RunMDMCommand(ctx, req.Command, req.HostUUIDs)
+	if err != nil {
+		return runMDMCommandResponse{Err: err}, nil
+	}
+	return runMDMCommandResponse{
+		CommandEnqueueResult: result,
+	}, nil
+}
+
+func (svc *Service) RunMDMCommand(ctx context.Context, rawBase64Cmd string, hostUUIDs []string) (result *automdm.CommandEnqueueResult, err error) {
+	hosts, err := svc.authorizeAllHostsTeams(ctx, hostUUIDs, automdm.ActionWrite, &automdm.MDMCommandAuthz{})
+	if err != nil {
+		return nil, err
+	}
+	if len(hosts) == 0 {
+		err := automdm.NewInvalidArgumentError("host_uuids", "No hosts targeted. Make sure you provide a valid UUID.").WithStatus(http.StatusNotFound)
+		return nil, ctxerr.Wrap(ctx, err, "no host received")
+	}
+
+	connectedMap, err := svc.ds.AreHostsConnectedToAutoMDMMDM(ctx, hosts)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "checking if hosts are connected to AutoMDM")
+	}
+
+	platforms := make(map[string]bool)
+	for _, h := range hosts {
+		if !connectedMap[h.UUID] {
+			err := automdm.NewInvalidArgumentError("host_uuids", "Can't run the MDM command because one or more hosts have MDM turned off. Run the following command to see a list of hosts with MDM on: automdmctl get hosts --mdm.").WithStatus(http.StatusPreconditionFailed)
+			return nil, ctxerr.Wrap(ctx, err, "check host mdm enrollment")
+		}
+		platforms[h.AutoMDMPlatform()] = true
+	}
+	if len(platforms) != 1 {
+		err := automdm.NewInvalidArgumentError("host_uuids", "All hosts must be on the same platform.")
+		return nil, ctxerr.Wrap(ctx, err, "check host platform")
+	}
+
+	// it's a for loop but at this point it's guaranteed that the map has a single value.
+	var commandPlatform string
+	for platform := range platforms {
+		commandPlatform = platform
+	}
+	if !automdm.MDMTurnedOnSupported(commandPlatform) {
+		err := automdm.NewInvalidArgumentError("host_uuids", "Invalid platform. You can only run MDM commands on Windows, Apple, or Android hosts.")
+		return nil, ctxerr.Wrap(ctx, err, "check host platform")
+	}
+
+	// check that the platform-specific MDM is enabled
+	switch commandPlatform {
+	case "windows":
+		if err := svc.VerifyMDMWindowsConfigured(ctx); err != nil {
+			err := automdm.NewInvalidArgumentError("host_uuids", automdm.WindowsMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+			return nil, ctxerr.Wrap(ctx, err, "check windows MDM enabled")
+		}
+	case "android":
+		if err := svc.VerifyMDMAndroidConfigured(ctx); err != nil {
+			err := automdm.NewInvalidArgumentError("host_uuids", automdm.AndroidMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+			return nil, ctxerr.Wrap(ctx, err, "check android MDM enabled")
+		}
+	default:
+		if err := svc.VerifyMDMAppleConfigured(ctx); err != nil {
+			err := automdm.NewInvalidArgumentError("host_uuids", automdm.AppleMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+			return nil, ctxerr.Wrap(ctx, err, "check macOS MDM enabled")
+		}
+	}
+
+	// We're supporting both padded and unpadded base64.
+	rawPayload, err := server.Base64DecodePaddingAgnostic(rawBase64Cmd)
+	if err != nil {
+		err = automdm.NewInvalidArgumentError("command", "unable to decode base64 command").WithStatus(http.StatusBadRequest)
+		return nil, ctxerr.Wrap(ctx, err, "decode base64 command")
+	}
+
+	// Use UUIDs from the resolved hosts so the enqueue and activity creation
+	// operate on the same validated set, not the raw (potentially duplicate or
+	// unknown) request input.
+	resolvedUUIDs := make([]string, len(hosts))
+	for i, h := range hosts {
+		resolvedUUIDs[i] = h.UUID
+	}
+
+	// the rest is platform-specific (validation of command payload, enqueueing, etc.)
+	switch commandPlatform {
+	case "android":
+		result, err = svc.enqueueAndroidMDMCommand(ctx, rawPayload, hosts)
+	case "windows":
+		result, err = svc.enqueueMicrosoftMDMCommand(ctx, rawPayload, resolvedUUIDs)
+	default:
+		if err := svc.validateAppleMDMCommand(ctx, rawPayload, hosts); err != nil {
+			return nil, err
+		}
+		result, err = svc.enqueueAppleMDMCommand(ctx, rawPayload, resolvedUUIDs)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	failedUUIDs := make(map[string]struct{}, len(result.FailedUUIDs))
+	for _, uuid := range result.FailedUUIDs {
+		failedUUIDs[uuid] = struct{}{}
+	}
+	activities := make([]activity_api.ActivityDetails, 0, len(hosts))
+	for _, h := range hosts {
+		if _, failed := failedUUIDs[h.UUID]; failed {
+			continue
+		}
+		activities = append(activities, &automdm.ActivityTypeRanCustomMDMCommand{
+			HostID:          h.ID,
+			HostDisplayName: h.DisplayName(),
+			HostUUID:        h.UUID,
+			CommandUUID:     result.CommandUUID,
+			RequestType:     result.RequestType,
+			Platform:        commandPlatform,
+		})
+	}
+	if err := svc.NewActivities(ctx, authz.UserFromContext(ctx), activities); err != nil {
+		svc.logger.ErrorContext(ctx, "failed to log activities for ran custom mdm command", "err", err, "command_uuid", result.CommandUUID)
+	}
+
+	return result, nil
+}
+
+var androidMDMPremiumCommands = map[string]struct{}{
+	"LOCK":           {},
+	"RESET_PASSWORD": {},
+}
+
+// enqueueAndroidMDMCommand issues an AMAPI custom command for each targeted Android host.
+// rawJSON is the base64-decoded JSON bytes of the AMAPI Command object.
+// For now, only single-host targeting is supported.
+func (svc *Service) enqueueAndroidMDMCommand(ctx context.Context, rawJSON []byte, hosts []*automdm.Host) (*automdm.CommandEnqueueResult, error) {
+	if len(hosts) != 1 {
+		return nil, automdm.NewInvalidArgumentError("host_uuids",
+			"Android custom commands can only target a single host at a time.").WithStatus(http.StatusBadRequest)
+	}
+
+	// Parse the command type and sensitive fields for premium gating.
+	var cmdPayload struct {
+		Type        string           `json:"type"`
+		NewPassword string           `json:"newPassword"`
+		WipeParams  *json.RawMessage `json:"wipeParams"`
+	}
+	if err := json.Unmarshal(rawJSON, &cmdPayload); err != nil {
+		return nil, automdm.NewInvalidArgumentError("command", "invalid Android command JSON").WithStatus(http.StatusBadRequest)
+	}
+
+	// Normalize to uppercase to match AMAPI convention and our premium map keys.
+	cmdType := strings.ToUpper(strings.TrimSpace(cmdPayload.Type))
+
+	// If type is omitted but newPassword is set, AMAPI infers RESET_PASSWORD.
+	if cmdType == "" && cmdPayload.NewPassword != "" {
+		cmdType = "RESET_PASSWORD"
+	}
+
+	if _, ok := androidMDMPremiumCommands[cmdType]; ok {
+		lic, err := svc.License(ctx)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "get license")
+		}
+		if !lic.IsPremium() {
+			return nil, automdm.ErrMissingLicense
+		}
+	}
+
+	host := hosts[0]
+
+	// A custom wipe must clear the same validation as the dedicated wipe endpoint. AMAPI
+	// derives the type from wipeParams when type is omitted, so any payload carrying
+	// wipeParams is a wipe regardless of what its type field says - don't let a
+	// caller-supplied type decide whether the check runs.
+	if cmdType == string(android.MDMAndroidCommandTypeWipe) || cmdPayload.WipeParams != nil {
+		// hosts came from ListHostsLiteByUUIDs, which selects no MDM columns, so load the full
+		// host from the primary for any host-based rule the shared validator applies. Reusing
+		// the validator rather than re-deriving the rules here is what keeps this refusal
+		// identical to the dedicated endpoint's; the extra queries are noise next to the
+		// AMAPI round trip.
+		ctx = ctxdb.RequirePrimary(ctx, true)
+		hostWithMDM, err := svc.ds.Host(ctx, host.ID)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "get host")
+		}
+		if err := automdm.ValidateAndroidWipeRequest(ctx, svc.ds, hostWithMDM); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "validate android wipe request")
+		}
+		lockWipe, err := svc.ds.GetHostLockWipeStatus(ctx, hostWithMDM)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "get host lock/wipe status")
+		}
+		if err := lockWipe.ValidateWipeRequest(); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "validate host lock/wipe status")
+		}
+	}
+
+	cmd, err := svc.androidSvc.IssueCustomCommand(ctx, host.ID, rawJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	return &automdm.CommandEnqueueResult{
+		CommandUUID: cmd.CommandUUID,
+		RequestType: cmd.CommandType,
+		Platform:    "android",
+	}, nil
+}
+
+// validateAppleMDMCommand validates an Apple MDM command before it is enqueued.
+// It checks for restrictions based on the command type and host/team configuration.
+func (svc *Service) validateAppleMDMCommand(ctx context.Context, rawXMLCmd []byte, hosts []*automdm.Host) error {
+	cmd, err := nanomdm.DecodeCommand(rawXMLCmd)
+	if err != nil {
+		// Don't return an error here - let enqueueAppleMDMCommand handle the decode error
+		// with proper error formatting
+		return nil
+	}
+
+	// Check if this is a SetRecoveryLock or VerifyRecoveryLock command and if any host's team (or the
+	// global config for hosts with no team) has recovery lock password enabled
+	// (which means AutoMDM manages the password).
+	if strings.TrimSpace(cmd.Command.RequestType) == automdm.SetRecoveryLockCmdName || strings.TrimSpace(cmd.Command.RequestType) == automdm.VerifyRecoveryLockCmdName {
+		// Get app config once for hosts with no team
+		var appConfig *automdm.AppConfig
+		for _, h := range hosts {
+			var recoveryLockEnabled bool
+			if h.TeamID != nil {
+				teamMDMConfig, err := svc.ds.TeamMDMConfig(ctx, *h.TeamID)
+				if err != nil {
+					return ctxerr.Wrap(ctx, err, "get team MDM config")
+				}
+				recoveryLockEnabled = teamMDMConfig != nil && teamMDMConfig.EnableRecoveryLockPassword
+			} else {
+				// Host has no team, check global config
+				if appConfig == nil {
+					appConfig, err = svc.ds.AppConfig(ctx)
+					if err != nil {
+						return ctxerr.Wrap(ctx, err, "get app config")
+					}
+				}
+				recoveryLockEnabled = appConfig.MDM.EnableRecoveryLockPassword.Value
+			}
+
+			if recoveryLockEnabled {
+				err := automdm.NewInvalidArgumentError(
+					"command",
+					"Could not run command. Recovery Lock password is already set for one or more hosts. To set a custom password, disable Recovery Lock passwords for those hosts' teams. To rotate the password, learn how: https://automdm.com/learn-more-about/recovery-lock-passwords",
+				).WithStatus(http.StatusConflict)
+				return ctxerr.Wrap(ctx, err, "SetRecoveryLock blocked by team config")
+			}
+		}
+	}
+
+	return nil
+}
+
+var appleMDMPremiumCommands = map[string]bool{
+	"EraseDevice":   true,
+	"DeviceLock":    true,
+	"ClearPasscode": true,
+}
+
+func (svc *Service) enqueueAppleMDMCommand(ctx context.Context, rawXMLCmd []byte, deviceIDs []string) (result *automdm.CommandEnqueueResult, err error) {
+	cmd, err := nanomdm.DecodeCommand(rawXMLCmd)
+	if err != nil {
+		err = automdm.NewInvalidArgumentError("command", "unable to decode plist command").WithStatus(http.StatusUnsupportedMediaType)
+		return nil, ctxerr.Wrap(ctx, err, "decode plist command")
+	}
+
+	// Host-secret placeholders are AutoMDM's to write, never an admin's
+	if err := automdm.ValidateNoHostSecretVariables(string(rawXMLCmd)); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "validate apple mdm command")
+	}
+
+	if appleMDMPremiumCommands[strings.TrimSpace(cmd.Command.RequestType)] {
+		lic, err := svc.License(ctx)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "get license")
+		}
+		if !lic.IsPremium() {
+			return nil, automdm.ErrMissingLicense
+		}
+	}
+
+	if err := svc.mdmAppleCommander.EnqueueCommand(ctx, deviceIDs, string(rawXMLCmd)); err != nil {
+		// if at least one UUID enqueued properly, return success, otherwise return
+		// error
+		var apnsErr *apple_mdm.APNSDeliveryError
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &apnsErr) {
+			failedUUIDs := apnsErr.FailedUUIDs()
+			if len(failedUUIDs) < len(deviceIDs) {
+				// some hosts properly received the command, so return success, with the list
+				// of failed uuids.
+				return &automdm.CommandEnqueueResult{
+					CommandUUID: cmd.CommandUUID,
+					RequestType: cmd.Command.RequestType,
+					FailedUUIDs: failedUUIDs,
+				}, nil
+			}
+			// push failed for all hosts
+			err := automdm.NewBadGatewayError("Apple push notification service", err)
+			return nil, ctxerr.Wrap(ctx, err, "enqueue command")
+
+		} else if errors.As(err, &mysqlErr) {
+			// enqueue may fail with a foreign key constraint error 1452 when one of
+			// the hosts provided is not enrolled in nano_enrollments. Detect when
+			// that's the case and add information to the error.
+			if mysqlErr.Number == mysqlerr.ER_NO_REFERENCED_ROW_2 {
+				err := automdm.NewInvalidArgumentError(
+					"device_ids",
+					fmt.Sprintf("at least one of the hosts is not enrolled in MDM or is not an elegible device: %v", err),
+				).WithStatus(http.StatusBadRequest)
+				return nil, ctxerr.Wrap(ctx, err, "enqueue command")
+			}
+		}
+
+		return nil, ctxerr.Wrap(ctx, err, "enqueue command")
+	}
+	return &automdm.CommandEnqueueResult{
+		CommandUUID: cmd.CommandUUID,
+		RequestType: cmd.Command.RequestType,
+		Platform:    "darwin",
+	}, nil
+}
+
+func (svc *Service) enqueueMicrosoftMDMCommand(ctx context.Context, rawXMLCmd []byte, deviceIDs []string) (result *automdm.CommandEnqueueResult, err error) {
+	cmdMsg, err := automdm.ParseWindowsMDMCommand(rawXMLCmd)
+	if err != nil {
+		err = automdm.NewInvalidArgumentError("command", err.Error())
+		return nil, ctxerr.Wrap(ctx, err, "decode SyncML command")
+	}
+
+	// Host-secret placeholders are AutoMDM's to write, never an admin's
+	if err := automdm.ValidateNoHostSecretVariables(string(rawXMLCmd)); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "validate windows mdm command")
+	}
+
+	if err := automdm.ValidateWindowsMDMCommandID(cmdMsg.CmdID.Value); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "validate windows mdm command id")
+	}
+
+	if cmdMsg.IsPremium() {
+		lic, err := svc.License(ctx)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "get license")
+		}
+		if !lic.IsPremium() {
+			return nil, automdm.ErrMissingLicense
+		}
+	}
+
+	winCmd := &automdm.MDMWindowsCommand{
+		// TODO: using the provided ID to mimic Apple, but seems better if
+		// we're full in control of it, what we should do?
+		CommandUUID:  cmdMsg.CmdID.Value,
+		RawCommand:   rawXMLCmd,
+		TargetLocURI: cmdMsg.GetTargetURI(),
+	}
+	if err := svc.ds.MDMWindowsInsertCommandForHosts(ctx, deviceIDs, winCmd); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "insert pending windows mdm command")
+	}
+
+	return &automdm.CommandEnqueueResult{
+		CommandUUID: winCmd.CommandUUID,
+		RequestType: winCmd.TargetLocURI,
+		Platform:    "windows",
+	}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /commands/results
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMCommandResultsRequest struct {
+	CommandUUID    string `query:"command_uuid,optional"`
+	HostIdentifier string `query:"host_identifier,optional"`
+}
+
+type getMDMCommandResultsResponse struct {
+	Results []*automdm.MDMCommandResult `json:"results,omitempty"`
+	Err     error                       `json:"error,omitempty"`
+}
+
+func (r getMDMCommandResultsResponse) Error() error { return r.Err }
+
+func getMDMCommandResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMCommandResultsRequest)
+
+	results, err := svc.GetMDMCommandResults(ctx, req.CommandUUID, req.HostIdentifier)
+	if err != nil {
+		return getMDMCommandResultsResponse{
+			Err: err,
+		}, nil
+	}
+
+	return getMDMCommandResultsResponse{
+		Results: results,
+	}, nil
+}
+
+func (svc *Service) GetMDMCommandResults(ctx context.Context, commandUUID string, hostIdentifier string) ([]*automdm.MDMCommandResult, error) {
+	if svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceToken) ||
+		svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceURL) {
+		return svc.getDeviceSoftwareMDMCommandResults(ctx, commandUUID)
+	}
+
+	svc.logger.DebugContext(ctx, "GetMDMCommandResults called with user authentication", "command_uuid", commandUUID, "host_identifier", hostIdentifier)
+
+	// first, authorize that the user has the right to list hosts
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	// branch if host identifier is provided to target results for a specific host
+	if hostIdentifier != "" {
+		return svc.getHostIdentifierMDMCommandResults(ctx, commandUUID, hostIdentifier)
+	}
+
+	// otherwise, load all command results for the command UUID without any host filtering
+	results, err := svc.getMDMCommandResults(ctx, commandUUID, "")
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get mdm command results with authz")
+	}
+
+	// now we can load the hosts (lite) corresponding to those command results,
+	// and do the final authorization check with the proper team(s). Include observers,
+	// as they are able to view command results for their teams' hosts.
+	hostUUIDs := make([]string, len(results))
+	for i, res := range results {
+		hostUUIDs[i] = res.HostUUID
+	}
+
+	// build team filter for the user from context
+	vc, ok := viewer.FromContext(ctx)
+	if !ok {
+		return nil, automdm.ErrNoContext
+	}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true} // observers can view command results for their teams
+
+	hosts, err := svc.ds.ListHostsLiteByUUIDs(ctx, filter, hostUUIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(hosts) == 0 {
+		// do not return 404 here, as it's possible for a command to not have
+		// results yet
+		return nil, nil
+	}
+
+	// collect the team IDs and verify that the user has access to view commands
+	// on all affected teams. Index the hosts by uuid for easly lookup as
+	// afterwards we'll want to store the hostname on the returned results.
+	hostsByUUID := make(map[string]*automdm.Host, len(hosts))
+	teamIDs := make(map[uint]bool)
+	for _, h := range hosts {
+		var id uint
+		if h.TeamID != nil {
+			id = *h.TeamID
+		}
+		teamIDs[id] = true
+		hostsByUUID[h.UUID] = h
+	}
+
+	var commandAuthz automdm.MDMCommandAuthz
+	for tmID := range teamIDs {
+		commandAuthz.TeamID = &tmID
+		if tmID == 0 {
+			commandAuthz.TeamID = nil
+		}
+
+		if err := svc.authz.Authorize(ctx, commandAuthz, automdm.ActionRead); err != nil {
+			return nil, ctxerr.Wrap(ctx, err)
+		}
+	}
+
+	// A command UUID can target hosts across multiple teams. ListHostsLiteByUUIDs
+	// above only returns the hosts the caller is allowed to see, so keep only the
+	// results for those hosts and add their hostnames. Also detect VPP app installs
+	// for enrichment below.
+	hasInstallApp := false
+	authorized := make([]*automdm.MDMCommandResult, 0, len(results))
+	for _, res := range results {
+		h := hostsByUUID[res.HostUUID]
+		if h == nil {
+			continue
+		}
+		res.Hostname = h.Hostname
+
+		if res.RequestType == "InstallApplication" {
+			hasInstallApp = true
+		}
+		authorized = append(authorized, res)
+	}
+	results = authorized
+
+	if hasInstallApp {
+		// Get install status for the VPP app
+		installed, err := svc.ds.GetVPPAppInstallStatusByCommandUUID(ctx, commandUUID)
+		if err != nil {
+			svc.logger.DebugContext(ctx, "failed to check if VPP app is installed", "err", err, "command_uuid", commandUUID)
+		} else {
+			for _, res := range results {
+				if res.RequestType == "InstallApplication" {
+					if res.ResultsMetadata == nil {
+						res.ResultsMetadata = make(map[string]any)
+					}
+					res.ResultsMetadata["software_installed"] = installed
+					res.ResultsMetadata["vpp_verify_timeout_seconds"] = int(svc.config.Server.VPPVerifyTimeout.Seconds())
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func (svc *Service) getMDMCommandResults(ctx context.Context, commandUUID string, hostUUID string) ([]*automdm.MDMCommandResult, error) {
+	// check that command exists first, to return 404 on invalid commands
+	// (the command may exist but have no results yet).
+	p, err := svc.ds.GetMDMCommandPlatform(ctx, commandUUID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	var results []*automdm.MDMCommandResult
+	switch p {
+	case "darwin":
+		results, err = svc.ds.GetMDMAppleCommandResults(ctx, commandUUID, hostUUID)
+	case "windows":
+		results, err = svc.ds.GetMDMWindowsCommandResults(ctx, commandUUID, hostUUID)
+	case "android":
+		results, err = svc.ds.GetMDMAndroidCommandResults(ctx, commandUUID, hostUUID)
+	default:
+		// this should never happen, but just in case
+		svc.logger.DebugContext(ctx, "unknown MDM command platform", "platform", p)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func (svc *Service) getDeviceSoftwareMDMCommandResults(ctx context.Context, commandUUID string) ([]*automdm.MDMCommandResult, error) {
+	host, ok := hostctx.FromContext(ctx) // includes UUID and hostname so we have what we need to filter results
+	if !ok {
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+	}
+
+	// zero-length result (command exists but no responses) is different from not-found (no command, command isn't an install, or wrong host)
+	results, err := svc.ds.GetVPPCommandResults(ctx, commandUUID, host.UUID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, res := range results {
+		res.Hostname = host.Hostname
+	}
+
+	// Enrich VPP command results with install status and verify timeout metadata,
+	// matching what the admin path does in GetMDMCommandResults.
+	if len(results) > 0 {
+		installed, err := svc.ds.GetVPPAppInstallStatusByCommandUUID(ctx, commandUUID)
+		if err != nil {
+			svc.logger.DebugContext(ctx, "failed to check if VPP app is installed", "err", err, "command_uuid", commandUUID)
+		} else {
+			for _, res := range results {
+				if res.RequestType == "InstallApplication" {
+					if res.ResultsMetadata == nil {
+						res.ResultsMetadata = make(map[string]any)
+					}
+					res.ResultsMetadata["software_installed"] = installed
+					res.ResultsMetadata["vpp_verify_timeout_seconds"] = int(svc.config.Server.VPPVerifyTimeout.Seconds())
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func (svc *Service) getHostIdentifierMDMCommandResults(ctx context.Context, commandUUID string, hostIdentifier string) ([]*automdm.MDMCommandResult, error) {
+	if hostIdentifier == "" {
+		// caller should ensure this doesn't happen, but just in case return an internal error
+		return nil, ctxerr.Errorf(ctx, "getHostIdentifierMDMCommandResults called without host identifier")
+	}
+
+	if commandUUID == "" {
+		return nil, automdm.NewInvalidArgumentError(
+			"command_uuid",
+			"command_uuid is required when host_identifier is provided",
+		).WithStatus(http.StatusBadRequest)
+	}
+
+	// build team filter for the user from context
+	vc, ok := viewer.FromContext(ctx)
+	if !ok {
+		return nil, automdm.ErrNoContext
+	}
+	tmFilter := automdm.TeamFilter{User: vc.User, IncludeObserver: true} // observers can view command results for their teams
+
+	hi, err := svc.ds.GetHostMDMIdentifiers(ctx, hostIdentifier, tmFilter)
+	switch {
+	case err != nil:
+		return nil, ctxerr.Wrap(ctx, err, "getHostIdentifierMDMCommandResults: searching host identifiers")
+	case len(hi) == 0 || hi[0] == nil || hi[0].UUID == "":
+		// this should never happen, but just in case
+		return nil, ctxerr.Errorf(ctx, "getHostIdentifierMDMCommandResults: unexpected result for host identifier %s", hostIdentifier)
+	case len(hi) > 1:
+		// FIXME: determine what to do in this unexpected case; for now just log it and use the first one.
+		svc.logger.DebugContext(ctx, "getHostIdentifierMDMCommandResults: multiple hosts found for host identifier",
+			"host_identifier", hostIdentifier, "count", len(hi))
+	}
+
+	// authorize that the user can read commands for the host's team
+	if err := svc.authz.Authorize(ctx, automdm.MDMCommandAuthz{TeamID: hi[0].TeamID}, automdm.ActionRead); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	results, err := svc.getMDMCommandResults(ctx, commandUUID, hi[0].UUID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get mdm command results by platform")
+	}
+
+	// FIXME: we could potentially pass the hostname to the datastore method and plug it into the
+	// SELECT to avoid this loop, but for now we're following the same pattern as in
+	// GetMDMCommandResults and we're only expecting a single result here, so not a
+	// big deal.
+	for _, res := range results {
+		res.Hostname = hi[0].Hostname
+	}
+
+	return results, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /commands
+////////////////////////////////////////////////////////////////////////////////
+
+type listMDMCommandsRequest struct {
+	ListOptions    automdm.ListOptions `url:"list_options"`
+	HostIdentifier string              `query:"host_identifier,optional"`
+	RequestType    string              `query:"request_type,optional"`
+	CommandStatus  string              `query:"command_status,optional"`
+}
+
+type listMDMCommandsResponse struct {
+	Meta    *automdm.PaginationMetadata `json:"meta"`
+	Count   *int64                      `json:"count"`
+	Results []*automdm.MDMCommand       `json:"results"`
+	Err     error                       `json:"error,omitempty"`
+}
+
+func (r listMDMCommandsResponse) Error() error { return r.Err }
+
+// We the DecodeBody method to perform custom validation before hitting the service layer.
+func (req listMDMCommandsRequest) DecodeBody(ctx context.Context, r io.Reader, u url.Values, c []*x509.Certificate) error {
+	if strings.TrimSpace(req.HostIdentifier) == "" {
+		return automdm.NewParamRequiredDeprecationError("host_identifier")
+	}
+
+	if req.CommandStatus != "" {
+		statuses := strings.Split(req.CommandStatus, ",")
+		failed := false
+		for _, status := range statuses {
+			status = strings.TrimSpace(status)
+			if !slices.Contains(automdm.AllMDMCommandStatusFilters, automdm.MDMCommandStatusFilter(status)) {
+				failed = true
+				break
+			}
+		}
+
+		if failed {
+			allowed := make([]string, len(automdm.AllMDMCommandStatusFilters))
+			for i, v := range automdm.AllMDMCommandStatusFilters {
+				allowed[i] = string(v)
+			}
+			return &automdm.BadRequestError{
+				Message: fmt.Sprintf("command_status only accepts the following values: %s", strings.Join(allowed, ", ")),
+			}
+		}
+	}
+
+	if req.ListOptions.PerPage > automdm.MaxMDMCommandsPerPage {
+		return &automdm.BadRequestError{
+			Message: fmt.Sprintf("Request could not be processed. Please set a per_page limit of %d or less.", automdm.MaxMDMCommandsPerPage),
+		}
+	}
+
+	if req.ListOptions.Page > automdm.MaxMDMCommandsPage {
+		return &automdm.BadRequestError{
+			Message: fmt.Sprintf("Request could not be processed. Please set page to %d or less, or use cursor pagination via the after parameter for deep traversal.", automdm.MaxMDMCommandsPage),
+		}
+	}
+
+	return nil
+}
+
+func listMDMCommandsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*listMDMCommandsRequest)
+
+	// Convert comma-separated command statuses into a list of typed values
+	commandStatuses := []automdm.MDMCommandStatusFilter{}
+	if req.CommandStatus != "" {
+		for val := range strings.SplitSeq(req.CommandStatus, ",") {
+			commandStatuses = append(commandStatuses, automdm.MDMCommandStatusFilter(strings.TrimSpace(val)))
+		}
+	}
+
+	if req.ListOptions.PerPage == 0 {
+		req.ListOptions.PerPage = automdm.DefaultMDMCommandsPerPage
+	}
+	req.ListOptions.IncludeMetadata = true
+
+	results, total, meta, err := svc.ListMDMCommands(ctx, &automdm.MDMCommandListOptions{
+		ListOptions: req.ListOptions,
+		Filters:     automdm.MDMCommandFilters{HostIdentifier: req.HostIdentifier, RequestType: req.RequestType, CommandStatuses: commandStatuses},
+	})
+	bre := &automdm.BadRequestError{}
+	if err != nil && !errors.As(err, &bre) {
+		return listMDMCommandsResponse{
+			Err: err,
+		}, nil
+	} else if errors.As(err, &bre) {
+		return nil, err
+	}
+
+	return listMDMCommandsResponse{
+		Meta:    meta,
+		Results: results,
+		Count:   total,
+	}, nil
+}
+
+func (svc *Service) ListMDMCommands(ctx context.Context, opts *automdm.MDMCommandListOptions) ([]*automdm.MDMCommand, *int64, *automdm.PaginationMetadata, error) {
+	// first, authorize that the user has the right to list hosts
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
+		return nil, nil, nil, ctxerr.Wrap(ctx, err)
+	}
+
+	vc, ok := viewer.FromContext(ctx)
+	if !ok {
+		return nil, nil, nil, automdm.ErrNoContext
+	}
+
+	// get the list of commands so we know what hosts (and therefore what teams)
+	// we're dealing with. Including the observers as they are allowed to view
+	// MDM Apple commands.
+	results, total, meta, err := svc.ds.ListMDMCommands(ctx, automdm.TeamFilter{
+		User:            vc.User,
+		IncludeObserver: true,
+	}, opts)
+	if automdm.IsNotFound(err) && opts.Filters.HostIdentifier != "" {
+		// Not found covers hosts in teams the user can't see, so they look like hosts that don't exist.
+		return nil, nil, nil, automdm.NewInvalidArgumentError("Invalid Host", automdm.HostIdentiferNotFound).WithStatus(http.StatusNotFound)
+	}
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// collect the different team IDs and verify that the user has access to view
+	// commands on all affected teams, do not assume that ListMDMCommands
+	// only returned hosts that the user is authorized to view the command
+	// results of (that is, always verify with our rego authz policy).
+	teamIDs := make(map[uint]bool)
+	for _, res := range results {
+		var id uint
+		if res.TeamID != nil {
+			id = *res.TeamID
+		}
+		teamIDs[id] = true
+	}
+
+	// instead of returning an authz error if the user is not authorized for a
+	// team, we remove those commands from the results (as we want to return
+	// whatever the user is allowed to see). Since this can only be done after
+	// retrieving the list of commands, this may result in returning less results
+	// than requested, but it's ok - it's expected that the results retrieved
+	// from the datastore will all be authorized for the user.
+	var commandAuthz automdm.MDMCommandAuthz
+	var authzErr error
+	for tmID := range teamIDs {
+		commandAuthz.TeamID = &tmID
+		if tmID == 0 {
+			commandAuthz.TeamID = nil
+		}
+		if err := svc.authz.Authorize(ctx, commandAuthz, automdm.ActionRead); err != nil {
+			if authzErr == nil {
+				authzErr = err
+			}
+			teamIDs[tmID] = false
+		}
+	}
+
+	if authzErr != nil {
+		svc.logger.ErrorContext(ctx, "unauthorized to view some team commands", "details", authzErr)
+
+		// filter-out the teams that the user is not allowed to view
+		allowedResults := make([]*automdm.MDMCommand, 0, len(results))
+		for _, res := range results {
+			var id uint
+			if res.TeamID != nil {
+				id = *res.TeamID
+			}
+			if teamIDs[id] {
+				allowedResults = append(allowedResults, res)
+			}
+		}
+		results = allowedResults
+	}
+
+	return results, total, meta, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /disk_encryption
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMDiskEncryptionSummaryRequest struct {
+	TeamID *uint `query:"team_id,optional"`
+}
+
+type getMDMDiskEncryptionSummaryResponse struct {
+	*automdm.MDMDiskEncryptionSummary
+	Err error `json:"error,omitempty"`
+}
+
+func (r getMDMDiskEncryptionSummaryResponse) Error() error { return r.Err }
+
+func getMDMDiskEncryptionSummaryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMDiskEncryptionSummaryRequest)
+
+	des, err := svc.GetMDMDiskEncryptionSummary(ctx, req.TeamID)
+	if err != nil {
+		return getMDMDiskEncryptionSummaryResponse{Err: err}, nil
+	}
+
+	return &getMDMDiskEncryptionSummaryResponse{
+		MDMDiskEncryptionSummary: des,
+	}, nil
+}
+
+func (svc *Service) GetMDMDiskEncryptionSummary(ctx context.Context, teamID *uint) (*automdm.MDMDiskEncryptionSummary, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return nil, automdm.ErrMissingLicense
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /configuration_profiles/summary
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMProfilesSummaryRequest struct {
+	TeamID *uint `query:"team_id,optional"`
+}
+
+type getMDMProfilesSummaryResponse struct {
+	automdm.MDMProfilesSummary
+	Err error `json:"error,omitempty"`
+}
+
+func (r getMDMProfilesSummaryResponse) Error() error { return r.Err }
+
+func getMDMProfilesSummaryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMProfilesSummaryRequest)
+	res := getMDMProfilesSummaryResponse{}
+
+	appleStatus, err := svc.GetMDMAppleProfilesSummary(ctx, req.TeamID)
+	if err != nil {
+		return &getMDMAppleProfilesSummaryResponse{Err: err}, nil
+	}
+
+	windowsStatus, err := svc.GetMDMWindowsProfilesSummary(ctx, req.TeamID)
+	if err != nil {
+		return &getMDMProfilesSummaryResponse{Err: err}, nil
+	}
+
+	linuxStatus, err := svc.GetMDMLinuxProfilesSummary(ctx, req.TeamID)
+	if err != nil {
+		return &getMDMProfilesSummaryResponse{Err: err}, nil
+	}
+
+	androidStatus, err := svc.GetMDMAndroidProfilesSummary(ctx, req.TeamID)
+	if err != nil {
+		return &getMDMProfilesSummaryResponse{Err: err}, nil
+	}
+
+	res.Verified = appleStatus.Verified + windowsStatus.Verified + linuxStatus.Verified + androidStatus.Verified
+	res.Verifying = appleStatus.Verifying + windowsStatus.Verifying + androidStatus.Verifying
+	res.Failed = appleStatus.Failed + windowsStatus.Failed + linuxStatus.Failed + androidStatus.Failed
+	res.Pending = appleStatus.Pending + windowsStatus.Pending + linuxStatus.Pending + androidStatus.Pending
+
+	return &res, nil
+}
+
+func (svc *Service) GetMDMAndroidProfilesSummary(ctx context.Context, teamID *uint) (*automdm.MDMProfilesSummary, error) {
+	if err := svc.authz.Authorize(ctx, automdm.MDMConfigProfileAuthz{TeamID: teamID}, automdm.ActionRead); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	if err := svc.VerifyMDMAndroidConfigured(ctx); err != nil {
+		return &automdm.MDMProfilesSummary{}, nil
+	}
+
+	ps, err := svc.ds.GetMDMAndroidProfilesSummary(ctx, teamID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	return ps, nil
+}
+
+// authorizeAllHostsTeams is a helper function that loads the hosts
+// corresponding to the hostUUIDs and authorizes the context user to execute
+// the specified authzAction (e.g. automdm.ActionWrite) for all the hosts' teams
+// with the specified authorizer, which is typically a struct that can set a
+// TeamID field and defines an authorization subject, such as
+// automdm.MDMCommandAuthz.
+//
+// On success, the list of hosts is returned (which may be empty, it is up to
+// the caller to return an error if needed when no hosts are found).
+func (svc *Service) authorizeAllHostsTeams(ctx context.Context, hostUUIDs []string, authzAction any, authorizer automdm.TeamIDSetter) ([]*automdm.Host, error) {
+	// load hosts (lite) by uuids, check that the user has the rights to run
+	// commands for every affected team.
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
+		return nil, authz.GitOpsHostListError(ctx, err)
+	}
+
+	// here we use a global admin as filter because we want to get all hosts that
+	// correspond to those uuids. Only after we get those hosts will we check
+	// authorization for the current user, for all teams affected by that host.
+	// Without this, only hosts that the user can view would be returned and the
+	// actual authorization check might only be done on a subset of the requsted
+	// hosts.
+	filter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
+	hosts, err := svc.ds.ListHostsLiteByUUIDs(ctx, filter, hostUUIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// collect the team IDs and verify that the user has access to run commands
+	// on all affected teams.
+	teamIDs := make(map[uint]bool, len(hosts))
+	for _, h := range hosts {
+		var id uint
+		if h.TeamID != nil {
+			id = *h.TeamID
+		}
+		teamIDs[id] = true
+	}
+
+	for tmID := range teamIDs {
+		authzTeamID := &tmID
+		if tmID == 0 {
+			authzTeamID = nil
+		}
+		authorizer.SetTeamID(authzTeamID)
+
+		if err := svc.authz.Authorize(ctx, authorizer, authzAction); err != nil {
+			return nil, ctxerr.Wrap(ctx, authz.GitOpsMDMCommandError(ctx, authzTeamID, err))
+		}
+	}
+	return hosts, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /configuration_profiles/{uuid}
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMConfigProfileRequest struct {
+	ProfileUUID string `url:"profile_uuid"`
+	Alt         string `query:"alt,optional"`
+}
+
+type getMDMConfigProfileResponse struct {
+	*automdm.MDMConfigProfilePayload
+	Err error `json:"error,omitempty"`
+}
+
+func (r getMDMConfigProfileResponse) Error() error { return r.Err }
+
+func getMDMConfigProfileEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMConfigProfileRequest)
+
+	downloadRequested := req.Alt == "media"
+	var err error
+	if isAppleProfileUUID(req.ProfileUUID) {
+		// Apple config profile
+		cp, err := svc.GetMDMAppleConfigProfile(ctx, req.ProfileUUID)
+		if err != nil {
+			return &getMDMConfigProfileResponse{Err: err}, nil
+		}
+
+		if _, match := mobileconfig.AutoMDMPayloadIdentifiers()[cp.Identifier]; match {
+			return &getMDMConfigProfileResponse{Err: &automdm.BadRequestError{Message: fmt.Sprintf("Can not retrieve AutoMDM managed profiles: %s", cp.Name)}}, nil
+		}
+
+		if downloadRequested {
+			return automdm.DownloadFileResponse{
+				Content:     cp.Mobileconfig,
+				ContentType: "application/x-apple-aspen-config",
+				Filename:    fmt.Sprintf("%s_%s.mobileconfig", time.Now().Format("2006-01-02"), strings.ReplaceAll(cp.Name, " ", "_")),
+			}, nil
+		}
+		return &getMDMConfigProfileResponse{
+			MDMConfigProfilePayload: automdm.NewMDMConfigProfilePayloadFromApple(cp),
+		}, nil
+	}
+
+	if isAppleDeclarationUUID(req.ProfileUUID) {
+		// TODO: we could potentially combined with the other service methods
+		decl, err := svc.GetMDMAppleDeclaration(ctx, req.ProfileUUID)
+		if err != nil {
+			return &getMDMConfigProfileResponse{Err: err}, nil
+		}
+
+		if _, match := apple_mdm.AutoMDMReservedDeclarationIdentifiers()[decl.Identifier]; match {
+			return &getMDMConfigProfileResponse{Err: &automdm.BadRequestError{Message: fmt.Sprintf("Can not retrieve AutoMDM managed profiles: %s", decl.Name)}}, nil
+		}
+
+		if downloadRequested {
+			return automdm.DownloadFileResponse{
+				Content:     decl.RawJSON,
+				ContentType: "application/json",
+				Filename:    fmt.Sprintf("%s_%s.json", time.Now().Format("2006-01-02"), strings.ReplaceAll(decl.Name, " ", "_")),
+			}, nil
+		}
+		return &getMDMConfigProfileResponse{
+			MDMConfigProfilePayload: automdm.NewMDMConfigProfilePayloadFromAppleDDM(decl),
+		}, nil
+	}
+
+	if isAndroidProfileUUID(req.ProfileUUID) {
+		// TODO: we could potentially combined with the other service methods
+		prof, err := svc.GetMDMAndroidConfigProfile(ctx, req.ProfileUUID)
+		if err != nil {
+			return &getMDMConfigProfileResponse{Err: err}, nil
+		}
+
+		if _, match := mdm.AutoMDMReservedProfileNames()[prof.Name]; match {
+			return &getMDMConfigProfileResponse{Err: &automdm.BadRequestError{Message: fmt.Sprintf("Can not retrieve AutoMDM managed profiles: %s", prof.Name)}}, nil
+		}
+
+		if downloadRequested {
+			return automdm.DownloadFileResponse{
+				Content:     prof.RawJSON,
+				ContentType: "application/json",
+				Filename:    fmt.Sprintf("%s_%s.json", time.Now().Format("2006-01-02"), strings.ReplaceAll(prof.Name, " ", "_")),
+			}, nil
+		}
+		return &getMDMConfigProfileResponse{
+			MDMConfigProfilePayload: automdm.NewMDMConfigProfilePayloadFromAndroid(prof),
+		}, nil
+	}
+
+	// Windows config profile
+	cp, err := svc.GetMDMWindowsConfigProfile(ctx, req.ProfileUUID)
+	if err != nil {
+		return &getMDMConfigProfileResponse{Err: err}, nil
+	}
+
+	if _, match := mdm.AutoMDMReservedProfileNames()[cp.Name]; match {
+		return &getMDMConfigProfileResponse{Err: &automdm.BadRequestError{Message: fmt.Sprintf("Can not retrieve AutoMDM managed profiles: %s", cp.Name)}}, nil
+	}
+
+	if downloadRequested {
+		return automdm.DownloadFileResponse{
+			Content:     cp.SyncML,
+			ContentType: "application/octet-stream", // not using the XML MIME type as a profile is not valid XML (a list of <Replace> elements)
+			Filename:    fmt.Sprintf("%s_%s.xml", time.Now().Format("2006-01-02"), strings.ReplaceAll(cp.Name, " ", "_")),
+		}, nil
+	}
+	return &getMDMConfigProfileResponse{
+		MDMConfigProfilePayload: automdm.NewMDMConfigProfilePayloadFromWindows(cp),
+	}, nil
+}
+
+func (svc *Service) GetMDMWindowsConfigProfile(ctx context.Context, profileUUID string) (*automdm.MDMWindowsConfigProfile, error) {
+	// first we perform a basic authz check
+	if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
+		return nil, err
+	}
+
+	cp, err := svc.ds.GetMDMWindowsConfigProfile(ctx, profileUUID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	// now we can do a specific authz check based on team id of profile before we
+	// return the profile.
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: cp.TeamID}, automdm.ActionRead); err != nil {
+		return nil, err
+	}
+
+	return cp, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DELETE /configuration_profiles/{uuid}
+////////////////////////////////////////////////////////////////////////////////
+
+type deleteMDMConfigProfileRequest struct {
+	ProfileUUID string `url:"profile_uuid"`
+}
+
+type deleteMDMConfigProfileResponse struct {
+	Warning string `json:"warning,omitempty"`
+	Err     error  `json:"error,omitempty"`
+}
+
+func (r deleteMDMConfigProfileResponse) Error() error { return r.Err }
+
+func deleteMDMConfigProfileEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*deleteMDMConfigProfileRequest)
+
+	var (
+		err     error
+		warning string
+	)
+	if isAppleProfileUUID(req.ProfileUUID) { //nolint:gocritic // ignore ifElseChain
+		err = svc.DeleteMDMAppleConfigProfile(ctx, req.ProfileUUID)
+	} else if isAppleDeclarationUUID(req.ProfileUUID) {
+		err = svc.DeleteMDMAppleDeclaration(ctx, req.ProfileUUID)
+	} else if isAndroidProfileUUID(req.ProfileUUID) {
+		err = svc.DeleteMDMAndroidConfigProfile(ctx, req.ProfileUUID)
+	} else {
+		err = svc.DeleteMDMWindowsConfigProfile(ctx, req.ProfileUUID)
+		if err == nil {
+			warning = automdm.WindowsProfileDeletedWarning
+		}
+	}
+	return &deleteMDMConfigProfileResponse{Warning: warning, Err: err}, nil
+}
+
+func (svc *Service) DeleteMDMWindowsConfigProfile(ctx context.Context, profileUUID string) error {
+	// first we perform a basic authz check
+	if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	prof, err := svc.ds.GetMDMWindowsConfigProfile(ctx, profileUUID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	teamID, teamName, err := svc.resolveProfileTeam(ctx, prof.TeamID)
+	if err != nil {
+		return err
+	}
+
+	// now we can do a specific authz check based on team id of profile before we delete the profile
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: prof.TeamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// prevent deleting AutoMDM-managed profiles (e.g., Windows OS Updates profile controlled by the OS Updates settings)
+	automdmNames := mdm.AutoMDMReservedProfileNames()
+	if _, ok := automdmNames[prof.Name]; ok {
+		err := &automdm.BadRequestError{Message: "Profiles managed by AutoMDM can't be deleted using this endpoint."}
+		return ctxerr.Wrap(ctx, err, "validate profile")
+	}
+
+	if err := svc.ds.DeleteMDMWindowsConfigProfile(ctx, profileUUID); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	var (
+		actTeamID   *uint
+		actTeamName *string
+	)
+	if teamID > 0 {
+		actTeamID = &teamID
+		actTeamName = &teamName
+	}
+	if err := svc.NewActivity(
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeDeletedWindowsProfile{
+			TeamID:      actTeamID,
+			TeamName:    actTeamName,
+			ProfileName: prof.Name,
+		},
+	); err != nil {
+		return ctxerr.Wrap(ctx, err, "logging activity for delete mdm windows config profile")
+	}
+
+	return nil
+}
+
+func (svc *Service) GetMDMAndroidConfigProfile(ctx context.Context, profileUUID string) (*automdm.MDMAndroidConfigProfile, error) {
+	// first we perform a basic authz check
+	if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
+		return nil, err
+	}
+
+	cp, err := svc.ds.GetMDMAndroidConfigProfile(ctx, profileUUID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	// now we can do a specific authz check based on team id of profile before we
+	// return the profile.
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: cp.TeamID}, automdm.ActionRead); err != nil {
+		return nil, err
+	}
+
+	return cp, nil
+}
+
+func (svc *Service) DeleteMDMAndroidConfigProfile(ctx context.Context, profileUUID string) error {
+	// first we perform a basic authz check
+	if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	prof, err := svc.ds.GetMDMAndroidConfigProfile(ctx, profileUUID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	teamID, teamName, err := svc.resolveProfileTeam(ctx, prof.TeamID)
+	if err != nil {
+		return err
+	}
+
+	// now we can do a specific authz check based on team id of profile before we delete the profile
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: prof.TeamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// prevent deleting AutoMDM-managed profiles (e.g., Windows OS Updates profile controlled by the OS Updates settings)
+	automdmNames := mdm.AutoMDMReservedProfileNames()
+	if _, ok := automdmNames[prof.Name]; ok {
+		err := &automdm.BadRequestError{Message: "Profiles managed by AutoMDM can't be deleted using this endpoint."}
+		return ctxerr.Wrap(ctx, err, "validate profile")
+	}
+
+	if err := svc.ds.DeleteMDMAndroidConfigProfile(ctx, profileUUID); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// TODO AP review this activity
+	var (
+		actTeamID   *uint
+		actTeamName *string
+	)
+	if teamID > 0 {
+		actTeamID = &teamID
+		actTeamName = &teamName
+	}
+	if err := svc.NewActivity(
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeDeletedAndroidProfile{
+			TeamID:      actTeamID,
+			TeamName:    actTeamName,
+			ProfileName: prof.Name,
+		},
+	); err != nil {
+		return ctxerr.Wrap(ctx, err, "logging activity for delete mdm android config profile")
+	}
+
+	return nil
+}
+
+// returns the numeric Apple profile ID and true if it is an Apple identifier,
+// or 0 and false otherwise.
+func isAppleProfileUUID(profileUUID string) bool {
+	return strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix)
+}
+
+func isAppleDeclarationUUID(profileUUID string) bool {
+	return strings.HasPrefix(profileUUID, automdm.MDMAppleDeclarationUUIDPrefix)
+}
+
+func isAndroidProfileUUID(profileUUID string) bool {
+	return strings.HasPrefix(profileUUID, automdm.MDMAndroidProfileUUIDPrefix)
+}
+
+func isWindowsProfileUUID(profileUUID string) bool {
+	return strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// POST /configuration_profiles (Create Apple or Windows MDM Config Profile)
+////////////////////////////////////////////////////////////////////////////////
+
+type newMDMConfigProfileRequest struct {
+	TeamID           uint
+	Profile          *multipart.FileHeader
+	LabelsIncludeAll []string
+	LabelsIncludeAny []string
+	LabelsExcludeAny []string
+	Activation       *multipart.FileHeader
+	// Name is empty when not provided, in which case it is derived from the
+	// file (PayloadDisplayName or file name).
+	Name        string
+	Description string
+	SelfService bool
+	Hidden      bool
+}
+
+// decodeProfileNameField reads the optional multipart "name" field. A field
+// that is present but blank is rejected here, so absent and blank stay
+// distinguishable for the service (absent means derive or keep the name).
+func decodeProfileNameField(form *multipart.Form) (string, error) {
+	vals, ok := form.Value["name"]
+	if !ok || len(vals) == 0 {
+		return "", nil
+	}
+	name := strings.TrimSpace(vals[0])
+	if name == "" {
+		return "", automdm.NewInvalidArgumentError("name", "Profile name can't be empty.")
+	}
+	return name, nil
+}
+
+// decodeProfileDescriptionField reads the optional multipart "description"
+// field. nil means absent; an empty string clears the description.
+func decodeProfileDescriptionField(form *multipart.Form) *string {
+	vals, ok := form.Value["description"]
+	if !ok || len(vals) == 0 {
+		return nil
+	}
+	desc := strings.TrimSpace(vals[0])
+	return &desc
+}
+
+// decodeProfileBoolField reads an optional multipart bool field; nil means absent.
+func decodeProfileBoolField(form *multipart.Form, field string) (*bool, error) {
+	vals, ok := form.Value[field]
+	if !ok || len(vals) == 0 || vals[0] == "" {
+		return nil, nil
+	}
+	v, err := strconv.ParseBool(vals[0])
+	if err != nil {
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode %s bool in multipart form: %s", field, err.Error())}
+	}
+	return &v, nil
+}
+
+func decodeProfileDeployFields(form *multipart.Form) (selfService, hidden *bool, err error) {
+	if selfService, err = decodeProfileBoolField(form, "self_service"); err != nil {
+		return nil, nil, err
+	}
+	if hidden, err = decodeProfileBoolField(form, "hidden"); err != nil {
+		return nil, nil, err
+	}
+	return selfService, hidden, nil
+}
+
+// validateProfileDeployFlags enforces the self-service / hidden rules shared by
+// create, update, and batch. isAppleConfigProfile is true only for .mobileconfig.
+func validateProfileDeployFlags(ctx context.Context, selfService, hidden bool, isAppleConfigProfile bool, errPrefix string) error {
+	if !selfService && !hidden {
+		return nil
+	}
+	if !license.IsPremium(ctx) {
+		return automdm.NewInvalidArgumentError("self_service", ErrMissingLicense.Error())
+	}
+	if selfService && !isAppleConfigProfile {
+		return automdm.NewInvalidArgumentError("self_service", errPrefix+SelfServiceUnsupportedProfileErrorMsg)
+	}
+	if selfService && hidden {
+		return automdm.NewInvalidArgumentError("hidden", errPrefix+"hidden requires self_service to be false.")
+	}
+	return nil
+}
+
+// resolveProfileDeployFlags applies the requested flags over the stored ones,
+// validating the result only when a flag was provided so edits that don't touch
+// them keep working (e.g. after a license downgrade).
+func resolveProfileDeployFlags(ctx context.Context, curSelfService, curHidden bool, selfService, hidden *bool, isAppleConfigProfile bool, errPrefix string) (bool, bool, error) {
+	if selfService == nil && hidden == nil {
+		return curSelfService, curHidden, nil
+	}
+	if selfService != nil {
+		curSelfService = *selfService
+	}
+	if hidden != nil {
+		curHidden = *hidden
+	}
+	return curSelfService, curHidden, validateProfileDeployFlags(ctx, curSelfService, curHidden, isAppleConfigProfile, errPrefix)
+}
+
+func (newMDMConfigProfileRequest) DecodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	decoded := newMDMConfigProfileRequest{}
+
+	err := parseMultipartForm(r)
+	if err != nil {
+		return nil, &automdm.BadRequestError{
+			Message:     "failed to parse multipart form",
+			InternalErr: err,
+		}
+	}
+
+	// add team_id
+	val, ok := r.Form["team_id"]
+	if !ok || len(val) < 1 {
+		// default is no team
+		decoded.TeamID = 0
+	} else {
+		automdmID, err := strconv.Atoi(val[0])
+		if err != nil {
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode team_id in multipart form: %s", err.Error())}
+		}
+		decoded.TeamID = uint(automdmID) //nolint:gosec // dismiss G115
+	}
+
+	// add profile
+	fhs, ok := r.MultipartForm.File["profile"]
+	if !ok || len(fhs) < 1 {
+		return nil, &automdm.BadRequestError{Message: "no file headers for profile"}
+	}
+	decoded.Profile = fhs[0]
+
+	if decoded.Profile.Size > automdm.MaxProfileSize {
+		return nil, automdm.NewInvalidArgumentError("mdm", automdm.MaxProfileSizeErrMsg)
+	}
+
+	// Only meaningful for declarations; enforced by the endpoint, which
+	// determines the profile type.
+	if fhs, ok := r.MultipartForm.File["activation"]; ok && len(fhs) > 0 {
+		decoded.Activation = fhs[0]
+		if decoded.Activation.Size > automdm.MaxProfileSize {
+			return nil, automdm.NewInvalidArgumentError("activation", automdm.MaxProfileSizeErrMsg)
+		}
+	}
+
+	decoded.Name, err = decodeProfileNameField(r.MultipartForm)
+	if err != nil {
+		return nil, err
+	}
+	if desc := decodeProfileDescriptionField(r.MultipartForm); desc != nil {
+		decoded.Description = *desc
+	}
+	selfService, hidden, err := decodeProfileDeployFields(r.MultipartForm)
+	if err != nil {
+		return nil, err
+	}
+	decoded.SelfService, decoded.Hidden = ptr.ValOrZero(selfService), ptr.ValOrZero(hidden)
+
+	// add labels
+	var existsInclAll, existsInclAny bool
+	decoded.LabelsIncludeAll, existsInclAll = r.MultipartForm.Value[string(automdm.LabelsIncludeAll)]
+	decoded.LabelsIncludeAny, existsInclAny = r.MultipartForm.Value[string(automdm.LabelsIncludeAny)]
+	decoded.LabelsExcludeAny = r.MultipartForm.Value[string(automdm.LabelsExcludeAny)]
+
+	// labels_exclude_any may be combined with either include mode
+	if existsInclAll && existsInclAny {
+		return nil, &automdm.BadRequestError{Message: `Only one of "labels_include_all" or "labels_include_any" can be included.`}
+	}
+
+	includeLabels := append(decoded.LabelsIncludeAll, decoded.LabelsIncludeAny...) //nolint:gocritic
+	if overlap := automdm.LabelOverlap(includeLabels, decoded.LabelsExcludeAny); overlap != "" {
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf(`Label %q cannot appear in both include and exclude lists.`, overlap)}
+	}
+
+	return &decoded, nil
+}
+
+type newMDMConfigProfileResponse struct {
+	ProfileUUID string `json:"profile_uuid"`
+	Err         error  `json:"error,omitempty"`
+}
+
+func (r newMDMConfigProfileResponse) Error() error { return r.Err }
+
+func newMDMConfigProfileEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*newMDMConfigProfileRequest)
+
+	ff, err := req.Profile.Open()
+	if err != nil {
+		return &newMDMConfigProfileResponse{Err: err}, nil
+	}
+	defer ff.Close()
+
+	data, err := io.ReadAll(ff)
+	if err != nil {
+		return &newMDMConfigProfileResponse{Err: err}, nil
+	}
+
+	var activation []byte
+	if req.Activation != nil {
+		af, err := req.Activation.Open()
+		if err != nil {
+			return &newMDMConfigProfileResponse{Err: err}, nil
+		}
+		defer af.Close()
+
+		activation, err = io.ReadAll(af)
+		if err != nil {
+			return &newMDMConfigProfileResponse{Err: err}, nil
+		}
+	}
+
+	fileExt := filepath.Ext(req.Profile.Filename)
+	profileName := req.Name
+	if profileName == "" {
+		profileName = strings.TrimSuffix(filepath.Base(req.Profile.Filename), fileExt)
+	}
+	isMobileConfig := strings.EqualFold(fileExt, ".mobileconfig")
+	isJSON := strings.EqualFold(fileExt, ".json")
+
+	// determine include mode; labels_exclude_any may be combined with any include mode
+	var labels []string
+	var labelsMode automdm.MDMLabelsMode
+	switch {
+	case len(req.LabelsIncludeAny) > 0:
+		labels = req.LabelsIncludeAny
+		labelsMode = automdm.LabelsIncludeAny
+	default:
+		// default include all
+		labels = req.LabelsIncludeAll
+		labelsMode = automdm.LabelsIncludeAll
+	}
+
+	isAppleDeclarationJSON, isAndroidJSON := false, false
+	if isJSON {
+		isAppleDeclarationJSON, isAndroidJSON, err = mdm.DetermineJSONConfigType(data)
+		if err != nil {
+			if strings.Contains(string(data), automdm.ServerSecretPrefix) {
+				// Apple DDM configs allow replacing the entire file's contents via a secret. These
+				// cannot be validated however Android does not currently support secrets so if the
+				// JSON fails to parse AND it contains the server secret prefix, it is considered
+				// DDM and DDM validation path will handle it
+				// TODO AP Revisit this decision
+				isAppleDeclarationJSON = true
+				isAndroidJSON = false
+			} else {
+				return &newMDMConfigProfileResponse{Err: svc.NewMDMInvalidJSONConfigProfile(ctx, req.TeamID, err)}, nil
+			}
+		}
+	}
+
+	// Checked here because the endpoint is what determines the profile type,
+	// and routed through the service so the error sits behind an authz check.
+	if len(activation) > 0 && !isAppleDeclarationJSON {
+		return &newMDMConfigProfileResponse{
+			Err: svc.NewMDMActivationUnsupportedProfile(ctx, req.TeamID),
+		}, nil
+	}
+
+	if isMobileConfig || isAppleDeclarationJSON {
+		// Then it's an Apple configuration file
+		if isJSON {
+			decl, err := svc.NewMDMAppleDeclaration(ctx, req.TeamID, data, labels, profileName, labelsMode, req.LabelsExcludeAny, activation, req.Description, req.SelfService, req.Hidden)
+			if err != nil {
+				errStr := err.Error()
+				if strings.Contains(errStr, "MDMAppleDeclaration.Name") && strings.Contains(errStr, "already exists") {
+					return &newMDMConfigProfileResponse{
+						Err: automdm.NewInvalidArgumentError("profile name", SameProfileNameUploadErrorMsg).WithStatus(http.StatusConflict),
+					}, nil
+				}
+				return &newMDMConfigProfileResponse{Err: err}, nil
+			}
+
+			return &newMDMConfigProfileResponse{
+				ProfileUUID: decl.DeclarationUUID,
+			}, nil
+
+		}
+
+		// req.Name rather than profileName: an absent name means
+		// PayloadDisplayName for a mobileconfig, not the file name.
+		cp, err := svc.NewMDMAppleConfigProfile(ctx, req.TeamID, data, labels, labelsMode, req.LabelsExcludeAny, req.Name, req.Description, req.SelfService, req.Hidden)
+		if err != nil {
+			return &newMDMConfigProfileResponse{Err: err}, nil
+		}
+		return &newMDMConfigProfileResponse{
+			ProfileUUID: cp.ProfileUUID,
+		}, nil
+	}
+
+	if isAndroidJSON {
+		cp, err := svc.NewMDMAndroidConfigProfile(ctx, req.TeamID, profileName, data, labels, labelsMode, req.LabelsExcludeAny, req.Description, req.SelfService, req.Hidden)
+		if err != nil {
+			return &newMDMConfigProfileResponse{Err: err}, nil
+		}
+		return &newMDMConfigProfileResponse{
+			ProfileUUID: cp.ProfileUUID,
+		}, nil
+	}
+
+	if isWindows := strings.EqualFold(fileExt, ".xml"); isWindows {
+		cp, err := svc.NewMDMWindowsConfigProfile(ctx, req.TeamID, profileName, data, labels, labelsMode, req.LabelsExcludeAny, req.Description, req.SelfService, req.Hidden)
+		if err != nil {
+			return &newMDMConfigProfileResponse{Err: err}, nil
+		}
+		return &newMDMConfigProfileResponse{
+			ProfileUUID: cp.ProfileUUID,
+		}, nil
+	}
+
+	err = svc.NewMDMUnsupportedConfigProfile(ctx, req.TeamID, req.Profile.Filename)
+	return &newMDMConfigProfileResponse{Err: err}, nil
+}
+
+type updateMDMConfigProfileRequest struct {
+	ProfileUUID      string
+	Profile          *multipart.FileHeader
+	LabelsIncludeAll []string
+	LabelsIncludeAny []string
+	LabelsExcludeAny []string
+	Activation       *multipart.FileHeader
+	// ActivationSet reports whether the request mentioned the activation at all.
+	// Absent leaves the stored one alone; present without a file removes it.
+	// Without this the two cases are indistinguishable.
+	ActivationSet bool
+	// Name is empty when not provided, which keeps the stored name.
+	Name string
+	// Description is nil when not provided, which keeps the stored one; an
+	// empty string clears it.
+	Description *string
+	// nil keeps the stored value.
+	SelfService *bool
+	Hidden      *bool
+}
+
+func (updateMDMConfigProfileRequest) DecodeRequest(ctx context.Context, r *http.Request) (any, error) {
+	decoded := updateMDMConfigProfileRequest{}
+
+	profileUUID, ok := platform_http.PathVar(r, "profile_uuid")
+	if !ok || profileUUID == "" {
+		return nil, &automdm.BadRequestError{Message: "profile_uuid is required"}
+	}
+	decoded.ProfileUUID = profileUUID
+
+	err := parseMultipartForm(r)
+	if err != nil {
+		return nil, &automdm.BadRequestError{
+			Message:     "failed to parse multipart form",
+			InternalErr: err,
+		}
+	}
+
+	// profile file is optional on update -- labels may be edited without
+	// replacing the profile contents
+	if fhs, ok := r.MultipartForm.File["profile"]; ok && len(fhs) > 0 {
+		decoded.Profile = fhs[0]
+		if decoded.Profile.Size > automdm.MaxProfileSize {
+			return nil, automdm.NewInvalidArgumentError("mdm", automdm.MaxProfileSizeErrMsg)
+		}
+	}
+
+	// Tri-state, so an edit can leave the activation alone, replace it, or drop
+	// it. Multipart has no null, so an empty value stands in for one -- and only
+	// that empty value, since anything else is more likely a malformed upload
+	// than a request to delete.
+	// Enforced by the service, which resolves the profile type from its UUID.
+	// Text values are checked first so a request that carries both a file and a
+	// value is rejected rather than silently resolved in favour of one of them.
+	activationValues, hasActivationValue := r.MultipartForm.Value["activation"]
+	for _, v := range activationValues {
+		if strings.TrimSpace(v) != "" {
+			return nil, automdm.NewInvalidArgumentError("activation", ActivationEmptyFileErrorMsg)
+		}
+	}
+	if fhs, ok := r.MultipartForm.File["activation"]; ok && len(fhs) > 0 {
+		if hasActivationValue {
+			return nil, automdm.NewInvalidArgumentError("activation", ActivationConflictingPartsErrorMsg)
+		}
+		decoded.Activation = fhs[0]
+		decoded.ActivationSet = true
+		switch {
+		case decoded.Activation.Size == 0:
+			return nil, automdm.NewInvalidArgumentError("activation", ActivationEmptyFileErrorMsg)
+		case decoded.Activation.Size > automdm.MaxProfileSize:
+			return nil, automdm.NewInvalidArgumentError("activation", automdm.MaxProfileSizeErrMsg)
+		}
+	} else if hasActivationValue {
+		decoded.ActivationSet = true
+	}
+
+	decoded.Name, err = decodeProfileNameField(r.MultipartForm)
+	if err != nil {
+		return nil, err
+	}
+	decoded.Description = decodeProfileDescriptionField(r.MultipartForm)
+	if decoded.SelfService, decoded.Hidden, err = decodeProfileDeployFields(r.MultipartForm); err != nil {
+		return nil, err
+	}
+
+	// add labels
+	var existsInclAll, existsInclAny bool
+	decoded.LabelsIncludeAll, existsInclAll = r.MultipartForm.Value[string(automdm.LabelsIncludeAll)]
+	decoded.LabelsIncludeAny, existsInclAny = r.MultipartForm.Value[string(automdm.LabelsIncludeAny)]
+	decoded.LabelsExcludeAny = r.MultipartForm.Value[string(automdm.LabelsExcludeAny)]
+
+	if existsInclAll && existsInclAny {
+		return nil, &automdm.BadRequestError{Message: `Only one of "labels_include_all" or "labels_include_any" can be included.`}
+	}
+
+	includeLabels := append(decoded.LabelsIncludeAll, decoded.LabelsIncludeAny...) //nolint:gocritic
+	if overlap := automdm.LabelOverlap(includeLabels, decoded.LabelsExcludeAny); overlap != "" {
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf(`Label %q cannot appear in both include and exclude lists.`, overlap)}
+	}
+
+	return &decoded, nil
+}
+
+type updateMDMConfigProfileResponse struct {
+	ProfileUUID string `json:"profile_uuid"`
+	Err         error  `json:"error,omitempty"`
+}
+
+func (r updateMDMConfigProfileResponse) Error() error { return r.Err }
+
+func updateMDMConfigProfileEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*updateMDMConfigProfileRequest)
+
+	var data []byte
+	if req.Profile != nil {
+		ff, err := req.Profile.Open()
+		if err != nil {
+			return &updateMDMConfigProfileResponse{Err: err}, nil
+		}
+		defer ff.Close()
+
+		data, err = io.ReadAll(ff)
+		if err != nil {
+			return &updateMDMConfigProfileResponse{Err: err}, nil
+		}
+	}
+
+	var labels []string
+	var labelsMode automdm.MDMLabelsMode
+	switch {
+	case len(req.LabelsIncludeAny) > 0:
+		labels = req.LabelsIncludeAny
+		labelsMode = automdm.LabelsIncludeAny
+	default:
+		labels = req.LabelsIncludeAll
+		labelsMode = automdm.LabelsIncludeAll
+	}
+
+	// Set reports that the request mentioned the activation, Valid that it
+	// carried one -- so "not mentioned", "remove" and "replace" are three
+	// distinct values rather than a byte slice plus a flag.
+	var activation optjson.Slice[byte]
+	switch {
+	case req.Activation != nil:
+		af, err := req.Activation.Open()
+		if err != nil {
+			return &updateMDMConfigProfileResponse{Err: err}, nil
+		}
+		defer af.Close()
+
+		raw, err := io.ReadAll(af)
+		if err != nil {
+			return &updateMDMConfigProfileResponse{Err: err}, nil
+		}
+		activation = optjson.SetSlice(raw)
+	case req.ActivationSet:
+		activation.Set = true
+	}
+
+	// The uploaded file's name is deliberately not used: a replacement file
+	// keeps the stored name unless the request names the profile explicitly.
+	if err := svc.UpdateMDMConfigProfile(ctx, req.ProfileUUID, req.Name, data, labels, labelsMode, req.LabelsExcludeAny, activation, req.Description, req.SelfService, req.Hidden); err != nil {
+		return &updateMDMConfigProfileResponse{Err: err}, nil
+	}
+
+	return &updateMDMConfigProfileResponse{ProfileUUID: req.ProfileUUID}, nil
+}
+
+func (svc *Service) NewMDMInvalidJSONConfigProfile(ctx context.Context, teamID uint, err error) error {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// this is required because we need authorize to return the error, and
+	// svc.authz is only available on the concrete Service struct, not on the
+	// Service interface so it cannot be done in the endpoint itself.
+	return automdm.NewInvalidArgumentError("profile", err.Error()).WithStatus(http.StatusBadRequest)
+}
+
+func (svc *Service) NewMDMActivationUnsupportedProfile(ctx context.Context, teamID uint) error {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// this is required because we need authorize to return the error, and
+	// svc.authz is only available on the concrete Service struct, not on the
+	// Service interface so it cannot be done in the endpoint itself.
+	return automdm.NewInvalidArgumentError("activation", ActivationUnsupportedProfileErrorMsg)
+}
+
+func (svc *Service) NewMDMSelfServiceUnsupportedProfile(ctx context.Context, teamID uint) error {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+	return automdm.NewInvalidArgumentError("self_service", "Couldn't add. "+SelfServiceUnsupportedProfileErrorMsg)
+}
+
+func (svc *Service) NewMDMUnsupportedConfigProfile(ctx context.Context, teamID uint, filename string) error {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// this is required because we need authorize to return the error, and
+	// svc.authz is only available on the concrete Service struct, not on the
+	// Service interface so it cannot be done in the endpoint itself.
+	return &automdm.BadRequestError{Message: "Couldn't add profile. The file should be a .mobileconfig, XML, or JSON file."}
+}
+
+// resolveProfileTeam returns the id and name of the team a profile belongs
+// to (zero and empty string for no team). svc.EnterpriseOverrides is only
+// populated on premium servers, so it must not be called unguarded -- teams
+// can still exist on AutoMDM Free after a license downgrade.
+func (svc *Service) resolveProfileTeam(ctx context.Context, teamID *uint) (uint, string, error) {
+	tmID := ptr.ValOrZero(teamID)
+	if tmID == 0 {
+		return 0, "", nil
+	}
+	lic, err := svc.License(ctx)
+	if err != nil {
+		return 0, "", ctxerr.Wrap(ctx, err, "checking license")
+	}
+	if lic == nil || !lic.IsPremium() {
+		return 0, "", ctxerr.Wrap(ctx, automdm.ErrMissingLicense)
+	}
+	tm, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, &tmID, nil)
+	if err != nil {
+		return 0, "", ctxerr.Wrap(ctx, err)
+	}
+	return tmID, tm.Name, nil
+}
+
+// checkLabelsOnlyProfileUpdate runs the license and overlap validation shared
+// by the labels-only branches of the profile update paths (label scoping is a
+// premium feature, matching the create paths).
+func (svc *Service) checkLabelsOnlyProfileUpdate(ctx context.Context, labelsInclude, labelsExcludeAny []string) error {
+	if len(labelsInclude) > 0 || len(labelsExcludeAny) > 0 {
+		lic, err := svc.License(ctx)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "checking license")
+		}
+		if lic == nil || !lic.IsPremium() {
+			return ctxerr.Wrap(ctx, automdm.NewLicenseErrorWithCause(automdm.ConfigProfileLabelScopingPremiumCauseMsg), "checking license for profile label scoping")
+		}
+	}
+	if overlap := automdm.LabelOverlap(labelsInclude, labelsExcludeAny); overlap != "" {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("labels", fmt.Sprintf("label %q cannot appear in both include and exclude lists", overlap)))
+	}
+	return nil
+}
+
+// UpdateMDMConfigProfile updates an existing configuration profile's contents
+// and/or label targeting in place, dispatching by profile UUID to the
+// platform-specific implementation.
+// UpdateMDMConfigProfile edits a profile of any type. An empty profileName
+// keeps the stored name and a nil description keeps the stored description, so
+// a request that only touches labels or contents never renames the profile.
+func (svc *Service) UpdateMDMConfigProfile(ctx context.Context, profileUUID string, profileName string, profile []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, activation optjson.Slice[byte], description *string, selfService, hidden *bool) error {
+	// The edit path resolves the profile type here rather than in the endpoint.
+	// Keyed on activationSet, not on the content: clearing an activation is just
+	// as meaningless on a profile that can't have one.
+	if activation.Set && !isAppleDeclarationUUID(profileUUID) {
+		// Basic check only, as in the type-specific update methods: the profile's
+		// team isn't known yet, and authorizing an empty MDMConfigProfileAuthz
+		// needs a global role, so team admins would get forbidden instead of this.
+		if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
+			return ctxerr.Wrap(ctx, err)
+		}
+		return automdm.NewInvalidArgumentError("activation", ActivationUnsupportedProfileErrorMsg)
+	}
+
+	switch {
+	case isAppleProfileUUID(profileUUID):
+		return svc.updateMDMAppleConfigProfile(ctx, profileUUID, profileName, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, description, selfService, hidden)
+	case isWindowsProfileUUID(profileUUID):
+		return svc.updateMDMWindowsConfigProfile(ctx, profileUUID, profileName, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, description, selfService, hidden)
+	case isAndroidProfileUUID(profileUUID):
+		return svc.updateMDMAndroidConfigProfile(ctx, profileUUID, profileName, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, description, selfService, hidden)
+	case isAppleDeclarationUUID(profileUUID):
+		return svc.updateMDMAppleDeclaration(ctx, profileUUID, profileName, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, activation, description, selfService, hidden)
+	default:
+		if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{}, automdm.ActionWrite); err != nil {
+			return ctxerr.Wrap(ctx, err)
+		}
+		return &automdm.BadRequestError{Message: "updating this profile type is not yet supported"}
+	}
+}
+
+func (svc *Service) NewMDMAndroidConfigProfile(ctx context.Context, teamID uint, profileName string, data []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, description string, selfService, hidden bool) (*automdm.MDMAndroidConfigProfile, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+
+	if err := automdm.ValidateMDMProfileDescription(description); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+	if err := validateProfileDeployFlags(ctx, selfService, hidden, false, "Couldn't add. "); err != nil {
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+	cp, teamName, err := svc.parseAndValidateAndroidConfigProfile(ctx, teamID, profileName, data, labelsInclude, labelsMembershipMode, labelsExcludeAny, "Couldn't add. ")
+	if err != nil {
+		return nil, err
+	}
+	cp.Description = description
+	cp.Hidden = hidden
+
+	foundVars := variables.Find(string(data))
+	varNames := make([]automdm.AutoMDMVarName, 0, len(foundVars))
+	for _, v := range foundVars {
+		varNames = append(varNames, automdm.AutoMDMVarName(v))
+	}
+
+	newCP, err := svc.ds.NewMDMAndroidConfigProfile(ctx, *cp, varNames)
+	if err != nil {
+		if _, ok := errors.AsType[endpointer.ExistsErrorInterface](err); ok {
+			err = automdm.NewInvalidArgumentError("profile", SameProfileNameUploadErrorMsg).
+				WithStatus(http.StatusConflict)
+		}
+		return nil, ctxerr.Wrap(ctx, err)
+	}
+	if _, err := svc.ds.BulkSetPendingMDMHostProfiles(ctx, nil, nil, []string{newCP.ProfileUUID}, nil); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "bulk set pending host profiles")
+	}
+
+	var (
+		actTeamID   *uint
+		actTeamName *string
+	)
+	if teamID > 0 {
+		actTeamID = &teamID
+		actTeamName = &teamName
+	}
+	// TODO AP Make sure this activity is correct
+	if err := svc.NewActivity(
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeCreatedAndroidProfile{
+			TeamID:      actTeamID,
+			TeamName:    actTeamName,
+			ProfileName: newCP.Name,
+		},
+	); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "logging activity for create mdm android config profile")
+	}
+
+	return newCP, nil
+}
+
+// parseAndValidateAndroidConfigProfile runs the validation shared by the
+// create and update paths. It returns the constructed profile (with labels
+// set) and the team's name (empty string for no team).
+func (svc *Service) parseAndValidateAndroidConfigProfile(ctx context.Context, teamID uint, profileName string, data []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, errPrefix string) (*automdm.MDMAndroidConfigProfile, string, error) {
+	// check that Android MDM is enabled - the middleware of the endpoint checks
+	// only that any MDM is enabled, maybe it's just macOS
+	if err := svc.VerifyMDMAndroidConfigured(ctx); err != nil {
+		err := automdm.NewInvalidArgumentError("profile", automdm.AndroidMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+		return nil, "", ctxerr.Wrap(ctx, err, "check android MDM enabled")
+	}
+
+	lic, _ := license.FromContext(ctx)
+	var teamName string
+	if teamID > 0 {
+		if lic == nil || !lic.IsPremium() {
+			return nil, "", ctxerr.Wrap(ctx, automdm.ErrMissingLicense)
+		}
+		tm, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, &teamID, nil)
+		if err != nil {
+			return nil, "", ctxerr.Wrap(ctx, err)
+		}
+		teamName = tm.Name
+	}
+
+	if len(labelsInclude) > 0 || len(labelsExcludeAny) > 0 {
+		if lic == nil || !lic.IsPremium() {
+			return nil, "", ctxerr.Wrap(ctx, automdm.NewLicenseErrorWithCause(automdm.ConfigProfileLabelScopingPremiumCauseMsg), "checking license for profile label scoping")
+		}
+	}
+
+	cp := automdm.MDMAndroidConfigProfile{
+		TeamID:  &teamID,
+		Name:    profileName,
+		RawJSON: data,
+	}
+	if err := cp.ValidateUserProvided(license.IsPremium(ctx)); err != nil {
+		if _, ok := errors.AsType[*automdm.RemovedAutoMDMVariableError](err); ok {
+			return nil, "", ctxerr.Wrap(ctx, err, "validate profile")
+		}
+		err := &automdm.BadRequestError{Message: errPrefix + err.Error()}
+		return nil, "", ctxerr.Wrap(ctx, err, "validate profile")
+	}
+	// After ValidateUserProvided, as for Windows, so its own 400s win.
+	if err := automdm.ValidateMDMProfileName(cp.Name); err != nil {
+		return nil, "", ctxerr.Wrap(ctx, err)
+	}
+
+	if err := svc.ds.ValidateReferencedCustomHostVitals(ctx, []string{string(data)}); err != nil {
+		if !automdm.IsInvalidReferencedCustomHostVitalsError(err) {
+			return nil, "", ctxerr.Wrap(ctx, err, "validating referenced custom host vitals")
+		}
+		return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profile", err.Error()))
+	}
+
+	if overlap := automdm.LabelOverlap(labelsInclude, labelsExcludeAny); overlap != "" {
+		return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("labels", fmt.Sprintf("label %q cannot appear in both include and exclude lists", overlap)))
+	}
+	includeLabels, excludeLabels, err := svc.validateProfileLabelSets(ctx, &teamID, labelsInclude, labelsExcludeAny)
+	if err != nil {
+		return nil, "", ctxerr.Wrap(ctx, err, "validating labels")
+	}
+	switch labelsMembershipMode {
+	case automdm.LabelsIncludeAny:
+		cp.LabelsIncludeAny = includeLabels
+	default:
+		// default include all
+		cp.LabelsIncludeAll = includeLabels
+	}
+	cp.LabelsExcludeAny = excludeLabels
+
+	return &cp, teamName, nil
+}
+
+// updateMDMAndroidConfigProfile implements the Android branch of
+// UpdateMDMConfigProfile. An empty profileName keeps the stored name; a nil
+// description keeps the stored description.
+//
+// BulkSetPendingMDMHostProfiles isn't required for correctness -- the
+// profile's checksum is a MySQL generated column, so the cron reconciler
+// would pick up the edit on its own -- it just applies the change
+// immediately (matching create).
+func (svc *Service) updateMDMAndroidConfigProfile(ctx context.Context, profileUUID string, profileName string, profile []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, description *string, selfService, hidden *bool) error {
+	// first we perform a basic authz check
+	if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	if err := svc.VerifyMDMAndroidConfigured(ctx); err != nil {
+		return err
+	}
+
+	existing, err := svc.ds.GetMDMAndroidConfigProfile(ctx, profileUUID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	teamID, teamName, err := svc.resolveProfileTeam(ctx, existing.TeamID)
+	if err != nil {
+		return err
+	}
+
+	// now we can do a specific authz check based on team id of profile before we update it
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: existing.TeamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// prevent editing profiles that are managed by AutoMDM
+	automdmNames := mdm.AutoMDMReservedProfileNames()
+	if _, ok := automdmNames[existing.Name]; ok {
+		return &automdm.BadRequestError{
+			Message:     "profiles managed by AutoMDM can't be edited using this endpoint.",
+			InternalErr: fmt.Errorf("editing profile %s for team %s not allowed because it's managed by AutoMDM", existing.Name, teamName),
+		}
+	}
+
+	name := existing.Name
+	if profileName != "" {
+		name = profileName
+	}
+	newDescription := existing.Description
+	if description != nil {
+		if err := automdm.ValidateMDMProfileDescription(*description); err != nil {
+			return ctxerr.Wrap(ctx, err)
+		}
+		newDescription = *description
+	}
+	_, newHidden, err := resolveProfileDeployFlags(ctx, false, existing.Hidden, selfService, hidden, false, "Couldn't edit. ")
+	if err != nil {
+		return err
+	}
+
+	var cp *automdm.MDMAndroidConfigProfile
+	var varNames []automdm.AutoMDMVarName
+	if len(profile) > 0 {
+		cp, _, err = svc.parseAndValidateAndroidConfigProfile(ctx, teamID, name, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, "Couldn't edit. ")
+		if err != nil {
+			return err
+		}
+		for _, v := range variables.Find(string(profile)) {
+			varNames = append(varNames, automdm.AutoMDMVarName(v))
+		}
+	} else {
+		// no new content -- only labels are being changed.
+		if err := svc.checkLabelsOnlyProfileUpdate(ctx, labelsInclude, labelsExcludeAny); err != nil {
+			return err
+		}
+		includeLabels, excludeLabels, err := svc.validateProfileLabelSets(ctx, &teamID, labelsInclude, labelsExcludeAny)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "validating labels")
+		}
+		if name != existing.Name {
+			if err := automdm.ValidateMDMProfileName(name); err != nil {
+				return ctxerr.Wrap(ctx, err)
+			}
+		}
+		cp = &automdm.MDMAndroidConfigProfile{
+			Name:   name,
+			TeamID: existing.TeamID,
+		}
+		switch labelsMembershipMode {
+		case automdm.LabelsIncludeAll:
+			cp.LabelsIncludeAll = includeLabels
+		case automdm.LabelsIncludeAny:
+			cp.LabelsIncludeAny = includeLabels
+		}
+		cp.LabelsExcludeAny = excludeLabels
+	}
+	cp.ProfileUUID = profileUUID
+	cp.Description = newDescription
+	cp.Hidden = newHidden
+
+	if _, err := svc.ds.UpdateMDMAndroidConfigProfile(ctx, *cp, varNames); err != nil {
+		if _, ok := errors.AsType[endpointer.ExistsErrorInterface](err); ok {
+			err = automdm.NewInvalidArgumentError("profile", SameProfileNameEditErrorMsg).WithStatus(http.StatusConflict)
+		}
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	if _, err := svc.ds.BulkSetPendingMDMHostProfiles(ctx, nil, nil, []string{profileUUID}, nil); err != nil {
+		return ctxerr.Wrap(ctx, err, "mark profile pending")
+	}
+
+	var (
+		actTeamID   *uint
+		actTeamName *string
+	)
+	if teamID > 0 {
+		actTeamID = &teamID
+		actTeamName = &teamName
+	}
+	if err := svc.NewActivity(
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedAndroidProfile{
+			TeamID:      actTeamID,
+			TeamName:    actTeamName,
+			ProfileName: cp.Name,
+		},
+	); err != nil {
+		return ctxerr.Wrap(ctx, err, "logging activity for edit mdm android config profile")
+	}
+
+	return nil
+}
+
+func (svc *Service) batchValidateProfileLabels(ctx context.Context, teamID *uint, labelNames []string) (map[string]automdm.ConfigurationProfileLabel, error) {
+	if len(labelNames) == 0 {
+		return nil, nil
+	}
+
+	uniqueNames := server.RemoveDuplicatesFromSlice(labelNames)
+
+	found, err := foundLabelNames(ctx, svc.ds, uniqueNames, teamID, authz.UserFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(found) != len(uniqueNames) {
+		labelError := automdm.NewMissingLabelError(uniqueNames, found)
+		return nil, &automdm.BadRequestError{
+			InternalErr: labelError,
+			Message:     fmt.Sprintf("Couldn't update. Label %q doesn't exist. Please remove the label from the configuration profile.", labelError.MissingLabelName),
+		}
+	}
+
+	// NOTE(lucas): To not break API error string returned above
+	// AND for code reusability we are a-ok with loading labels again in loadLabelsToAssociate.
+	// This can definitely be optimized if need be.
+	scoped, err := loadLabelsToAssociate(ctx, svc.ds, teamID, labelNames, authz.UserFromContext(ctx))
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "verify labels to associate")
+	}
+
+	profLabels := make(map[string]automdm.ConfigurationProfileLabel)
+	for labelName, label := range scoped {
+		profLabels[labelName] = automdm.ConfigurationProfileLabel{
+			LabelName: labelName,
+			LabelID:   label.ID,
+		}
+	}
+	return profLabels, nil
+}
+
+// validateDeclarationLabelSets validates both include and exclude label sets in a single DB round-trip
+// and returns the resolved slices ready to assign to the declaration struct.
+func (svc *Service) validateDeclarationLabelSets(ctx context.Context, teamID uint, labelsInclude, labelsExcludeAny []string) (include, exclude []automdm.ConfigurationProfileLabel, err error) {
+	allLabelMap, err := svc.batchValidateDeclarationLabels(ctx, slices.Concat(labelsInclude, labelsExcludeAny), teamID)
+	if err != nil {
+		return nil, nil, err
+	}
+	include = make([]automdm.ConfigurationProfileLabel, 0, len(labelsInclude))
+	for _, name := range labelsInclude {
+		include = append(include, allLabelMap[name])
+	}
+	exclude = make([]automdm.ConfigurationProfileLabel, 0, len(labelsExcludeAny))
+	for _, name := range labelsExcludeAny {
+		exclude = append(exclude, allLabelMap[name])
+	}
+	return include, exclude, nil
+}
+
+// validateProfileLabelSets validates both include and exclude label sets in a single DB round-trip
+// and returns the resolved slices ready to assign to the profile struct.
+func (svc *Service) validateProfileLabelSets(ctx context.Context, teamID *uint, labelsInclude, labelsExcludeAny []string) (include, exclude []automdm.ConfigurationProfileLabel, err error) {
+	allLabelMap, err := svc.batchValidateProfileLabels(ctx, teamID, slices.Concat(labelsInclude, labelsExcludeAny))
+	if err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "validating labels")
+	}
+	include = make([]automdm.ConfigurationProfileLabel, 0, len(labelsInclude))
+	for _, name := range labelsInclude {
+		include = append(include, allLabelMap[name])
+	}
+	exclude = make([]automdm.ConfigurationProfileLabel, 0, len(labelsExcludeAny))
+	for _, name := range labelsExcludeAny {
+		exclude = append(exclude, allLabelMap[name])
+	}
+	return include, exclude, nil
+}
+
+type batchModifyMDMConfigProfilesRequest struct {
+	TeamID                *uint                                        `json:"-" query:"team_id,optional"`
+	TeamName              *string                                      `json:"-" query:"team_name,optional"`
+	DryRun                bool                                         `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
+	ConfigurationProfiles []automdm.BatchModifyMDMConfigProfilePayload `json:"configuration_profiles"`
+}
+
+type batchModifyMDMConfigProfilesResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r batchModifyMDMConfigProfilesResponse) Error() error { return r.Err }
+func (r batchModifyMDMConfigProfilesResponse) Status() int  { return http.StatusNoContent }
+
+// this is the handler for the public endpoint for batch modifying MDM profiles.
+func batchModifyMDMConfigProfilesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*batchModifyMDMConfigProfilesRequest)
+
+	// The list replaces the team's whole set, so a missing key must not be read as "delete everything";
+	// an explicit [] still clears it.
+	if req.ConfigurationProfiles == nil {
+		setAuthCheckedOnPreAuthErr(ctx)
+		return batchSetMDMProfilesResponse{Err: automdm.NewInvalidArgumentError("configuration_profiles", "configuration_profiles is required")}, nil
+	}
+
+	// We want to still use the existing BatchSetMDMProfiles method, so we convert
+	// the payload to the expected type.
+	profiles := make([]automdm.MDMProfileBatchPayload, len(req.ConfigurationProfiles))
+	for i, p := range req.ConfigurationProfiles {
+		profiles[i] = automdm.MDMProfileBatchPayload{
+			Name:             p.Name,
+			DisplayName:      p.DisplayName,
+			Description:      p.Description,
+			Contents:         p.Profile,
+			LabelsIncludeAll: p.LabelsIncludeAll,
+			LabelsIncludeAny: p.LabelsIncludeAny,
+			LabelsExcludeAny: p.LabelsExcludeAny,
+			SelfService:      p.SelfService,
+			Hidden:           p.Hidden,
+		}
+	}
+	if err := svc.BatchSetMDMProfiles(ctx, req.TeamID, req.TeamName, profiles, req.DryRun, false, nil, nil, false); err != nil {
+		return batchSetMDMProfilesResponse{Err: err}, nil
+	}
+	return batchModifyMDMConfigProfilesResponse{}, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Batch Replace MDM Profiles
+////////////////////////////////////////////////////////////////////////////////
+
+type batchSetMDMProfilesRequest struct {
+	TeamID        *uint   `json:"-" query:"team_id,optional"`
+	TeamName      *string `json:"-" query:"team_name,optional"`
+	DryRun        bool    `json:"-" query:"dry_run,optional"`        // if true, apply validation but do not save changes
+	AssumeEnabled *bool   `json:"-" query:"assume_enabled,optional"` // if true, assume Windows MDM is enabled; honored on dry run only
+	// the incoming mdm.enable_profile_validation from GitOps; honored on dry run only
+	AssumeProfileValidation *bool                        `json:"-" query:"assume_profile_validation,optional"`
+	Profiles                backwardsCompatProfilesParam `json:"profiles"`
+	NoCache                 bool                         `json:"-" query:"no_cache,optional"`
+}
+
+type backwardsCompatProfilesParam []automdm.MDMProfileBatchPayload
+
+func (bcp *backwardsCompatProfilesParam) UnmarshalJSON(data []byte) error {
+	// null stays nil so the endpoint can reject it like a missing key.
+	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+
+	if lookAhead := bytes.TrimSpace(data); len(lookAhead) > 0 && lookAhead[0] == '[' {
+		// use []automdm.MDMProfileBatchPayload to prevent infinite recursion if we
+		// use `backwardsCompatProfileSlice`
+		var profs []automdm.MDMProfileBatchPayload
+		if err := json.Unmarshal(data, &profs); err != nil {
+			return fmt.Errorf("unmarshal profile spec. Error using new format: %w", err)
+		}
+		*bcp = profs
+		return nil
+	}
+
+	var backwardsCompat map[string][]byte
+	if err := json.Unmarshal(data, &backwardsCompat); err != nil {
+		return fmt.Errorf("unmarshal profile spec. Error using old format: %w", err)
+	}
+
+	*bcp = make(backwardsCompatProfilesParam, 0, len(backwardsCompat))
+	for name, contents := range backwardsCompat {
+		// In this deprecated format the key isn't a mobileconfig's name; its
+		// PayloadDisplayName is.
+		if isMobileconfigContents(contents) {
+			name = ""
+		}
+		*bcp = append(*bcp, automdm.MDMProfileBatchPayload{Name: name, Contents: contents})
+	}
+	return nil
+}
+
+// isMobileconfigContents reports whether a batch entry is a .mobileconfig
+// (an Apple XML plist) rather than a declaration, Windows or Android profile.
+func isAppleDeclarationContents(contents []byte) bool {
+	return mdm.GetRawProfilePlatform(contents) == "darwin" && mdm.GuessProfileExtension(contents) == "json"
+}
+
+func isMobileconfigContents(contents []byte) bool {
+	return mdm.GetRawProfilePlatform(contents) == "darwin" &&
+		bytes.HasPrefix(bytes.TrimSpace(contents), []byte("<"))
+}
+
+type batchSetMDMProfilesResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r batchSetMDMProfilesResponse) Error() error { return r.Err }
+
+func (r batchSetMDMProfilesResponse) Status() int { return http.StatusNoContent }
+
+func batchSetMDMProfilesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*batchSetMDMProfilesRequest)
+	// The list replaces the team's whole set, so a missing key must not be read as "delete everything";
+	// an explicit [] (or {} in the deprecated format) still clears it.
+	if req.Profiles == nil {
+		setAuthCheckedOnPreAuthErr(ctx)
+		return batchSetMDMProfilesResponse{Err: automdm.NewInvalidArgumentError("profiles", "profiles is required")}, nil
+	}
+	if err := svc.BatchSetMDMProfiles(
+		ctx, req.TeamID, req.TeamName, req.Profiles, req.DryRun, false, req.AssumeEnabled, req.AssumeProfileValidation, req.NoCache,
+	); err != nil {
+		return batchSetMDMProfilesResponse{Err: err}, nil
+	}
+	return batchSetMDMProfilesResponse{}, nil
+}
+
+func (svc *Service) BatchSetMDMProfiles(
+	ctx context.Context,
+	tmID *uint,
+	tmName *string,
+	profiles []automdm.MDMProfileBatchPayload,
+	dryRun bool,
+	skipBulkPending bool,
+	assumeEnabled *bool,
+	assumeProfileValidation *bool,
+	noCache bool,
+) error {
+	var err error
+	if tmID, tmName, err = svc.authorizeBatchProfiles(ctx, tmID, tmName); err != nil {
+		return err
+	}
+
+	// display_name is the deprecated spelling of name on the public batch
+	// endpoint; both are accepted as long as they agree. Resolved here, after
+	// authz, so a conflict is a 4xx rather than an unauthorized early return.
+	for i := range profiles {
+		if profiles[i].DisplayName != "" {
+			if profiles[i].Name != "" && profiles[i].Name != profiles[i].DisplayName {
+				return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("display_name",
+					`Couldn't edit configuration_profiles. "display_name" is deprecated, use "name" instead (both were provided with different values).`))
+			}
+			// display_name is documented as ignored for a .mobileconfig; only
+			// name renames one.
+			if !isMobileconfigContents(profiles[i].Contents) {
+				profiles[i].Name = profiles[i].DisplayName
+			}
+			profiles[i].DisplayName = ""
+		}
+
+		// Trimmed as the single-profile endpoints do, so " Foo" from GitOps
+		// can't sit next to "Foo" as a different profile.
+		name := strings.TrimSpace(profiles[i].Name)
+		if name == "" && profiles[i].Name != "" {
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("name",
+				"Couldn't edit configuration_profiles. Profile name can't be empty."))
+		}
+		profiles[i].Name = name
+		profiles[i].Description = strings.TrimSpace(profiles[i].Description)
+	}
+
+	if noCache {
+		// The no_cache flag is used in situations where appConfig was just updated, such as gitops
+		ctx = ctxdb.BypassCachedMysql(ctx, true)
+	}
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "getting app config")
+	}
+	if noCache {
+		ctx = ctxdb.BypassCachedMysql(ctx, false)
+	}
+
+	// assume_enabled is only honored on dry runs
+	if dryRun && assumeEnabled != nil {
+		appCfg.MDM.WindowsEnabledAndConfigured = *assumeEnabled
+	}
+	// dry run doesn't save config, so GitOps passes the incoming toggle
+	if dryRun && assumeProfileValidation != nil {
+		appCfg.MDM.EnableProfileValidation = *assumeProfileValidation
+	}
+
+	lic, err := svc.License(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking license")
+	}
+
+	// Process labels first, since we do not need to expand secrets in the profiles for this validation.
+	labels := []string{}
+	for i := range profiles {
+		// from this point on (after this condition), only LabelsIncludeAll, LabelsIncludeAny or
+		// LabelsExcludeAny need to be checked.
+		if len(profiles[i].Labels) > 0 {
+			// must update the struct in the slice directly, because we don't have a
+			// pointer to it (it is a slice of structs, not of pointer to structs)
+			profiles[i].LabelsIncludeAll = profiles[i].Labels
+			profiles[i].Labels = nil
+		}
+		labels = append(labels, profiles[i].LabelsIncludeAll...)
+		labels = append(labels, profiles[i].LabelsIncludeAny...)
+		labels = append(labels, profiles[i].LabelsExcludeAny...)
+
+		if err := validateProfileDeployFlags(ctx, profiles[i].SelfService, profiles[i].Hidden, isMobileconfigContents(profiles[i].Contents), "Couldn't edit configuration_profiles. "); err != nil {
+			if iaErr, ok := errors.AsType[*automdm.InvalidArgumentError](err); ok {
+				invalid := iaErr.Invalid()
+				if len(invalid) > 0 {
+					return automdm.NewInvalidArgumentError(fmt.Sprintf("profiles[%s]", profiles[i].Name), invalid[0]["reason"])
+				}
+			}
+			return ctxerr.Wrap(ctx, err, "validating profile deploy flags")
+		}
+	}
+
+	if len(labels) > 0 && (lic == nil || !lic.IsPremium()) {
+		return ctxerr.Wrap(ctx, automdm.NewLicenseErrorWithCause(automdm.ConfigProfileLabelScopingPremiumCauseMsg), "checking license for profile label scoping")
+	}
+
+	var labelMap map[string]automdm.ConfigurationProfileLabel
+	if !dryRun {
+		labelMap, err = svc.batchValidateProfileLabels(ctx, tmID, labels)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "validating labels")
+		}
+	}
+
+	// Checked before the dry run drops profiles with secrets. Declarations are named by the Name field, not their
+	// content, so only their identifier is checked.
+	for _, p := range profiles {
+		if isAppleDeclarationContents(p.Contents) {
+			if err := automdm.ValidateNoSecretsInDeclarationIdentifier(p.Contents); err != nil {
+				return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(p.Name, err.Error()))
+			}
+			continue
+		}
+		// Not detected by platform: an unquoted variable makes Android JSON invalid until secrets are expanded.
+		if bytes.HasPrefix(bytes.TrimSpace(p.Contents), []byte("{")) {
+			if err := automdm.ValidateAndroidPasscodeProfileVariables(p.Contents); err != nil {
+				return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(p.Name, err.Error()))
+			}
+			continue
+		}
+		if !isMobileconfigContents(p.Contents) {
+			continue
+		}
+		err := automdm.ValidateNoSecretsInProfileName(p.Contents)
+		if err == nil {
+			err = automdm.ValidateNoSecretsInProfileIdentifier(p.Contents)
+		}
+		if err != nil {
+			name := p.Name
+			if name == "" {
+				name = automdm.PayloadDisplayNameFromMobileconfig(p.Contents)
+			}
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(name, err.Error()))
+		}
+	}
+
+	// We will not validate the profiles containing secret variables during dry run.
+	// This is because the secret variables may not be available (or correct) in the gitops dry run.
+	if dryRun {
+		var profilesWithoutSecrets []automdm.MDMProfileBatchPayload
+		for _, p := range profiles {
+			if len(automdm.ContainsPrefixVars(string(p.Contents), automdm.ServerSecretPrefix)) == 0 {
+				profilesWithoutSecrets = append(profilesWithoutSecrets, p)
+				continue
+			}
+			// A removed AutoMDM variable doesn't depend on the secrets, so the dry run still reports it like a real run does.
+			if isMobileconfigContents(p.Contents) || mdm.GetRawProfilePlatform(p.Contents) == "android" {
+				if err := automdm.FindRemovedAutoMDMVariable(variables.Find(string(p.Contents))...); err != nil {
+					return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(fmt.Sprintf("profiles[%s]", p.Name), err.Error()))
+				}
+			}
+		}
+		profiles = profilesWithoutSecrets
+	}
+
+	// Expand secret variables so that profiles can be properly validated.
+	// Important: secret variables should never be exposed or saved in the database unencrypted
+	// In order to map the expanded profiles back to the original profiles, we will use the index.
+	profilesWithSecrets := make(map[int]automdm.MDMProfileBatchPayload, len(profiles))
+	for i, p := range profiles {
+		expanded, secretsUpdatedAt, err := svc.ds.ExpandEmbeddedSecretsAndUpdatedAt(ctx, string(p.Contents))
+		if err != nil {
+			return err
+		}
+		p.SecretsUpdatedAt = secretsUpdatedAt
+		pCopy := p
+		// If the profile does not contain secrets, then expanded and original content point to the same slice/memory location.
+		pCopy.Contents = []byte(expanded)
+		profilesWithSecrets[i] = pCopy
+
+		// A secret used as a number leaves the raw JSON unrecognizable, so such a declaration is only recognized here,
+		// once expanded. Like the other checks that need secrets, this one doesn't run on a dry run.
+		if !isAppleDeclarationContents(p.Contents) && isAppleDeclarationContents(pCopy.Contents) {
+			if err := automdm.ValidateNoSecretsInDeclarationIdentifier(p.Contents); err != nil {
+				return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(p.Name, err.Error()))
+			}
+		}
+	}
+
+	if err := validateProfiles(profilesWithSecrets); err != nil {
+		return ctxerr.Wrap(ctx, err, "validating profiles")
+	}
+
+	// Apple, Windows, and Android profiles all expand $AUTOMDM_HOST_VITAL_ tokens
+	// at delivery, so every platform's profile content is validated for
+	// existence of the referenced vital here.
+	customHostVitalDocs := make([]string, 0, len(profiles))
+	for _, p := range profiles {
+		customHostVitalDocs = append(customHostVitalDocs, string(p.Contents))
+	}
+	if err := svc.ds.ValidateReferencedCustomHostVitals(ctx, customHostVitalDocs); err != nil {
+		if !automdm.IsInvalidReferencedCustomHostVitalsError(err) {
+			return ctxerr.Wrap(ctx, err, "validating referenced custom host vitals")
+		}
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profiles", err.Error()))
+	}
+
+	appleProfiles, appleDecls, err := getAppleProfiles(ctx, tmID, appCfg, profilesWithSecrets, labelMap, svc.config.MDM)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "validating macOS profiles")
+	}
+
+	// Activations are validated here rather than in getAppleProfiles, which is
+	// package-level and has no datastore to expand secrets with. appleDecls is
+	// keyed by the incoming profile's index.
+	for i, prof := range profilesWithSecrets {
+		decl := appleDecls[i]
+		if decl == nil {
+			if len(prof.Activation) > 0 {
+				return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("activation", ActivationUnsupportedProfileErrorMsg))
+			}
+			continue
+		}
+		act, err := svc.validateActivation(ctx, prof.Activation, decl.Identifier, decl.Type)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "validating declaration activation")
+		}
+		decl.Activation = act
+	}
+
+	windowsProfiles, err := getWindowsProfiles(ctx, tmID, appCfg, profilesWithSecrets, labelMap, svc.config.MDM)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "validating Windows profiles")
+	}
+
+	androidProfiles, err := getAndroidProfiles(ctx, tmID, appCfg, profilesWithSecrets, labelMap)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "validating Android profiles")
+	}
+
+	if err := svc.validateCrossPlatformProfileNames(ctx, appleProfiles, windowsProfiles, appleDecls, androidProfiles); err != nil {
+		return ctxerr.Wrap(ctx, err, "validating cross-platform profile names")
+	}
+
+	profilesVariablesByIdentifierMap, err := validateAutoMDMVariables(ctx, svc.ds, appCfg, lic, appleProfiles, windowsProfiles, appleDecls, androidProfiles)
+	if err != nil {
+		return err
+	}
+
+	var batchTeamID uint
+	if tmID != nil {
+		batchTeamID = *tmID
+	}
+	if err := svc.validateBatchProfileSchemas(ctx, appCfg, batchTeamID, profilesWithSecrets, profiles,
+		appleProfiles, appleDecls, windowsProfiles); err != nil {
+		return ctxerr.Wrap(ctx, err, "validating profile schemas")
+	}
+
+	// Now that validation is done, we remove the exposed secret variables from the profiles
+	appleProfilesSlice := make([]*automdm.MDMAppleConfigProfile, 0, len(appleProfiles))
+	for i, p := range appleProfiles {
+		p.Mobileconfig = profiles[i].Contents
+		appleProfilesSlice = append(appleProfilesSlice, p)
+	}
+	appleDeclsSlice := make([]*automdm.MDMAppleDeclaration, 0, len(appleDecls))
+	for i, p := range appleDecls {
+		p.RawJSON = profiles[i].Contents
+		appleDeclsSlice = append(appleDeclsSlice, p)
+	}
+	windowsProfilesSlice := make([]*automdm.MDMWindowsConfigProfile, 0, len(windowsProfiles))
+	for i, p := range windowsProfiles {
+		p.SyncML = profiles[i].Contents
+		windowsProfilesSlice = append(windowsProfilesSlice, p)
+	}
+	androidProfilesSlice := make([]*automdm.MDMAndroidConfigProfile, 0, len(androidProfiles))
+	for i, p := range androidProfiles {
+		p.RawJSON = profiles[i].Contents
+		androidProfilesSlice = append(androidProfilesSlice, p)
+	}
+
+	// Verify Apple Config profiles PayloadScope conflicts
+	err = svc.ds.VerifyAppleConfigProfileScopesDoNotConflict(ctx, appleProfilesSlice)
+	if err != nil {
+		return err
+	}
+
+	var teamID uint
+	if tmID != nil {
+		teamID = *tmID
+	}
+
+	var seenAppleDeclOSUpdate, seenWindowsProfileOSUpdate bool
+	var rawAppleDecl, rawWindowsProfile []byte
+	for _, p := range appleDeclsSlice {
+		// Match the parsed Type, not the raw JSON: the type string can be \u-escaped or appear in another declaration's payload.
+		if p.Type != apple_mdm.DeclarationTypeSoftwareUpdate {
+			continue
+		}
+
+		seenAppleDeclOSUpdate = true
+		rawAppleDecl = p.RawJSON
+	}
+
+	for _, p := range windowsProfilesSlice {
+		if !automdm.ProfileTargetsReservedLocURI(p.SyncML, syncml.AutoMDMOSUpdateTargetLocURI) {
+			continue
+		}
+
+		seenWindowsProfileOSUpdate = true
+		rawWindowsProfile = p.SyncML
+	}
+
+	if seenAppleDeclOSUpdate {
+		rawDecl, err := automdm.GetRawDeclarationValues(rawAppleDecl)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "getting raw declaration values")
+		}
+		// This is fine to only pass one of many into, it does re-check the type, but would be a no-op here as we have our guard above.
+		// So it checks the remaining things which is applicable for all profiles trying to set.
+		if err := svc.handleDeclarationSoftwareUpdate(ctx, rawDecl, teamID); err != nil {
+			return ctxerr.Wrap(ctx, err, "handling declaration software update")
+		}
+	}
+
+	if seenWindowsProfileOSUpdate {
+		// This is fine to only pass one of many into, it does re-check the type, but would be a no-op here as we have our guard above.
+		// So it checks the remaining things which is applicable for all profiles trying to set.
+		if err := svc.handleWindowsProfileSoftwareUpdate(ctx, rawWindowsProfile, teamID); err != nil {
+			return ctxerr.Wrap(ctx, err, "handling Windows profile software update")
+		}
+	}
+
+	if dryRun {
+		return nil
+	}
+
+	profilesVariablesByIdentifier := make([]automdm.MDMProfileIdentifierAutoMDMVariables, 0, len(profilesVariablesByIdentifierMap))
+	for identifier, variables := range profilesVariablesByIdentifierMap {
+		varNames := make([]automdm.AutoMDMVarName, 0, len(variables))
+		for _, varName := range variables {
+			varNames = append(varNames, automdm.AutoMDMVarName(varName))
+		}
+		profilesVariablesByIdentifier = append(profilesVariablesByIdentifier, automdm.MDMProfileIdentifierAutoMDMVariables{
+			Identifier:       identifier,
+			AutoMDMVariables: varNames,
+		})
+	}
+
+	// Resolve DDM asset references for declarations so the batch path links each
+	// declaration to the assets it references (mirroring the single-upload
+	// path). GitOps applies assets before declarations, so referenced assets
+	// already exist by this point.
+	if len(appleDeclsSlice) > 0 {
+		assets, err := svc.ds.ListAppleDDMAssets(ctx, tmID)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "listing DDM assets")
+		}
+		for _, d := range appleDeclsSlice {
+			d.TeamID = tmID
+			assetRefs, err := svc.handleDeclarationAssetReferences(ctx, d, assets)
+			if err != nil {
+				return ctxerr.Wrap(ctx, err, "handling declaration asset references")
+			}
+			d.AssetReferenceUUIDs = assetRefs
+		}
+	}
+
+	var profUpdates automdm.MDMProfilesUpdates
+	// OS-update (software update) profiles/declarations are tracked atomically
+	// inside BatchSetMDMProfiles' transaction.
+	if profUpdates, err = svc.ds.BatchSetMDMProfiles(ctx, tmID,
+		appleProfilesSlice, windowsProfilesSlice, appleDeclsSlice, androidProfilesSlice, profilesVariablesByIdentifier); err != nil {
+		return ctxerr.Wrap(ctx, err, "setting config profiles")
+	}
+
+	androidProfUUIDs := []string{}
+	for _, p := range androidProfiles {
+		androidProfUUIDs = append(androidProfUUIDs, p.ProfileUUID)
+	}
+	androidUpdates, err := svc.ds.BulkSetPendingMDMHostProfiles(ctx, nil, nil, androidProfUUIDs, nil)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "bulk set pending android host profiles")
+	}
+
+	updates := automdm.MDMProfilesUpdates{
+		AppleConfigProfile:   profUpdates.AppleConfigProfile,
+		WindowsConfigProfile: profUpdates.WindowsConfigProfile,
+		AppleDeclaration:     profUpdates.AppleDeclaration,
+		AndroidConfigProfile: profUpdates.AndroidConfigProfile || androidUpdates.AndroidConfigProfile,
+	}
+
+	if updates.AppleConfigProfile {
+		if err := svc.NewActivity(
+			ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedMacosProfile{
+				TeamID:   tmID,
+				TeamName: tmName,
+			},
+		); err != nil {
+			return ctxerr.Wrap(ctx, err, "logging activity for edited macos profile")
+		}
+	}
+	if updates.WindowsConfigProfile {
+		if err := svc.NewActivity(
+			ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedWindowsProfile{
+				TeamID:   tmID,
+				TeamName: tmName,
+			},
+		); err != nil {
+			return ctxerr.Wrap(ctx, err, "logging activity for edited windows profile")
+		}
+	}
+	if updates.AppleDeclaration {
+		if err := svc.NewActivity(
+			ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedDeclarationProfile{
+				TeamID:   tmID,
+				TeamName: tmName,
+			},
+		); err != nil {
+			return ctxerr.Wrap(ctx, err, "logging activity for edited macos declarations")
+		}
+	}
+	if updates.AndroidConfigProfile {
+		if err := svc.NewActivity(
+			ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedAndroidProfile{
+				TeamID:   tmID,
+				TeamName: tmName,
+			},
+		); err != nil {
+			return ctxerr.Wrap(ctx, err, "logging activity for edited android profile")
+		}
+	}
+
+	return nil
+}
+
+func validateAutoMDMVariables(ctx context.Context, ds automdm.Datastore, appConfig *automdm.AppConfig, lic *automdm.LicenseInfo, appleProfiles map[int]*automdm.MDMAppleConfigProfile,
+	windowsProfiles map[int]*automdm.MDMWindowsConfigProfile, appleDecls map[int]*automdm.MDMAppleDeclaration,
+	androidProfiles map[int]*automdm.MDMAndroidConfigProfile,
+) (map[string][]string, error) {
+	var err error
+
+	groupedCAs, err := ds.GetGroupedCertificateAuthorities(ctx, true)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "getting grouped certificate authorities")
+	}
+
+	profileVarsByProfIdentifier := make(map[string][]string)
+	for _, p := range appleProfiles {
+		profileVars, err := validateConfigProfileAutoMDMVariables(string(p.Mobileconfig), lic, groupedCAs)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "validating config profile AutoMDM variables")
+		}
+		profileVarsByProfIdentifier[automdm.MDMAppleProfileUUIDPrefix+p.Identifier] = profileVars
+	}
+	for _, p := range windowsProfiles {
+		windowsVars, err := validateWindowsProfileAutoMDMVariables(string(p.SyncML), lic, groupedCAs)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "validating Windows profile AutoMDM variables")
+		}
+		if len(windowsVars) > 0 {
+			profileVarsByProfIdentifier[automdm.MDMWindowsProfileUUIDPrefix+p.Name] = windowsVars
+		}
+	}
+	for _, p := range appleDecls {
+		declVars, err := validateDeclarationAutoMDMVariables(string(p.RawJSON), lic)
+		if err != nil {
+			var badReqErr *automdm.BadRequestError
+			if errors.As(err, &badReqErr) {
+				badReqErr.Message = "Couldn't set profile. " + badReqErr.Message
+				err = badReqErr
+			}
+			return nil, ctxerr.Wrap(ctx, err, "validating declaration AutoMDM variables")
+		}
+		if len(declVars) > 0 {
+			profileVarsByProfIdentifier[automdm.MDMAppleDeclarationUUIDPrefix+p.Identifier] = declVars
+		}
+	}
+	for _, p := range androidProfiles {
+		androidVars := variables.Find(string(p.RawJSON))
+		if len(androidVars) > 0 {
+			profileVarsByProfIdentifier[automdm.MDMAndroidProfileUUIDPrefix+p.Name] = androidVars
+		}
+	}
+	return profileVarsByProfIdentifier, nil
+}
+
+func (svc *Service) validateCrossPlatformProfileNames(ctx context.Context, appleProfiles map[int]*automdm.MDMAppleConfigProfile,
+	windowsProfiles map[int]*automdm.MDMWindowsConfigProfile, appleDecls map[int]*automdm.MDMAppleDeclaration, androidProfiles map[int]*automdm.MDMAndroidConfigProfile,
+) error {
+	// profile names must be unique regardless of platform, as checked by the single profile upload paths
+	type namedProfile struct {
+		field   string
+		index   int
+		name    string
+		wrapMsg string
+	}
+	profiles := make([]namedProfile, 0, len(appleProfiles)+len(windowsProfiles)+len(appleDecls)+len(androidProfiles))
+	for i, p := range appleProfiles {
+		profiles = append(profiles, namedProfile{field: "appleProfiles", index: i, name: p.Name, wrapMsg: "duplicate mobileconfig profile by name"})
+	}
+	for i, p := range windowsProfiles {
+		profiles = append(profiles, namedProfile{field: "windowsProfiles", index: i, name: p.Name, wrapMsg: "duplicate xml by name"})
+	}
+	for i, p := range appleDecls {
+		profiles = append(profiles, namedProfile{field: "appleDecls", index: i, name: p.Name, wrapMsg: "duplicate json by name"})
+	}
+	for i, p := range androidProfiles {
+		profiles = append(profiles, namedProfile{field: "androidProfiles", index: i, name: p.Name, wrapMsg: "duplicate json by name"})
+	}
+	slices.SortFunc(profiles, func(a, b namedProfile) int { return cmp.Compare(a.index, b.index) })
+
+	names := make([]string, 0, len(profiles))
+	for _, p := range profiles {
+		names = append(names, p.name)
+	}
+	duplicateIndex, found, err := findDuplicateNameUnderCollation(ctx, svc.ds, names)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking for duplicate profile names")
+	}
+	if found {
+		duplicate := profiles[duplicateIndex]
+		err := automdm.NewInvalidArgumentError(fmt.Sprintf("%s[%d]", duplicate.field, duplicate.index), fmtDuplicateNameErrMsg(duplicate.name))
+		return ctxerr.Wrap(ctx, err, duplicate.wrapMsg)
+	}
+
+	return nil
+}
+
+func fmtDuplicateNameErrMsg(name string) string {
+	const SameProfileNameErrorMsg = "Couldn't edit configuration_profiles. More than one configuration profile have the same name '%s' (PayloadDisplayName for .mobileconfig and file name for .json and .xml)."
+	return fmt.Sprintf(SameProfileNameErrorMsg, name)
+}
+
+func (svc *Service) authorizeBatchProfiles(ctx context.Context, tmID *uint, tmName *string) (*uint, *string, error) {
+	if tmID != nil && tmName != nil {
+		svc.authz.SkipAuthorization(ctx) // so that the error message is not replaced by "forbidden"
+		return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("team_name", "cannot specify both team_id and team_name"))
+	}
+	if tmID != nil || tmName != nil {
+		license, _ := license.FromContext(ctx)
+		if !license.IsPremium() {
+			field := "team_id"
+			if tmName != nil {
+				field = "team_name"
+			}
+			svc.authz.SkipAuthorization(ctx) // so that the error message is not replaced by "forbidden"
+			return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(field, ErrMissingLicense.Error()))
+		}
+	}
+
+	// if the team name is provided, load the corresponding team to get its id.
+	// vice-versa, if the id is provided, load it to get the name (required for
+	// the activity).
+	if tmName != nil || tmID != nil {
+		tm, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, tmID, tmName)
+		if err != nil {
+			return nil, nil, err
+		}
+		if tmID == nil {
+			tmID = &tm.ID
+		} else {
+			tmName = &tm.Name
+		}
+	}
+
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: tmID}, automdm.ActionWrite); err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err)
+	}
+
+	return tmID, tmName, nil
+}
+
+func getAppleProfiles(
+	ctx context.Context,
+	tmID *uint,
+	appCfg *automdm.AppConfig,
+	profiles map[int]automdm.MDMProfileBatchPayload,
+	labelMap map[string]automdm.ConfigurationProfileLabel,
+	mdmConfig config.MDMConfig,
+) (map[int]*automdm.MDMAppleConfigProfile, map[int]*automdm.MDMAppleDeclaration, error) {
+	// any duplicate identifier or name in the provided set results in an error
+	profs := make(map[int]*automdm.MDMAppleConfigProfile, len(profiles))
+	decls := make(map[int]*automdm.MDMAppleDeclaration, len(profiles))
+	// we need to keep track of the names and identifiers to check for duplicates so we will use
+	// a map where the key is the name oridentifier and the value is either "mobileconfig" or
+	// "declaration" to differentiate between the two types of profiles
+	byName, byIdent := make(map[string]string, len(profiles)), make(map[string]string, len(profiles))
+	for i, prof := range profiles {
+		if mdm.GetRawProfilePlatform(prof.Contents) != "darwin" {
+			continue
+		}
+
+		// Check for DDM files
+		if mdm.GuessProfileExtension(prof.Contents) == "json" {
+			rawDecl, err := automdm.GetRawDeclarationValues(prof.Contents)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if !mdmConfig.AllowAllDeclarations {
+				if err := rawDecl.ValidateUserProvided(); err != nil {
+					return nil, nil, err
+				}
+			}
+
+			if err := rawDecl.ValidateScope(); err != nil {
+				return nil, nil, err
+			}
+
+			if err := automdm.ValidateMDMProfileName(prof.Name); err != nil {
+				reason := err.Error()
+				name := "apple_settings.configuration_profiles"
+				if iae, ok := errors.AsType[*automdm.InvalidArgumentError](err); ok && iae.HasErrors() {
+					reason = iae.Invalid()[0]["reason"] // nolint:nilaway // iae.HasErrors check length, so [0] is not a nil potential
+					name = fmt.Sprintf("%s.%s", name, iae.Invalid()[0]["name"])
+				}
+				return nil, nil, ctxerr.Wrap(ctx,
+					automdm.NewInvalidArgumentError(name, "Couldn't edit configuration_profiles. "+reason))
+			}
+
+			mdmDecl := automdm.NewMDMAppleDeclaration(prof.Contents, tmID, prof.Name, rawDecl.Type, rawDecl.Identifier)
+			mdmDecl.Description = prof.Description
+			mdmDecl.Hidden = prof.Hidden
+			mdmDecl.SecretsUpdatedAt = prof.SecretsUpdatedAt
+			// PayloadScope is an AutoMDM extension (not part of Apple's DDM schema). The
+			// parsed value drives the scope column; the key stays in the stored JSON
+			// and is stripped at delivery time so it isn't sent to the device.
+			mdmDecl.Scope = rawDecl.ScopeOrDefault()
+			for _, labelName := range prof.LabelsIncludeAll {
+				if lbl, ok := labelMap[labelName]; ok {
+					declLabel := automdm.ConfigurationProfileLabel{
+						LabelName:  lbl.LabelName,
+						LabelID:    lbl.LabelID,
+						RequireAll: true,
+					}
+					mdmDecl.LabelsIncludeAll = append(mdmDecl.LabelsIncludeAll, declLabel)
+				}
+			}
+			for _, labelName := range prof.LabelsIncludeAny {
+				if lbl, ok := labelMap[labelName]; ok {
+					declLabel := automdm.ConfigurationProfileLabel{
+						LabelName: lbl.LabelName,
+						LabelID:   lbl.LabelID,
+					}
+					mdmDecl.LabelsIncludeAny = append(mdmDecl.LabelsIncludeAny, declLabel)
+				}
+			}
+			for _, labelName := range prof.LabelsExcludeAny {
+				if lbl, ok := labelMap[labelName]; ok {
+					declLabel := automdm.ConfigurationProfileLabel{
+						LabelName: lbl.LabelName,
+						LabelID:   lbl.LabelID,
+						Exclude:   true,
+					}
+					mdmDecl.LabelsExcludeAny = append(mdmDecl.LabelsExcludeAny, declLabel)
+				}
+			}
+
+			v, ok := byIdent[mdmDecl.Identifier]
+			switch {
+			case !ok:
+				byIdent[mdmDecl.Identifier] = "declaration"
+			case v == "mobileconfig":
+				return nil, nil, ctxerr.Wrap(ctx,
+					automdm.NewInvalidArgumentError(mdmDecl.Identifier, "A configuration profile with this identifier already exists."),
+					"duplicate mobileconfig profile by identifier")
+			case v == "declaration":
+				return nil, nil, ctxerr.Wrap(ctx,
+					automdm.NewInvalidArgumentError(mdmDecl.Identifier, "A declaration profile with this identifier already exists."),
+					"duplicate declaration profile by identifier")
+			default:
+				// this should never happen but just in case
+				return nil, nil, ctxerr.Wrap(ctx,
+					automdm.NewInvalidArgumentError(mdmDecl.Identifier, "A profile with this identifier already exists."),
+					"duplicate identifier by identifier")
+			}
+
+			decls[i] = mdmDecl
+
+			continue
+		}
+
+		mdmProf, err := automdm.NewMDMAppleConfigProfile(prof.Contents, tmID)
+		if err != nil {
+			return nil, nil, ctxerr.Wrap(ctx,
+				automdm.NewInvalidArgumentError(prof.Name, err.Error()),
+				"invalid mobileconfig profile")
+		}
+		mdmProf.Description = prof.Description
+		mdmProf.SelfService, mdmProf.Hidden = prof.SelfService, prof.Hidden
+		mdmProf.SecretsUpdatedAt = prof.SecretsUpdatedAt
+
+		for _, labelName := range prof.LabelsIncludeAll {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName:  lbl.LabelName,
+					LabelID:    lbl.LabelID,
+					RequireAll: true,
+				}
+				mdmProf.LabelsIncludeAll = append(mdmProf.LabelsIncludeAll, mdmLabel)
+			}
+		}
+		for _, labelName := range prof.LabelsIncludeAny {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName: lbl.LabelName,
+					LabelID:   lbl.LabelID,
+				}
+				mdmProf.LabelsIncludeAny = append(mdmProf.LabelsIncludeAny, mdmLabel)
+			}
+		}
+		for _, labelName := range prof.LabelsExcludeAny {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName: lbl.LabelName,
+					LabelID:   lbl.LabelID,
+					Exclude:   true,
+				}
+				mdmProf.LabelsExcludeAny = append(mdmProf.LabelsExcludeAny, mdmLabel)
+			}
+		}
+
+		if err := mdmProf.ValidateUserProvided(mdmConfig.IsCustomDiskEncryptionEnabled()); err != nil {
+			var iae *automdm.InvalidArgumentError
+			if strings.Contains(err.Error(), mobileconfig.DiskEncryptionProfileRestrictionErrMsg) {
+				iae = automdm.NewInvalidArgumentError(prof.Name,
+					mobileconfig.DiskEncryptionProfileRestrictionErrMsg+` To control disk encryption use config API endpoint or add "enable_disk_encryption" to your YAML file.`)
+			} else {
+				iae = automdm.NewInvalidArgumentError(prof.Name, err.Error())
+			}
+			return nil, nil, ctxerr.Wrap(ctx, iae)
+		}
+
+		// An explicit name replaces the PayloadDisplayName. automdmctl sends the
+		// trimmed PayloadDisplayName when the YAML has no name, which must not
+		// rename a profile stored untrimmed. Limits were checked earlier.
+		if prof.Name != "" && prof.Name != strings.TrimSpace(mdmProf.Name) {
+			mdmProf.Name = prof.Name
+		}
+		// An explicit name was checked earlier; a PayloadDisplayName wasn't.
+		if utf8.RuneCountInString(mdmProf.Name) > automdm.MaxProfileNameLength {
+			return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(prof.Name,
+				"Couldn't edit configuration_profiles. "+automdm.MaxProfileNameLengthErrMsg+"."))
+		}
+
+		if _, ok := byName[mdmProf.Name]; ok {
+			return nil, nil, ctxerr.Wrap(ctx,
+				automdm.NewInvalidArgumentError(prof.Name, fmt.Sprintf("Couldn't edit configuration_profiles. More than one configuration profile have the same name (PayloadDisplayName): %q", mdmProf.Name)),
+				"duplicate mobileconfig profile by name")
+		}
+		byName[mdmProf.Name] = "mobileconfig"
+
+		// TODO: confirm error messages
+		if _, ok := byIdent[mdmProf.Identifier]; ok {
+			return nil, nil, ctxerr.Wrap(ctx,
+				automdm.NewInvalidArgumentError(prof.Name, fmt.Sprintf("Couldn't edit configuration_profiles. More than one configuration profile have the same identifier (PayloadIdentifier): %q", mdmProf.Identifier)),
+				"duplicate mobileconfig profile by identifier")
+		}
+		byIdent[mdmProf.Identifier] = "mobileconfig"
+
+		profs[i] = mdmProf
+	}
+
+	if !appCfg.MDM.EnabledAndConfigured {
+		// NOTE: in order to prevent an error when AutoMDM is not enabled but no
+		// profile is provided, which can happen if a user runs `automdmctl get
+		// config` and tries to apply that YAML, as it will contain an empty/null
+		// configuration_profiles key, we just return a success response in this
+		// situation.
+		if len(profs) == 0 && len(decls) == 0 {
+			return nil, nil, nil
+		}
+
+		return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("apple_settings.configuration_profiles", automdm.AppleMDMNotConfiguredMessage))
+	}
+
+	return profs, decls, nil
+}
+
+func getWindowsProfiles(
+	ctx context.Context,
+	tmID *uint,
+	appCfg *automdm.AppConfig,
+	profiles map[int]automdm.MDMProfileBatchPayload,
+	labelMap map[string]automdm.ConfigurationProfileLabel,
+	mdmConfig config.MDMConfig,
+) (map[int]*automdm.MDMWindowsConfigProfile, error) {
+	profs := make(map[int]*automdm.MDMWindowsConfigProfile, len(profiles))
+
+	for i, profile := range profiles {
+		if mdm.GetRawProfilePlatform(profile.Contents) != "windows" {
+			continue
+		}
+
+		mdmProf := &automdm.MDMWindowsConfigProfile{
+			TeamID:      tmID,
+			Name:        profile.Name,
+			Description: profile.Description,
+			SyncML:      profile.Contents,
+			Hidden:      profile.Hidden,
+		}
+		for _, labelName := range profile.LabelsIncludeAll {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName:  lbl.LabelName,
+					LabelID:    lbl.LabelID,
+					RequireAll: true,
+				}
+				mdmProf.LabelsIncludeAll = append(mdmProf.LabelsIncludeAll, mdmLabel)
+			}
+		}
+		for _, labelName := range profile.LabelsIncludeAny {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName: lbl.LabelName,
+					LabelID:   lbl.LabelID,
+				}
+				mdmProf.LabelsIncludeAny = append(mdmProf.LabelsIncludeAny, mdmLabel)
+			}
+		}
+		for _, labelName := range profile.LabelsExcludeAny {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName: lbl.LabelName,
+					LabelID:   lbl.LabelID,
+					Exclude:   true,
+				}
+				mdmProf.LabelsExcludeAny = append(mdmProf.LabelsExcludeAny, mdmLabel)
+			}
+		}
+
+		if err := mdmProf.ValidateUserProvided(mdmConfig.IsCustomDiskEncryptionEnabled()); err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, syncml.DiskEncryptionProfileRestrictionErrMsg) {
+				msg += ` To control disk encryption use config API endpoint or add "enable_disk_encryption" to your YAML file.`
+			}
+			return nil, ctxerr.Wrap(ctx,
+				automdm.NewInvalidArgumentError(fmt.Sprintf("profiles[%s]", profile.Name), msg))
+		}
+
+		profs[i] = mdmProf
+	}
+
+	if !appCfg.MDM.WindowsEnabledAndConfigured {
+		// NOTE: in order to prevent an error when AutoMDM is not enabled but no
+		// profile is provided, which can happen if a user runs `automdmctl get
+		// config` and tries to apply that YAML, as it will contain an empty/null
+		// configuration_profiles key, we just return a success response in this
+		// situation.
+		if len(profs) == 0 {
+			return nil, nil
+		}
+
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("mdm", "cannot set custom settings: "+automdm.ErrWindowsMDMNotConfigured.Error()))
+	}
+
+	return profs, nil
+}
+
+func getAndroidProfiles(ctx context.Context,
+	tmID *uint,
+	appCfg *automdm.AppConfig,
+	profiles map[int]automdm.MDMProfileBatchPayload,
+	labelMap map[string]automdm.ConfigurationProfileLabel,
+) (map[int]*automdm.MDMAndroidConfigProfile, error) {
+	profs := make(map[int]*automdm.MDMAndroidConfigProfile, len(profiles))
+	for i, profile := range profiles {
+		if mdm.GetRawProfilePlatform(profile.Contents) != "android" {
+			continue
+		}
+		mdmProf := &automdm.MDMAndroidConfigProfile{
+			TeamID:      tmID,
+			Name:        profile.Name,
+			Description: profile.Description,
+			RawJSON:     profile.Contents,
+			Hidden:      profile.Hidden,
+		}
+		for _, labelName := range profile.LabelsIncludeAll {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName:  lbl.LabelName,
+					LabelID:    lbl.LabelID,
+					RequireAll: true,
+				}
+				mdmProf.LabelsIncludeAll = append(mdmProf.LabelsIncludeAll, mdmLabel)
+			}
+		}
+		for _, labelName := range profile.LabelsIncludeAny {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName: lbl.LabelName,
+					LabelID:   lbl.LabelID,
+				}
+				mdmProf.LabelsIncludeAny = append(mdmProf.LabelsIncludeAny, mdmLabel)
+			}
+		}
+		for _, labelName := range profile.LabelsExcludeAny {
+			if lbl, ok := labelMap[labelName]; ok {
+				mdmLabel := automdm.ConfigurationProfileLabel{
+					LabelName: lbl.LabelName,
+					LabelID:   lbl.LabelID,
+					Exclude:   true,
+				}
+				mdmProf.LabelsExcludeAny = append(mdmProf.LabelsExcludeAny, mdmLabel)
+			}
+		}
+
+		if err := mdmProf.ValidateUserProvided(license.IsPremium(ctx)); err != nil {
+			msg := err.Error()
+			return nil, ctxerr.Wrap(ctx,
+				automdm.NewInvalidArgumentError(fmt.Sprintf("profiles[%s]", profile.Name), msg))
+		}
+
+		profs[i] = mdmProf
+	}
+
+	if !appCfg.MDM.AndroidEnabledAndConfigured {
+		// NOTE: in order to prevent an error when AutoMDM is not enabled but no
+		// profile is provided, which can happen if a user runs `automdmctl get
+		// config` and tries to apply that YAML, as it will contain an empty/null
+		// configuration_profiles key, we just return a success response in this
+		// situation.
+		if len(profs) == 0 {
+			return nil, nil
+		}
+
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("mdm", "cannot set custom settings: Android MDM is not configured"))
+	}
+
+	return profs, nil
+}
+
+func validateProfiles(profiles map[int]automdm.MDMProfileBatchPayload) error {
+	for _, profile := range profiles {
+		// validate that at most one include mode is provided; labels_exclude_any may be combined with any include mode
+		var includeCount int
+		for _, b := range []bool{
+			len(profile.LabelsIncludeAll) > 0,
+			len(profile.LabelsIncludeAny) > 0,
+			len(profile.Labels) > 0,
+		} {
+			if b {
+				includeCount++
+			}
+		}
+		if includeCount > 1 {
+			return automdm.NewInvalidArgumentError("mdm", `Couldn't edit configuration_profiles. For each profile, only one of "labels_include_all", "labels_include_any" or "labels" can be included.`)
+		}
+
+		includeLabels := append(profile.LabelsIncludeAll, append(profile.Labels, profile.LabelsIncludeAny...)...) //nolint:gocritic
+		if overlap := automdm.LabelOverlap(includeLabels, profile.LabelsExcludeAny); overlap != "" {
+			return automdm.NewInvalidArgumentError("mdm", fmt.Sprintf(`Couldn't edit configuration_profiles. Label %q cannot appear in both include and exclude lists.`, overlap))
+		}
+
+		if len(profile.Contents) > 1024*1024 {
+			return automdm.NewInvalidArgumentError("mdm", automdm.MaxProfileSizeErrMsg)
+		}
+
+		// Each type's ValidateUserProvided rejects an empty name below; here
+		// only the limits shared by every type, and only when a name is given
+		// (a mobileconfig may leave it to PayloadDisplayName).
+		if profile.Name != "" {
+			if err := automdm.ValidateMDMProfileName(profile.Name); err != nil {
+				return automdm.NewInvalidArgumentError("mdm", "Couldn't edit configuration_profiles. "+err.Error())
+			}
+		}
+		if err := automdm.ValidateMDMProfileDescription(profile.Description); err != nil {
+			return automdm.NewInvalidArgumentError("mdm", "Couldn't edit configuration_profiles. "+err.Error())
+		}
+
+		platform := mdm.GetRawProfilePlatform(profile.Contents)
+		if platform != "darwin" && platform != "windows" && platform != "android" {
+			// We can only display a generic error message here because at this point
+			// we don't know the file extension or whether the profile is intended
+			// for apple_settings, windows_settings or android_settings. We should expect to never see this
+			// in practice because the client should be validating the profiles
+			// before sending them to the server so the client can surface  more helpful
+			// error messages to the user. However, we're validating again here just
+			// in case the client is not working as expected.
+			return automdm.NewInvalidArgumentError("mdm", fmt.Sprintf(
+				"%s is not a valid macOS, Windows, or Android configuration profile. ", profile.Name,
+			)+
+				"macOS profiles must be valid .mobileconfig or .json files. "+
+				"Windows configuration profiles can only have <Replace> or <Add> top level elements. "+
+				"Android profiles must be valid .json files.")
+		}
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /configuration_profiles (List profiles)
+////////////////////////////////////////////////////////////////////////////////
+
+type listMDMConfigProfilesRequest struct {
+	TeamID      *uint               `query:"team_id,optional"`
+	ListOptions automdm.ListOptions `url:"list_options"`
+}
+
+type listMDMConfigProfilesResponse struct {
+	Meta     *automdm.PaginationMetadata        `json:"meta"`
+	Profiles []*automdm.MDMConfigProfilePayload `json:"profiles"`
+	Err      error                              `json:"error,omitempty"`
+}
+
+func (r listMDMConfigProfilesResponse) Error() error { return r.Err }
+
+func listMDMConfigProfilesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*listMDMConfigProfilesRequest)
+
+	profs, meta, err := svc.ListMDMConfigProfiles(ctx, req.TeamID, req.ListOptions)
+	if err != nil {
+		return &listMDMConfigProfilesResponse{Err: err}, nil
+	}
+
+	res := listMDMConfigProfilesResponse{Meta: meta, Profiles: profs}
+	if profs == nil {
+		// return empty json array instead of json null
+		res.Profiles = []*automdm.MDMConfigProfilePayload{}
+	}
+	return &res, nil
+}
+
+func (svc *Service) ListMDMConfigProfiles(ctx context.Context, teamID *uint, opt automdm.ListOptions) ([]*automdm.MDMConfigProfilePayload, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: teamID}, automdm.ActionRead); err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err)
+	}
+
+	if teamID != nil && *teamID > 0 {
+		// confirm that team exists
+		if _, err := svc.ds.TeamLite(ctx, *teamID); err != nil { // TODO see if we can use TeamExists here instead
+			return nil, nil, ctxerr.Wrap(ctx, err)
+		}
+	}
+
+	// cursor-based pagination is not supported for profiles
+	opt.After = ""
+	// custom ordering is not supported, always by name
+	opt.OrderKey = "name"
+	opt.OrderDirection = automdm.OrderAscending
+	// no matching query support
+	opt.MatchQuery = ""
+	// always include metadata for profiles
+	opt.IncludeMetadata = true
+
+	return svc.ds.ListMDMConfigProfiles(ctx, teamID, opt)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Update MDM Disk encryption
+////////////////////////////////////////////////////////////////////////////////
+
+type updateDiskEncryptionRequest struct {
+	TeamID *uint `json:"team_id"`
+	// EnableDiskEncryption is deprecated: when provided it applies to every
+	// per-platform setting. Use the per-platform objects instead.
+	EnableDiskEncryption *bool                                         `json:"enable_disk_encryption"`
+	RequireBitLockerPIN  *bool                                         `json:"windows_require_bitlocker_pin"`
+	MacOSSettings        *automdm.MacOSDiskEncryptionSettingsPayload   `json:"macos_settings"`
+	WindowsSettings      *automdm.WindowsDiskEncryptionSettingsPayload `json:"windows_settings"`
+	LinuxSettings        *automdm.LinuxDiskEncryptionSettingsPayload   `json:"linux_settings"`
+}
+
+type updateMDMDiskEncryptionResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r updateMDMDiskEncryptionResponse) Error() error { return r.Err }
+
+func (r updateMDMDiskEncryptionResponse) Status() int { return http.StatusNoContent }
+
+func updateDiskEncryptionEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*updateDiskEncryptionRequest)
+	payload := automdm.MDMDiskEncryptionSettingsPayload{
+		EnableDiskEncryption: req.EnableDiskEncryption,
+		RequireBitLockerPIN:  req.RequireBitLockerPIN,
+		MacOSSettings:        req.MacOSSettings,
+		WindowsSettings:      req.WindowsSettings,
+		LinuxSettings:        req.LinuxSettings,
+	}
+	if err := svc.UpdateMDMDiskEncryption(ctx, req.TeamID, payload); err != nil {
+		return updateMDMDiskEncryptionResponse{Err: err}, nil
+	}
+	return updateMDMDiskEncryptionResponse{}, nil
+}
+
+func (svc *Service) UpdateMDMDiskEncryption(ctx context.Context, teamID *uint, payload automdm.MDMDiskEncryptionSettingsPayload) error {
+	// TODO(mna): this should all move to the ee package.
+
+	lic, _ := license.FromContext(ctx)
+	if lic == nil || !lic.IsPremium() {
+		svc.authz.SkipAuthorization(ctx) // so that the error message is not replaced by "forbidden"
+		return automdm.ErrMissingLicense
+	}
+
+	// for historical reasons, this uses an Apple-specific struct for authorization.
+	if err := svc.authz.Authorize(ctx, automdm.MDMAppleSettingsPayload{TeamID: teamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	changes, err := payload.ResolvePerPlatform()
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	requireBitLockerPIN, err := payload.ResolveBitLockerPIN()
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	if teamID != nil {
+		tm, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, teamID, nil)
+		if err != nil {
+			return err
+		}
+		return svc.EnterpriseOverrides.UpdateTeamMDMDiskEncryption(ctx, tm, changes, requireBitLockerPIN)
+	}
+	return svc.updateAppConfigMDMDiskEncryption(ctx, changes, requireBitLockerPIN)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Update MDM host name template
+////////////////////////////////////////////////////////////////////////////////
+
+type updateHostNameTemplateRequest struct {
+	AutoMDMID        *uint  `json:"team_id"`
+	HostNameTemplate string `json:"name_template"`
+}
+
+type updateHostNameTemplateResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r updateHostNameTemplateResponse) Error() error { return r.Err }
+
+func (r updateHostNameTemplateResponse) Status() int { return http.StatusNoContent }
+
+func updateHostNameTemplateEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*updateHostNameTemplateRequest)
+	if err := svc.UpdateMDMHostNameTemplate(ctx, req.AutoMDMID, req.HostNameTemplate); err != nil {
+		return updateHostNameTemplateResponse{Err: err}, nil
+	}
+	return updateHostNameTemplateResponse{}, nil
+}
+
+func (svc *Service) UpdateMDMHostNameTemplate(ctx context.Context, automdmID *uint, nameTemplate string) error {
+	if !license.IsPremium(ctx) {
+		svc.authz.SkipAuthorization(ctx)
+		return automdm.ErrMissingLicense
+	}
+
+	if err := svc.authz.Authorize(ctx,
+		automdm.MDMAppleSettingsPayload{TeamID: automdmID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	var tm *automdm.Team
+	if automdmID != nil && *automdmID > 0 {
+		var err error
+		tm, err = svc.EnterpriseOverrides.TeamByIDOrName(ctx, automdmID, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if nameTemplate != "" {
+		// Re-saving an unchanged template resolves no new secret. "No team" is a
+		// global-scope write, so its caller always passes the check anyway.
+		canReferenceSecrets := svc.authz.CanWriteSecretVariables(ctx) ||
+			(tm != nil && strings.TrimSpace(nameTemplate) == tm.Config.MDM.HostNameTemplate)
+		validated, err := automdm.ValidateHostNameTemplateWithSecrets(ctx, svc.ds, nameTemplate, canReferenceSecrets)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err)
+		}
+		nameTemplate = validated
+	}
+
+	if tm != nil {
+		return svc.EnterpriseOverrides.UpdateTeamMDMHostNameTemplate(ctx, tm, nameTemplate)
+	}
+	return svc.updateAppConfigMDMHostNameTemplate(ctx, nameTemplate)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// POST /hosts/{host_id:[0-9]+}/name_template/resend
+////////////////////////////////////////////////////////////////////////////////
+
+type resendHostNameTemplateRequest struct {
+	HostID uint `url:"host_id"`
+}
+
+type resendHostNameTemplateResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r resendHostNameTemplateResponse) Error() error { return r.Err }
+
+func (r resendHostNameTemplateResponse) Status() int { return http.StatusAccepted }
+
+func resendHostNameTemplateEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*resendHostNameTemplateRequest)
+
+	if err := svc.ResendHostNameTemplate(ctx, req.HostID); err != nil {
+		return resendHostNameTemplateResponse{Err: err}, nil
+	}
+
+	return resendHostNameTemplateResponse{}, nil
+}
+
+func (svc *Service) ResendHostNameTemplate(ctx context.Context, hostID uint) error {
+	if !license.IsPremium(ctx) {
+		svc.authz.SkipAuthorization(ctx)
+		return automdm.ErrMissingLicense
+	}
+
+	// Coarse gate before loading the host. We use selective_list (like the profile
+	// resend) so GitOps tokens are admitted here — GitOps manages host name
+	// templates (controls.name_template), so it must also be able to resend.
+	// Team-scoped enforcement is the ActionResend check below, once the host's team
+	// is known (that policy admits GitOps for the host's team too).
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionSelectiveList); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	host, err := svc.ds.HostLite(ctx, hostID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: host.TeamID}, automdm.ActionResend); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// Host names are enforced for both teams and "No team", so a nil TeamID is
+	// valid here; whether the host is actually enforced is decided by the presence
+	// of an enforcement row below (404 when absent).
+	enforcement, err := svc.ds.GetHostDeviceNameEnforcement(ctx, host.UUID)
+	if err != nil {
+		if automdm.IsNotFound(err) {
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostName", "Unable to match host name to host.").WithStatus(http.StatusNotFound), "getting host device name enforcement")
+		}
+		return ctxerr.Wrap(ctx, err, "getting host device name enforcement")
+	}
+
+	// A NULL status is a queued row. Pending and verifying rows can't be resent.
+	if enforcement.Status == nil || *enforcement.Status == automdm.MDMDeliveryPending || *enforcement.Status == automdm.MDMDeliveryVerifying {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostName", `Couldn't resend. Host names with "pending" or "verifying" status can't be resent.`).WithStatus(http.StatusConflict), "check host name status")
+	}
+
+	if err := svc.ds.ResendHostDeviceName(ctx, host.UUID); err != nil {
+		return ctxerr.Wrap(ctx, err, "resending host device name")
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// POST /hosts/{id:[0-9]+}/configuration_profiles/{profile_uuid}
+////////////////////////////////////////////////////////////////////////////////
+
+type resendHostMDMProfileRequest struct {
+	HostID      uint   `url:"host_id"`
+	ProfileUUID string `url:"profile_uuid"`
+}
+
+type resendHostMDMProfileResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r resendHostMDMProfileResponse) Error() error { return r.Err }
+
+func (r resendHostMDMProfileResponse) Status() int { return http.StatusAccepted }
+
+func resendHostMDMProfileEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*resendHostMDMProfileRequest)
+
+	if err := svc.ResendHostMDMProfile(ctx, req.HostID, req.ProfileUUID); err != nil {
+		return resendHostMDMProfileResponse{Err: err}, nil
+	}
+
+	return resendHostMDMProfileResponse{}, nil
+}
+
+func (svc *Service) ResendHostMDMProfile(ctx context.Context, hostID uint, profileUUID string) error {
+	// first we perform a basic authz check, we use selective list action to include gitops users
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionSelectiveList); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	host, err := svc.ds.HostLite(ctx, hostID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	// now we can do a specific authz check based on team id of the host before proceeding
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: host.TeamID}, automdm.ActionResend); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	profileTeamID, profileName, err := getProfileToResendDetails(ctx, profileUUID, svc, host)
+	if err != nil {
+		return err
+	}
+
+	// check again based on team id of profile before we proceeding
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: profileTeamID}, automdm.ActionResend); err != nil {
+		return ctxerr.Wrap(ctx, err, "authorizing profile team")
+	}
+
+	err = nil
+	// A user asked for this resend, so everything goes back to them, rejection or not.
+	onError := func(innerErr error, _ bool) {
+		err = innerErr
+	}
+	checkAndResendHostMDMProfile(ctx, svc, host, onError, profileUUID, profileName, nil)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking and resending host mdm profile")
+	}
+
+	return nil
+}
+
+func (svc *Service) ResendDeviceHostMDMProfile(ctx context.Context, host *automdm.Host, profileUUID string) error {
+	_, profileName, err := getProfileToResendDetails(ctx, profileUUID, svc, host)
+	if err != nil {
+		return err
+	}
+
+	// With one-time enroll secrets, resending the profile that carries one mints a new enrollment credential for the device,
+	// which is an admin decision.
+	if deliversOneTimeEnrollSecret(svc.config.MDM, profileUUID, profileName) {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile",
+			fmt.Sprintf("The %s profile contains a one-time enroll secret and can only be resent by an admin. Ask your IT admin to resend it.", profileName)).
+			WithStatus(http.StatusForbidden), "check one-time enroll secret profile device resend")
+	}
+
+	err = nil
+	// A user asked for this resend, so everything goes back to them, rejection or not.
+	onError := func(innerErr error, _ bool) {
+		err = innerErr
+	}
+	checkAndResendHostMDMProfile(ctx, svc, host, onError, profileUUID, profileName, nil)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking and resending host mdm profile")
+	}
+
+	return nil
+}
+
+type checkAndResendPolicyArgs struct {
+	PolicyID   uint
+	PolicyName string
+}
+
+func checkAndResendHostMDMProfile(ctx context.Context, svc *Service, host *automdm.Host, onError func(err error, rejected bool), profileUUID string, profileName string, policyArgs *checkAndResendPolicyArgs) {
+	if isWindowsEnrollSecretProfile(profileUUID, profileName) && !svc.config.MDM.WindowsOneTimeEnrollSecrets {
+		onError(errWindowsEnrollSecretProfileOff(), true)
+		return
+	}
+	status, err := svc.ds.GetHostMDMProfileInstallStatus(ctx, host.UUID, profileUUID)
+	if err != nil {
+		if automdm.IsNotFound(err) {
+			onError(automdm.NewInvalidArgumentError("HostMDMProfile", "Unable to match profile to host.").WithStatus(http.StatusNotFound), true)
+			return
+		}
+		onError(ctxerr.Wrap(ctx, err, "getting host mdm profile status"), false)
+		return
+	}
+	// If orbit/osquery are broken but MDM communications are still operational, the
+	// automdmd profile may be terminally in the "verifying" state because it has been
+	// acknowledged by MDM but osquery will never report back for verification, so allow
+	// resending it to allow an admin to repair the host's orbit/osquery installation
+	deliversOneTimeSecret := svc.config.MDM.AppleOneTimeEnrollSecrets && isAutoMDMdConfigProfile(profileUUID, profileName)
+	verifyingAllowed := deliversOneTimeSecret && status == automdm.MDMDeliveryVerifying
+	if status == automdm.MDMDeliveryPending || (status == automdm.MDMDeliveryVerifying && !verifyingAllowed) {
+		onError(ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", "Couldn’t resend. Configuration profiles with “pending” or “verifying” status can’t be resent.").WithStatus(http.StatusConflict), "check profile status"), true)
+		return
+	}
+	if status != automdm.MDMDeliveryFailed && status != automdm.MDMDeliveryVerified && !verifyingAllowed {
+		// this should never happen, but just in case
+		onError(ctxerr.Errorf(ctx, "unrecognized profile status %s", status), false)
+		return
+	}
+
+	if err := svc.ds.ResendHostMDMProfile(ctx, host.UUID, profileUUID); err != nil {
+		onError(ctxerr.Wrap(ctx, err, "resending host mdm profile"), false)
+		return
+	}
+
+	details := &automdm.ActivityTypeResentConfigurationProfile{
+		HostID:          &host.ID,
+		HostDisplayName: new(host.DisplayName()),
+		ProfileName:     profileName,
+		ProfileUUID:     profileUUID,
+	}
+
+	if policyArgs != nil {
+		details.PolicyID = &policyArgs.PolicyID
+		details.PolicyName = &policyArgs.PolicyName
+	}
+
+	if err := svc.NewActivity(
+		ctx, authz.UserFromContext(ctx), details,
+	); err != nil {
+		onError(ctxerr.Wrap(ctx, err, "logging activity for resend config profile"), false)
+		return
+	}
+}
+
+// getPRofileToResendDetails returns the team ID and name of the profile to be resent.
+func getProfileToResendDetails(ctx context.Context, profileUUID string, svc *Service, host *automdm.Host) (*uint, string, error) {
+	var profileTeamID *uint
+	var profileName string
+	switch {
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix):
+		if err := svc.VerifyMDMAppleConfigured(ctx); err != nil {
+			return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", automdm.AppleMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest), "check apple mdm enabled")
+		}
+		if host.Platform != "darwin" && host.Platform != "ios" && host.Platform != "ipados" {
+			return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", "Profile is not compatible with host platform."), "check host platform")
+		}
+		prof, err := svc.ds.GetMDMAppleConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return nil, "", ctxerr.Wrap(ctx, err, "getting apple config profile")
+		}
+		profileTeamID = prof.TeamID
+		profileName = prof.Name
+
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleDeclarationUUIDPrefix):
+		return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", automdm.CantResendAppleDeclarationProfilesMessage).WithStatus(http.StatusBadRequest), "check apple declaration resend")
+	case strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix):
+		if err := svc.VerifyMDMWindowsConfigured(ctx); err != nil {
+			return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", automdm.WindowsMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest), "check windows mdm enabled")
+		}
+		if host.Platform != "windows" {
+			return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", "Profile is not compatible with host platform."), "check host platform")
+		}
+		prof, err := svc.ds.GetMDMWindowsConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return nil, "", ctxerr.Wrap(ctx, err, "getting windows config profile")
+		}
+		profileTeamID = prof.TeamID
+		profileName = prof.Name
+	default:
+		return nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("HostMDMProfile", "Invalid profile UUID prefix.").WithStatus(http.StatusNotFound), "check profile UUID prefix")
+	}
+	return profileTeamID, profileName, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /mdm/apple/request_csr
+////////////////////////////////////////////////////////////////////////////////
+
+// Used for overriding the env var value in testing
+var testSetEmptyPrivateKey bool
+
+type getMDMAppleCSRRequest struct{}
+
+type getMDMAppleCSRResponse struct {
+	CSR []byte `json:"csr"` // base64 encoded
+	Err error  `json:"error,omitempty"`
+}
+
+func (r getMDMAppleCSRResponse) Error() error { return r.Err }
+
+func getMDMAppleCSREndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	signedCSRB64, err := svc.GetMDMAppleCSR(ctx)
+	if err != nil {
+		return &getMDMAppleCSRResponse{Err: err}, nil
+	}
+
+	return &getMDMAppleCSRResponse{CSR: signedCSRB64}, nil
+}
+
+func (svc *Service) GetMDMAppleCSR(ctx context.Context) ([]byte, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppleCSR{}, automdm.ActionWrite); err != nil {
+		return nil, err
+	}
+
+	privateKey := svc.config.Server.PrivateKey
+	if testSetEmptyPrivateKey {
+		privateKey = ""
+	}
+
+	if len(privateKey) == 0 {
+		return nil, ctxerr.New(ctx, "Couldn't download signed CSR. Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key")
+	}
+
+	vc, ok := viewer.FromContext(ctx)
+	if !ok {
+		return nil, automdm.ErrNoContext
+	}
+
+	// Check if we have existing certs and keys
+	var apnsKey crypto.PrivateKey
+	savedAssets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetCACert,
+		automdm.MDMAssetCAKey,
+		automdm.MDMAssetAPNSKey,
+	}, nil)
+	if err != nil {
+		// allow not found errors as it means we're generating the assets for
+		// the first time.
+		if !automdm.IsNotFound(err) {
+			return nil, ctxerr.Wrap(ctx, err, "loading existing assets from the database")
+		}
+	}
+
+	if len(savedAssets) == 0 {
+		// Then we should create them
+
+		scepCert, scepKey, err := apple_mdm.NewSCEPCACertKey()
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "generate SCEP cert and key")
+		}
+
+		apnsRSAKey, err := apple_mdm.NewPrivateKey()
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "generate new apns private key")
+		}
+		apnsKey = apnsRSAKey
+
+		// Store our config assets encrypted
+		var assets []automdm.MDMConfigAsset
+		for k, v := range map[automdm.MDMAssetName][]byte{
+			automdm.MDMAssetCACert:  certificate.EncodeCertPEM(scepCert),
+			automdm.MDMAssetCAKey:   certificate.EncodePrivateKeyPEM(scepKey),
+			automdm.MDMAssetAPNSKey: certificate.EncodePrivateKeyPEM(apnsRSAKey),
+		} {
+			assets = append(assets, automdm.MDMConfigAsset{
+				Name:  k,
+				Value: v,
+			})
+		}
+
+		if err := svc.ds.InsertMDMConfigAssets(ctx, assets, nil); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "inserting mdm config assets")
+		}
+	} else {
+		rawApnsKey := savedAssets[automdm.MDMAssetAPNSKey]
+		apnsKey, err = cryptoutil.ParsePrivateKey(rawApnsKey.Value, "APNS private key")
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "parse APNS private key")
+		}
+	}
+
+	// Generate new APNS CSR every time this is called
+	appConfig, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get app config")
+	}
+
+	apnsCSR, err := apple_mdm.GenerateAPNSCSR(appConfig.OrgInfo.OrgName, vc.Email(), apnsKey)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "generate APNS cert and key")
+	}
+
+	// Submit CSR to automdm.com for signing
+	websiteClient := automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second))
+
+	signedCSRB64, err := apple_mdm.GetSignedAPNSCSRNoEmail(websiteClient, apnsCSR)
+	if err != nil {
+		var fwe apple_mdm.AutoMDMWebsiteError
+		if errors.As(err, &fwe) {
+			// automdm.com returns a bad request here if the email is invalid.
+			if fwe.ExitType == "invalidEmailDomain" {
+				domain := "@" + strings.SplitN(vc.Email(), "@", 2)[1]
+				return nil, ctxerr.Wrap(
+					ctx,
+					automdm.NewInvalidArgumentError(
+						"email_address",
+						fmt.Sprintf("CSR request failed. Email domain '%s' is not permitted for APNS certificate signing. Please use a corporate or organization email address.", domain),
+					),
+				)
+			}
+			return nil, ctxerr.Wrap(
+				ctx,
+				automdm.NewUserMessageError(
+					fmt.Errorf("AutoMDM CSR request failed: %w", err),
+					http.StatusBadGateway,
+				),
+			)
+		}
+		return nil, ctxerr.Wrap(ctx, err, "get signed CSR")
+	}
+
+	// Return signed CSR
+	return signedCSRB64, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// POST /mdm/apple/apns_certificate
+////////////////////////////////////////////////////////////////////////////////
+
+type uploadMDMAppleAPNSCertRequest struct {
+	File *multipart.FileHeader
+}
+
+func (uploadMDMAppleAPNSCertRequest) DecodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	decoded := uploadMDMAppleAPNSCertRequest{}
+	err := r.ParseMultipartForm(platform_http.MaxMultipartFormSize)
+	if err != nil {
+		return nil, &automdm.BadRequestError{
+			Message:     "failed to parse multipart form",
+			InternalErr: err,
+		}
+	}
+
+	if len(r.MultipartForm.File["certificate"]) == 0 {
+		return nil, &automdm.BadRequestError{
+			Message:     "certificate multipart field is required",
+			InternalErr: err,
+		}
+	}
+
+	decoded.File = r.MultipartForm.File["certificate"][0]
+
+	return &decoded, nil
+}
+
+type uploadMDMAppleAPNSCertResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r uploadMDMAppleAPNSCertResponse) Error() error {
+	return r.Err
+}
+
+func (r uploadMDMAppleAPNSCertResponse) Status() int { return http.StatusAccepted }
+
+func uploadMDMAppleAPNSCertEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*uploadMDMAppleAPNSCertRequest)
+	file, err := req.File.Open()
+	if err != nil {
+		return uploadMDMAppleAPNSCertResponse{Err: err}, nil
+	}
+	defer file.Close()
+
+	if err := svc.UploadMDMAppleAPNSCert(ctx, file); err != nil {
+		return &uploadMDMAppleAPNSCertResponse{Err: err}, nil
+	}
+
+	return &uploadMDMAppleAPNSCertResponse{}, nil
+}
+
+func (svc *Service) UploadMDMAppleAPNSCert(ctx context.Context, cert io.ReadSeeker) error {
+	if err := svc.authz.Authorize(ctx, &automdm.AppleCSR{}, automdm.ActionWrite); err != nil {
+		return err
+	}
+
+	privateKey := svc.config.Server.PrivateKey
+	if testSetEmptyPrivateKey {
+		privateKey = ""
+	}
+
+	if len(privateKey) == 0 {
+		return ctxerr.New(ctx, "Couldn't add APNs certificate. Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key")
+	}
+
+	if cert == nil {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("certificate", "Invalid certificate. Please provide a valid certificate from Apple Push Certificate Portal."))
+	}
+
+	// Get cert file bytes
+	certBytes, err := io.ReadAll(cert)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "reading apns certificate")
+	}
+
+	// Validate cert
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("certificate", "Invalid certificate. Please provide a valid certificate from Apple Push Certificate Portal."))
+	}
+
+	if err := svc.authz.Authorize(ctx, &automdm.AppleMDM{}, automdm.ActionRead); err != nil {
+		return err
+	}
+
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAPNSKey}, nil)
+	if err != nil {
+		if automdm.IsNotFound(err) {
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
+				Message: "Couldn't connect. Please download the certificate signing request (CSR) first, then upload APNs certificate.",
+			}, "uploading APNs certificate")
+		}
+
+		return ctxerr.Wrap(ctx, err, "retrieving APNs key")
+	}
+
+	_, err = tls.X509KeyPair(certBytes, assets[automdm.MDMAssetAPNSKey].Value)
+	if err != nil {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("certificate", "Invalid certificate. Please provide a valid certificate from Apple Push Certificate Portal."))
+	}
+
+	// delete the old certificate and insert the new one
+	// TODO(roberto): replacing the certificate should be done in a single transaction in the DB
+	err = svc.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAPNSCert})
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "deleting old apns cert from db")
+	}
+	err = svc.ds.InsertMDMConfigAssets(ctx, []automdm.MDMConfigAsset{
+		{Name: automdm.MDMAssetAPNSCert, Value: certBytes},
+	}, nil)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "writing apns cert to db")
+	}
+
+	// flip the app config flag
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "retrieving app config")
+	}
+
+	wasEnabledAndConfigured := appCfg.MDM.EnabledAndConfigured
+	appCfg.MDM.EnabledAndConfigured = true
+	err = svc.ds.SaveAppConfig(ctx, appCfg)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "saving app config")
+	}
+
+	// Disk encryption can be enabled prior to Apple MDM being configured, but we need MDM to be set up to escrow
+	// FileVault keys. We handle the other order of operations elsewhere (on encryption enable, after checking to see
+	// if Mac MDM is already enabled). We skip this step if we were just re-uploading an APNs cert when MDM was already
+	// enabled.
+	if wasEnabledAndConfigured {
+		return nil
+	}
+
+	// Enable FileVault escrow if no-team already has macOS disk encryption
+	// settings on. No activity is recorded: the settings themselves didn't
+	// change, the profile is (re)created as a side effect of turning on Apple
+	// MDM.
+	//
+	// Re-enabling Apple MDM mints a new CA, and a key escrowed against the old
+	// one can no longer be decrypted, so the profile is rebuilt from the current
+	// certificate. That changes its bytes, which is what makes the reconciler
+	// re-push it to every Mac.
+	if appCfg.MDM.MacOSSettings.EnableDiskEncryption.Value || appCfg.MDM.MacOSSettings.EnableEscrowDiskEncryptionKey.Value {
+		if err := svc.EnterpriseOverrides.MDMAppleReconcileFileVaultProfile(ctx, nil); err != nil {
+			return ctxerr.Wrap(ctx, err, "reconcile no-team FileVault profile")
+		}
+	}
+	// Enable FileVault escrow for teams that already have disk encryption enforced
+	// For later: add a data store method to avoid making an extra query per team to check whether encryption is enforced
+	teams, err := svc.ds.TeamsSummary(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "listing teams")
+	}
+	for _, team := range teams {
+		diskEncryptionConfig, err := svc.ds.GetConfigEnableDiskEncryption(ctx, &team.ID)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "retrieving encryption enforcement status for team")
+		}
+		if diskEncryptionConfig.MacOSEnabled || diskEncryptionConfig.MacOSEscrowEnabled {
+			if err := svc.EnterpriseOverrides.MDMAppleReconcileFileVaultProfile(ctx, &team.ID); err != nil {
+				return ctxerr.Wrap(ctx, err, "reconcile FileVault profile for team")
+			}
+		}
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DELETE /mdm/apple/apns_certificate
+////////////////////////////////////////////////////////////////////////////////
+
+type deleteMDMAppleAPNSCertRequest struct{}
+
+type deleteMDMAppleAPNSCertResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r deleteMDMAppleAPNSCertResponse) Error() error {
+	return r.Err
+}
+
+func deleteMDMAppleAPNSCertEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	if err := svc.DeleteMDMAppleAPNSCert(ctx); err != nil {
+		return &deleteMDMAppleAPNSCertResponse{Err: err}, nil
+	}
+
+	return &deleteMDMAppleAPNSCertResponse{}, nil
+}
+
+func (svc *Service) DeleteMDMAppleAPNSCert(ctx context.Context) error {
+	if err := svc.authz.Authorize(ctx, &automdm.AppleCSR{}, automdm.ActionWrite); err != nil {
+		return err
+	}
+
+	err := svc.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetAPNSCert,
+		automdm.MDMAssetAPNSKey,
+		automdm.MDMAssetCACert,
+		automdm.MDMAssetCAKey,
+	})
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "deleting apple mdm assets")
+	}
+
+	// flip the app config flag
+	appCfg, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "retrieving app config")
+	}
+
+	appCfg.MDM.EnabledAndConfigured = false
+
+	if err := svc.ds.SaveAppConfig(ctx, appCfg); err != nil {
+		return ctxerr.Wrap(ctx, err, "saving app config")
+	}
+
+	// Clean up all pending Apple MDM profile rows since hosts can no longer receive MDM commands.
+	if err := svc.ds.CleanupAllHostMDMProfilesForPlatform(ctx, "darwin"); err != nil {
+		return ctxerr.Wrap(ctx, err, "cleaning up Apple host MDM profiles")
+	}
+
+	// If an install doesn't have a verification_at or verification_failed_at, then
+	// mark it as failed
+	if err := svc.ds.MarkAllPendingAppleVPPAndInHouseInstallsAsFailed(ctx, worker.AppleSoftwareJobName); err != nil {
+		return ctxerr.Wrap(ctx, err, "marking all pending vpp installs as failed")
+	}
+
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// POST /configuration_profiles/resend/batch
+////////////////////////////////////////////////////////////////////////////////
+
+type batchResendMDMProfileToHostsRequest struct {
+	ProfileUUID string `json:"profile_uuid"`
+	Filters     struct {
+		ProfileStatus string `json:"profile_status"`
+	} `json:"filters"`
+}
+
+type batchResendMDMProfileToHostsResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r batchResendMDMProfileToHostsResponse) Error() error { return r.Err }
+
+func (r batchResendMDMProfileToHostsResponse) Status() int { return http.StatusAccepted }
+
+func batchResendMDMProfileToHostsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*batchResendMDMProfileToHostsRequest)
+
+	if err := svc.BatchResendMDMProfileToHosts(ctx, req.ProfileUUID, automdm.BatchResendMDMProfileFilters{
+		ProfileStatus: automdm.MDMDeliveryStatus(req.Filters.ProfileStatus),
+	}); err != nil {
+		return batchResendMDMProfileToHostsResponse{Err: err}, nil
+	}
+	return batchResendMDMProfileToHostsResponse{}, nil
+}
+
+func (svc *Service) BatchResendMDMProfileToHosts(ctx context.Context, profileUUID string, filters automdm.BatchResendMDMProfileFilters) error {
+	// do a basic authz check that before we can make a more specific check based
+	// on the team of the profile (just to ensure the user has _some_
+	// authorization before loading the profile).
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionSelectiveList); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	switch filters.ProfileStatus {
+	case automdm.MDMDeliveryFailed:
+		// ok, only supported filter for now
+	default:
+		return &automdm.BadRequestError{
+			Message: "Invalid profile_status filter value, only 'failed' is currently supported.",
+		}
+	}
+
+	// get the profile to get the team it belongs to
+	var (
+		teamID      *uint
+		profileName string
+	)
+	switch {
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix):
+		if err := svc.VerifyMDMAppleConfigured(ctx); err != nil {
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profile_uuid", automdm.AppleMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest), "check apple MDM enabled")
+		}
+
+		prof, err := svc.ds.GetMDMAppleConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return err
+		}
+		teamID = prof.TeamID
+		profileName = prof.Name
+
+	case strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix):
+		if err := svc.VerifyMDMWindowsConfigured(ctx); err != nil {
+			err := automdm.NewInvalidArgumentError("profile_uuid", automdm.WindowsMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+			return ctxerr.Wrap(ctx, err, "check windows MDM enabled")
+		}
+
+		prof, err := svc.ds.GetMDMWindowsConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return err
+		}
+		if isWindowsEnrollSecretProfile(profileUUID, prof.Name) && !svc.config.MDM.WindowsOneTimeEnrollSecrets {
+			return errWindowsEnrollSecretProfileOff()
+		}
+		teamID = prof.TeamID
+		profileName = prof.Name
+
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleDeclarationUUIDPrefix):
+		return &automdm.BadRequestError{
+			Message: "Can't resend declaration (DDM) profiles. Unlike configuration profiles (.mobileconfig), the host automatically checks in to get the latest DDM profiles.",
+		}
+
+	// TODO AP Update this method for Android
+	default:
+		return automdm.NewInvalidArgumentError("profile_uuid", "unknown profile").WithStatus(http.StatusNotFound)
+	}
+
+	// now we can do a write authz check based on team id of the profile
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: teamID}, automdm.ActionWrite); err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	count, err := svc.ds.BatchResendMDMProfileToHosts(ctx, profileUUID, filters)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err)
+	}
+
+	if count > 0 {
+		if err := svc.NewActivity(
+			ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeResentConfigurationProfileBatch{
+				ProfileName: profileName,
+				ProfileUUID: profileUUID,
+				HostCount:   count,
+			},
+		); err != nil {
+			return ctxerr.Wrap(ctx, err, "logging activity for batch-resend of profile")
+		}
+	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GET /configuration_profile/{profile_uuid}/status
+////////////////////////////////////////////////////////////////////////////////
+
+type getMDMConfigProfileStatusRequest struct {
+	ProfileUUID string `url:"profile_uuid"`
+}
+
+type getMDMConfigProfileStatusResponse struct {
+	automdm.MDMConfigProfileStatus
+	Err error `json:"error,omitempty"`
+}
+
+func (r getMDMConfigProfileStatusResponse) Error() error { return r.Err }
+
+func getMDMConfigProfileStatusEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getMDMConfigProfileStatusRequest)
+
+	status, err := svc.GetMDMConfigProfileStatus(ctx, req.ProfileUUID)
+	if err != nil {
+		return getMDMConfigProfileStatusResponse{Err: err}, nil
+	}
+
+	return getMDMConfigProfileStatusResponse{MDMConfigProfileStatus: status}, nil
+}
+
+func (svc *Service) GetMDMConfigProfileStatus(ctx context.Context, profileUUID string) (automdm.MDMConfigProfileStatus, error) {
+	// do a basic authz check that before we can make a more specific check based
+	// on the team of the profile (just to ensure the user has _some_
+	// authorization before loading the profile).
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionSelectiveList); err != nil {
+		return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, err)
+	}
+
+	// get the profile to get the team it belongs to
+	var teamID *uint
+	switch {
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix):
+		if err := svc.VerifyMDMAppleConfigured(ctx); err != nil {
+			return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profile_uuid", automdm.AppleMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest), "check apple MDM enabled")
+		}
+
+		prof, err := svc.ds.GetMDMAppleConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return automdm.MDMConfigProfileStatus{}, err
+		}
+		if _, ok := mobileconfig.AutoMDMPayloadIdentifiers()[prof.Identifier]; ok {
+			// this endpoint is for custom settings, not automdm-controlled profiles,
+			// return not found if such a profile is requested here (status of e.g.
+			// FileVault is considerably different than just checking the status of
+			// the profile).
+			return automdm.MDMConfigProfileStatus{}, automdm.NewInvalidArgumentError("profile_uuid", "unknown profile").WithStatus(http.StatusNotFound)
+		}
+		teamID = prof.TeamID
+
+	case strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix):
+		if err := svc.VerifyMDMWindowsConfigured(ctx); err != nil {
+			err := automdm.NewInvalidArgumentError("profile_uuid", automdm.WindowsMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+			return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, err, "check windows MDM enabled")
+		}
+
+		prof, err := svc.ds.GetMDMWindowsConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return automdm.MDMConfigProfileStatus{}, err
+		}
+		if ok := slices.Contains(mdm.ListTeamReservedWindowsProfileNames(), prof.Name); ok {
+			// this endpoint is for custom settings, not automdm-controlled profiles,
+			// return not found if such a profile is requested here.
+			return automdm.MDMConfigProfileStatus{}, automdm.NewInvalidArgumentError("profile_uuid", "unknown profile").WithStatus(http.StatusNotFound)
+		}
+		teamID = prof.TeamID
+
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleDeclarationUUIDPrefix):
+		if err := svc.VerifyMDMAppleConfigured(ctx); err != nil {
+			return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profile_uuid", automdm.AppleMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest), "check apple MDM enabled")
+		}
+
+		decl, err := svc.ds.GetMDMAppleDeclaration(ctx, profileUUID)
+		if err != nil {
+			return automdm.MDMConfigProfileStatus{}, err
+		}
+		if _, ok := apple_mdm.AutoMDMReservedDeclarationIdentifiers()[decl.Identifier]; ok {
+			// this endpoint is for custom settings, not automdm-controlled profiles,
+			// return not found if such a profile is requested here (status of e.g.
+			// FileVault is considerably different than just checking the status of
+			// the profile).
+			return automdm.MDMConfigProfileStatus{}, automdm.NewInvalidArgumentError("profile_uuid", "unknown profile").WithStatus(http.StatusNotFound)
+		}
+		teamID = decl.TeamID
+
+	case strings.HasPrefix(profileUUID, automdm.MDMAndroidProfileUUIDPrefix):
+		if err := svc.VerifyMDMAndroidConfigured(ctx); err != nil {
+			err := automdm.NewInvalidArgumentError("profile_uuid", automdm.AndroidMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+			return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, err, "check android MDM enabled")
+		}
+
+		prof, err := svc.ds.GetMDMAndroidConfigProfile(ctx, profileUUID)
+		if err != nil {
+			return automdm.MDMConfigProfileStatus{}, err
+		}
+		teamID = prof.TeamID
+	default:
+		return automdm.MDMConfigProfileStatus{}, automdm.NewInvalidArgumentError("profile_uuid", "unknown profile").WithStatus(http.StatusNotFound)
+	}
+
+	// now we can do a read authz check based on team id of the profile
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: teamID}, automdm.ActionRead); err != nil {
+		return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, err)
+	}
+
+	status, err := svc.ds.GetMDMConfigProfileStatus(ctx, profileUUID)
+	if err != nil {
+		return automdm.MDMConfigProfileStatus{}, ctxerr.Wrap(ctx, err)
+	}
+	return status, nil
+}
+
+type mdmUnenrollRequest struct {
+	HostID uint `url:"id"`
+}
+
+type mdmUnenrollResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r mdmUnenrollResponse) Error() error { return r.Err }
+
+func (r mdmUnenrollResponse) Status() int { return http.StatusNoContent }
+
+func mdmUnenrollEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*mdmUnenrollRequest)
+	err := svc.UnenrollMDM(ctx, req.HostID)
+	if err != nil {
+		return mdmUnenrollResponse{Err: err}, nil
+	}
+	return mdmUnenrollResponse{}, nil
+}
+
+func (svc *Service) UnenrollMDM(ctx context.Context, hostID uint) error {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
+		return authz.GitOpsHostListError(ctx, err)
+	}
+
+	host, err := svc.ds.HostLite(ctx, hostID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "getting host for MDM unenroll")
+	}
+
+	// Check authorization again based on host info for team-based permissions.
+	notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("Host").WithID(hostID), "unenroll mdm")
+	if err := svc.authz.AuthorizeOrNotFound(ctx, automdm.MDMCommandAuthz{
+		TeamID: host.TeamID,
+	}, automdm.ActionWrite, notFoundErr); err != nil {
+		return authz.GitOpsMDMCommandError(ctx, host.TeamID, err)
+	}
+
+	installedFromDEP := false
+	switch host.Platform {
+	case "windows":
+		return &automdm.BadRequestError{
+			Message: automdm.CantTurnOffMDMForWindowsHostsMessage,
+		}
+	case "ios", "ipados", "darwin":
+		// Turning MDM off clears AutoMDM's enrolled flag right away, so check the flag here to avoid re-enqueuing another unenroll.
+		hostMDM, err := svc.ds.GetHostMDM(ctx, hostID)
+		switch {
+		case err != nil && !automdm.IsNotFound(err):
+			return ctxerr.Wrap(ctx, err, "getting host MDM info for unenroll")
+		case err != nil || !hostMDM.Enrolled:
+			return ctxerr.Wrap(ctx, &automdm.ConflictError{Message: automdm.CantTurnOffMDMAlreadyTurnedOffMessage}, "turning off MDM")
+		}
+
+		if err := svc.enqueueMDMAppleCommandRemoveEnrollmentProfile(ctx, host); err != nil {
+			return ctxerr.Wrap(ctx, err, "unenrolling apple host")
+		}
+
+		// We only use this call for activity logging purposes later.
+		info, err := svc.ds.GetHostMDMCheckinInfo(ctx, host.UUID)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "getting mdm checkin info for mdm apple remove profile command")
+		}
+		installedFromDEP = info.InstalledFromDEP
+
+		mdmLifecycle := mdmlifecycle.New(svc.ds, svc.logger, svc.NewActivity)
+		err = mdmLifecycle.Do(ctx, mdmlifecycle.HostOptions{
+			Action:   mdmlifecycle.HostActionTurnOff,
+			Platform: host.Platform,
+			UUID:     host.UUID,
+		})
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "running turn off action in mdm lifecycle")
+		}
+	case "android":
+		// We need to pass host ID and let android look it up again, to avoid refercing the team. type for import cycles.
+		if err := svc.androidSvc.UnenrollAndroidHost(ctx, host.ID); err != nil {
+			return ctxerr.Wrap(ctx, err, "unenrolling android host")
+		}
+	default:
+		svc.logger.DebugContext(ctx, "MDM unenrollment requested for host with unknown platform", "host_id", host.ID, "platform", host.Platform)
+		return &automdm.BadRequestError{
+			Message: "MDM unenrollment is not supported for this host platform",
+		}
+	}
+
+	if err := svc.NewActivity(
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeMDMUnenrolled{
+			HostID:           host.ID,
+			HostSerial:       host.HardwareSerial,
+			HostDisplayName:  host.DisplayName(),
+			InstalledFromDEP: installedFromDEP,
+			Platform:         host.Platform,
+		},
+	); err != nil {
+		return ctxerr.Wrap(ctx, err, "logging activity for mdm apple remove profile command")
+	}
+	return nil
+}
+
+type clearPasscodeRequest struct {
+	HostID uint `url:"id"`
+}
+
+func clearPasscodeEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*clearPasscodeRequest)
+	res, err := svc.ClearPasscode(ctx, req.HostID)
+	if err != nil {
+		return automdm.ClearPasscodeResponse{Err: err}, nil
+	}
+	return automdm.ClearPasscodeResponse{CommandEnqueueResult: res}, nil
+}
+
+func (svc *Service) ClearPasscode(ctx context.Context, hostID uint) (*automdm.CommandEnqueueResult, error) {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return nil, automdm.ErrMissingLicense
+}
+
+type cancelHostMDMCommandRequest struct {
+	HostID      uint   `url:"id"`
+	CommandUUID string `url:"command_uuid"`
+}
+
+type cancelHostMDMCommandResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r cancelHostMDMCommandResponse) Error() error { return r.Err }
+func (r cancelHostMDMCommandResponse) Status() int  { return http.StatusNoContent }
+
+func cancelHostMDMCommandEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*cancelHostMDMCommandRequest)
+	if err := svc.CancelHostMDMCommand(ctx, req.HostID, req.CommandUUID); err != nil {
+		return cancelHostMDMCommandResponse{Err: err}, nil
+	}
+	return cancelHostMDMCommandResponse{}, nil
+}
+
+func (svc *Service) CancelHostMDMCommand(ctx context.Context, hostID uint, commandUUID string) error {
+	// skipauth: No authorization check needed due to implementation returning
+	// only license error.
+	svc.authz.SkipAuthorization(ctx)
+
+	return automdm.ErrMissingLicense
+}

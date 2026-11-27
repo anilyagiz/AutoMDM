@@ -1,0 +1,121 @@
+// Package redis_key_value implements a most basic SET & GET key/value store
+// where both the key and the value are strings.
+package redis_key_value
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	redigo "github.com/gomodule/redigo/redis"
+)
+
+// RedisKeyValue is a key/value store with basic SET and GET operations and advanced operations
+// Items are removed via expiration (defined in the SET operation), or via the DEL command
+type RedisKeyValue struct {
+	pool       automdm.RedisPool
+	testPrefix string // for tests, the key prefix to use to avoid conflicts
+}
+
+// New creates a new RedisKeyValue store.
+func New(pool automdm.RedisPool) *RedisKeyValue {
+	return &RedisKeyValue{pool: pool}
+}
+
+// prefix is used to not collide with other key domains (like live queries or calendar locks).
+const prefix = "key_value_"
+
+// Set creates or overrides the given key with the given value.
+// Argument expireTime is used to set the expiration of the item
+// (when updating, the expiration of the item is updated).
+func (r *RedisKeyValue) Set(ctx context.Context, key string, value string, expireTime time.Duration) error {
+	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
+	defer conn.Close()
+
+	if _, err := redigo.String(conn.Do("SET", r.testPrefix+prefix+key, value, "PX", expireTime.Milliseconds())); err != nil {
+		return ctxerr.Wrap(ctx, err, "redis failed to set")
+	}
+	return nil
+}
+
+// SetIfNotExists sets the given key to the given value with the given expiration, only if the key doesn't exist. It reports
+// whether the key was set, atomically across AutoMDM servers.
+func (r *RedisKeyValue) SetIfNotExists(ctx context.Context, key string, value string, expireTime time.Duration) (bool, error) {
+	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
+	defer conn.Close()
+
+	_, err := redigo.String(conn.Do("SET", r.testPrefix+prefix+key, value, "PX", expireTime.Milliseconds(), "NX"))
+	if errors.Is(err, redigo.ErrNil) {
+		return false, nil
+	}
+	if err != nil {
+		return false, ctxerr.Wrap(ctx, err, "redis failed to set if not exists")
+	}
+	return true, nil
+}
+
+// Get returns the value for a given key.
+// It returns (nil, nil) if the key doesn't exist.
+func (r *RedisKeyValue) Get(ctx context.Context, key string) (*string, error) {
+	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
+	defer conn.Close()
+
+	res, err := redigo.String(conn.Do("GET", r.testPrefix+prefix+key))
+	if errors.Is(err, redigo.ErrNil) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "redis failed to get")
+	}
+	return &res, nil
+}
+
+func (r *RedisKeyValue) MGet(ctx context.Context, keys []string) (map[string]*string, error) {
+	if len(keys) == 0 {
+		return map[string]*string{}, nil
+	}
+
+	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
+	defer conn.Close()
+
+	redisKeys := make([]any, len(keys))
+	for i, key := range keys {
+		redisKeys[i] = r.testPrefix + prefix + key
+	}
+
+	res, err := redigo.Values(conn.Do("MGET", redisKeys...))
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "redis failed to mget")
+	}
+
+	result := make(map[string]*string, len(keys))
+	for i, key := range keys {
+		if res[i] == nil {
+			result[key] = nil
+		} else {
+			str, err := redigo.String(res[i], nil)
+			if err != nil {
+				return nil, ctxerr.Wrap(ctx, err, "redis failed to convert value to string")
+			}
+			result[key] = &str
+		}
+	}
+	return result, nil
+}
+
+func (r *RedisKeyValue) Delete(ctx context.Context, key string) error {
+	if key == "" {
+		return nil
+	}
+
+	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
+	defer conn.Close()
+
+	if _, err := redigo.Int(conn.Do("DEL", r.testPrefix+prefix+key)); err != nil {
+		return ctxerr.Wrap(ctx, err, "redis failed to delete")
+	}
+	return nil
+}

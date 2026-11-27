@@ -1,0 +1,223 @@
+import React from "react";
+import { InjectedRouter } from "react-router";
+import { CellProps, Column } from "react-table";
+
+import HeaderCell from "components/TableContainer/DataTable/HeaderCell";
+import SoftwareNameCell from "components/TableContainer/DataTable/SoftwareNameCell";
+import TextCell from "components/TableContainer/DataTable/TextCell";
+import TooltipWrapper from "components/TooltipWrapper";
+import ViewAllHostsLink from "components/ViewAllHostsLink";
+import { IHeaderProps, IStringCellProps } from "interfaces/datatable_config";
+import {
+  ISoftwareTitle,
+  NO_VERSION_OR_HOST_DATA_SOURCES,
+  formatSoftwareType,
+  isIpadOrIphoneSoftwareSource,
+} from "interfaces/software";
+import { getAutomaticInstallPoliciesCount } from "pages/SoftwarePage/helpers";
+import PATHS from "router/paths";
+import { getPathWithQueryParams } from "utilities/url";
+
+import { VersionsColumnCell } from "../../components/tables/VersionCell";
+
+// NOTE: cellProps come from react-table
+// more info here https://react-table.tanstack.com/docs/api/useTable#cell-properties
+
+type ISoftwareTitlesTableConfig = Column<ISoftwareTitle>;
+type ITableStringCellProps = IStringCellProps<ISoftwareTitle>;
+type IHostCountCellProps = CellProps<
+  ISoftwareTitle,
+  ISoftwareTitle["hosts_count"]
+>;
+type IViewAllHostsLinkProps = CellProps<ISoftwareTitle>;
+
+type ITableHeaderProps = IHeaderProps<ISoftwareTitle>;
+
+/**
+ * Gets the data needed to render the software name cell.
+ */
+const getSoftwareNameCellData = (
+  softwareTitle: ISoftwareTitle,
+  teamId?: number
+) => {
+  const softwareTitleDetailsPath = getPathWithQueryParams(
+    PATHS.SOFTWARE_TITLE_DETAILS(softwareTitle.id.toString()),
+    { team_id: teamId }
+  );
+
+  const { packages } = softwareTitle;
+  const pkg = packages?.[0];
+  const firstAppStoreApp = softwareTitle.app_store_apps?.[0];
+  let hasInstaller = false;
+  let isSelfService = false;
+  let installType: "manual" | "automatic" | undefined;
+  let iconUrl: string | null = null;
+  if (pkg) {
+    hasInstaller = true;
+    isSelfService = pkg.self_service;
+    installType = packages?.some((p) => !!p.automatic_install_policies?.length)
+      ? "automatic"
+      : "manual";
+  } else if (firstAppStoreApp) {
+    hasInstaller = true;
+    isSelfService = firstAppStoreApp.self_service;
+    installType =
+      firstAppStoreApp.automatic_install_policies &&
+      firstAppStoreApp.automatic_install_policies.length > 0
+        ? "automatic"
+        : "manual";
+  }
+  if (softwareTitle.icon_url) {
+    iconUrl = softwareTitle.icon_url;
+  }
+
+  const automaticInstallPoliciesCount = getAutomaticInstallPoliciesCount(
+    softwareTitle
+  );
+
+  return {
+    name: softwareTitle.name,
+    displayName: softwareTitle.display_name,
+    source: softwareTitle.source,
+    path: softwareTitleDetailsPath,
+    hasInstaller,
+    isSelfService,
+    installType,
+    iconUrl,
+    automaticInstallPoliciesCount,
+  };
+};
+
+/**
+ * Gets the library version — the version of the installer package or app store app.
+ */
+const getLibraryVersion = (softwareTitle: ISoftwareTitle): string | null => {
+  const pkg = softwareTitle.packages?.[0];
+  if (pkg) {
+    return pkg.version || null;
+  }
+  if (softwareTitle.app_store_apps?.length) {
+    return softwareTitle.app_store_apps[0].version || null;
+  }
+  return null;
+};
+
+const generateTableHeaders = (
+  router: InjectedRouter,
+  teamId?: number
+): ISoftwareTitlesTableConfig[] => {
+  const softwareTableHeaders: ISoftwareTitlesTableConfig[] = [
+    {
+      Header: (cellProps: ITableHeaderProps) => (
+        <HeaderCell value="Name" isSortedDesc={cellProps.column.isSortedDesc} />
+      ),
+      disableSortBy: false,
+      accessor: "name",
+      Cell: (cellProps: ITableStringCellProps) => {
+        const nameCellData = getSoftwareNameCellData(
+          cellProps.row.original,
+          teamId
+        );
+        const isAndroidPlayStoreApp =
+          !!cellProps.row.original.app_store_apps?.length &&
+          cellProps.row.original.source === "android_apps";
+
+        return (
+          <SoftwareNameCell
+            name={nameCellData.name}
+            display_name={nameCellData.displayName}
+            source={nameCellData.source}
+            path={nameCellData.path}
+            router={router}
+            hasInstaller={nameCellData.hasInstaller}
+            isSelfService={nameCellData.isSelfService}
+            iconUrl={nameCellData.iconUrl ?? undefined}
+            automaticInstallPoliciesCount={
+              nameCellData.automaticInstallPoliciesCount
+            }
+            isIosOrIpadosApp={isIpadOrIphoneSoftwareSource(nameCellData.source)}
+            isAndroidPlayStoreApp={isAndroidPlayStoreApp}
+            isAppStoreApp={!!cellProps.row.original.app_store_apps?.length}
+            autoUpdateEnabled={cellProps.row.original.auto_update_enabled}
+            autoUpdateWindowStart={
+              cellProps.row.original.auto_update_window_start
+            }
+            autoUpdateWindowEnd={cellProps.row.original.auto_update_window_end}
+          />
+        );
+      },
+      sortType: "caseInsensitive",
+    },
+    {
+      Header: "Installed version",
+      disableSortBy: true,
+      accessor: "versions",
+      Cell: VersionsColumnCell,
+    },
+    {
+      Header: "Library version",
+      disableSortBy: true,
+      // Use a unique id since we can't use the same accessor twice
+      id: "library_version",
+      Cell: (cellProps: CellProps<ISoftwareTitle>) => {
+        const version = getLibraryVersion(cellProps.row.original);
+        return <TextCell value={version || "---"} grey={!version} />;
+      },
+    },
+    {
+      Header: "Type",
+      disableSortBy: true,
+      accessor: "source",
+      Cell: (cellProps: ITableStringCellProps) => (
+        <TextCell value={formatSoftwareType(cellProps.row.original)} />
+      ),
+    },
+    {
+      Header: (cellProps: ITableHeaderProps) => (
+        <HeaderCell
+          value={
+            <TooltipWrapper tipContent="Hosts with any version installed.">
+              Hosts
+            </TooltipWrapper>
+          }
+          disableSortBy={false}
+          isSortedDesc={cellProps.column.isSortedDesc}
+        />
+      ),
+      disableSortBy: false,
+      accessor: "hosts_count",
+      Cell: (cellProps: IHostCountCellProps) => (
+        <TextCell value={cellProps.cell.value} />
+      ),
+    },
+    {
+      Header: "",
+      id: "view-all-hosts",
+      disableSortBy: true,
+      Cell: (cellProps: IViewAllHostsLinkProps) => {
+        const { source } = cellProps.row.original;
+
+        const hostCountNotSupported = NO_VERSION_OR_HOST_DATA_SOURCES.includes(
+          source
+        );
+
+        if (hostCountNotSupported) return null;
+
+        return (
+          <ViewAllHostsLink
+            queryParams={{
+              software_title_id: cellProps.row.original.id,
+              team_id: teamId,
+            }}
+            className="software-link"
+            rowHover
+          />
+        );
+      },
+    },
+  ];
+
+  return softwareTableHeaders;
+};
+
+export default generateTableHeaders;

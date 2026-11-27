@@ -1,0 +1,2494 @@
+package mysql
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
+)
+
+var deleteIDsBatchSize = 1000
+
+// hostUpcomingActivitiesAllowedOrderKeys is empty: the query supplies its own
+// ORDER BY and the service layer forces opt.OrderKey to "".
+var hostUpcomingActivitiesAllowedOrderKeys = common_mysql.OrderKeyAllowlist{}
+
+var policyAutomationErrorActivityTypes = []string{
+	"failed_automation_webhook",
+	"failed_automation_ticket",
+	"failed_automation_calendar_event",
+	"failed_automation_conditional_access",
+}
+
+var policyAutomationSuccessActivityTypes = []string{
+	"ran_automation_webhook",
+	"ran_automation_ticket",
+	"ran_automation_calendar_event",
+	"ran_automation_conditional_access",
+	"resent_configuration_profile",
+}
+
+var policyAutomationActivityTypes = func() []string {
+	all := make([]string, 0, len(policyAutomationErrorActivityTypes)+len(policyAutomationSuccessActivityTypes))
+	all = append(all, policyAutomationErrorActivityTypes...)
+	all = append(all, policyAutomationSuccessActivityTypes...)
+	return all
+}()
+
+// The ORDER BY (and cursor WHERE) are applied to the outer subquery that wraps
+// the UNION ALL, which is aliased `t` (see ListPolicyAutomationActivities). The
+// inner per-branch aliases (ap, hsr, ...) are not in scope there, so columns are
+// qualified with `t` — which also keeps the ORDER BY unambiguous if the outer
+// query ever gains a JOIN.
+var policyAutomationActivityAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
+	"id":            "t.id",
+	"created_at":    "t.created_at",
+	"activity_type": "t.activity_type",
+}
+
+var policyAutomationActivityBranchOrderKeys = map[string]string{
+	"id":            "ap.id",
+	"created_at":    "ap.created_at",
+	"activity_type": "ap.activity_type",
+}
+
+// ListHostUpcomingActivities returns the list of activities pending execution
+// or processing for the specific host. It is the "unified queue" of work to be
+// done on the host. That queue is "virtual" in the sense that it pulls from a
+// number of distinct tables that are task-specific (such as scripts to run,
+// software to install, etc.) and provides a unified view of those upcoming
+// tasks.
+func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint, opt automdm.ListOptions) ([]*automdm.UpcomingActivity, *automdm.PaginationMetadata, error) {
+	// NOTE: Be sure to update both the count (here) and list statements (below)
+	// if the query condition is modified.
+
+	const countStmt = `SELECT
+	COUNT(*) c
+	FROM upcoming_activities
+	WHERE host_id = ?`
+
+	var count uint
+	if err := sqlx.GetContext(ctx, ds.reader(ctx), &count, countStmt, hostID); err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "count upcoming activities")
+	}
+	if count == 0 {
+		return []*automdm.UpcomingActivity{}, &automdm.PaginationMetadata{}, nil
+	}
+
+	// NOTE: Be sure to update both the count (above) and list statements (below)
+	// if the query condition is modified.
+
+	listStmts := []string{
+		// list pending scripts
+		`SELECT
+			ua.execution_id as uuid,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) as name,
+			u.id as user_id,
+			u.api_only as api_only,
+			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
+			COALESCE(u.email, ua.payload->>'$.user.email') as user_email,
+			:ran_script_type as activity_type,
+			ua.created_at as created_at,
+			JSON_OBJECT(
+				'host_id', ua.host_id,
+				'host_display_name', COALESCE(hdn.display_name, ''),
+				'script_name', COALESCE(ses.name, scr.name, ''),
+				'script_execution_id', ua.execution_id,
+				'batch_execution_id', bahr.batch_execution_id,
+				'async', NOT ua.payload->'$.sync_request',
+				'policy_id', sua.policy_id,
+				'policy_name', p.name
+			) as details,
+			IF(ua.activated_at IS NULL, 0, 1) as topmost,
+			ua.priority as priority,
+			ua.automdm_initiated as automdm_initiated
+		FROM
+			upcoming_activities ua
+		INNER JOIN
+			script_upcoming_activities sua ON sua.upcoming_activity_id = ua.id
+		LEFT OUTER JOIN
+			users u ON u.id = ua.user_id
+		LEFT OUTER JOIN
+			policies p ON p.id = sua.policy_id
+		LEFT OUTER JOIN
+			host_display_names hdn ON hdn.host_id = ua.host_id
+		LEFT OUTER JOIN
+			scripts scr ON scr.id = sua.script_id
+		LEFT OUTER JOIN
+			setup_experience_scripts ses ON ses.id = sua.setup_experience_script_id
+		LEFT OUTER JOIN
+			batch_activity_host_results bahr ON ua.execution_id = bahr.host_execution_id
+		WHERE
+			ua.host_id = :host_id AND
+			ua.activity_type = 'script'
+`,
+		// list pending software installs
+		`SELECT
+			ua.execution_id as uuid,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			ua.user_id as user_id,
+			u.api_only as api_only,
+			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
+			COALESCE(u.email, ua.payload->>'$.user.email') as user_email,
+			:installed_software_type as activity_type,
+			ua.created_at as created_at,
+			JSON_OBJECT(
+				'host_id', ua.host_id,
+				'host_display_name', COALESCE(hdn.display_name, ''),
+				'software_title', COALESCE(st.name, ua.payload->>'$.software_title_name', ''),
+				'software_display_name', COALESCE(stdn.display_name, ''),
+				'software_package', COALESCE(si.filename, ua.payload->>'$.installer_filename', ''),
+				'install_uuid', ua.execution_id,
+				'status', 'pending_install',
+				'self_service', ua.payload->'$.self_service' IS TRUE,
+				'source', COALESCE(st.source, ua.payload->>'$.source'),
+				'policy_id', siua.policy_id,
+				'policy_name', p.name
+			) as details,
+			IF(ua.activated_at IS NULL, 0, 1) as topmost,
+			ua.priority as priority,
+			ua.automdm_initiated as automdm_initiated
+		FROM
+			upcoming_activities ua
+		INNER JOIN
+			software_install_upcoming_activities siua ON siua.upcoming_activity_id = ua.id
+		LEFT OUTER JOIN
+			software_installers si ON si.id = siua.software_installer_id
+		LEFT OUTER JOIN
+			software_titles st ON st.id = si.title_id
+		LEFT OUTER JOIN
+			users u ON u.id = ua.user_id
+		LEFT OUTER JOIN
+			policies p ON p.id = siua.policy_id
+		LEFT OUTER JOIN
+			host_display_names hdn ON hdn.host_id = ua.host_id
+		LEFT OUTER JOIN
+			hosts h ON h.id = ua.host_id
+		LEFT OUTER JOIN
+			software_title_display_names stdn
+				ON stdn.software_title_id = st.id
+				AND stdn.team_id = COALESCE(h.team_id, 0)
+		WHERE
+			ua.host_id = :host_id AND
+			ua.activity_type = 'software_install'
+		`,
+		// list pending software uninstalls
+		`SELECT
+			ua.execution_id as uuid,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			ua.user_id as user_id,
+			u.api_only as api_only,
+			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
+			COALESCE(u.email, ua.payload->>'$.user.email') as user_email,
+			:uninstalled_software_type as activity_type,
+			ua.created_at as created_at,
+			JSON_OBJECT(
+				'host_id', ua.host_id,
+				'host_display_name', COALESCE(hdn.display_name, ''),
+				'software_title', COALESCE(st.name, ua.payload->>'$.software_title_name', ''),
+				'software_display_name', COALESCE(stdn.display_name, ''),
+				'script_execution_id', ua.execution_id,
+				'status', 'pending_uninstall',
+				'self_service', COALESCE(ua.payload->'$.self_service', FALSE) IS TRUE,
+				'source', COALESCE(st.source, ua.payload->>'$.source'),
+				'policy_id', siua.policy_id,
+				'policy_name', p.name
+			) as details,
+			IF(ua.activated_at IS NULL, 0, 1) as topmost,
+			ua.priority as priority,
+			ua.automdm_initiated as automdm_initiated
+		FROM
+			upcoming_activities ua
+		INNER JOIN
+			software_install_upcoming_activities siua ON siua.upcoming_activity_id = ua.id
+		LEFT OUTER JOIN
+			software_installers si ON si.id = siua.software_installer_id
+		LEFT OUTER JOIN
+			software_titles st ON st.id = si.title_id
+		LEFT OUTER JOIN
+			users u ON u.id = ua.user_id
+		LEFT OUTER JOIN
+			policies p ON p.id = siua.policy_id
+		LEFT OUTER JOIN
+			host_display_names hdn ON hdn.host_id = ua.host_id
+		LEFT OUTER JOIN
+			hosts h ON h.id = ua.host_id
+		LEFT OUTER JOIN
+			software_title_display_names stdn
+				ON stdn.software_title_id = st.id
+				AND stdn.team_id = COALESCE(h.team_id, 0)
+		WHERE
+			ua.host_id = :host_id AND
+			activity_type = 'software_uninstall'
+		`,
+		// list pending VPP apps
+		`SELECT
+			ua.execution_id AS uuid,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			u.id AS user_id,
+			u.api_only as api_only,
+			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
+			COALESCE(u.email, ua.payload->>'$.user.email') as user_email,
+			:installed_app_store_app_type AS activity_type,
+			ua.created_at AS created_at,
+			JSON_OBJECT(
+				'host_id', ua.host_id,
+				'host_display_name', COALESCE(hdn.display_name, ''),
+				'software_title', COALESCE(st.name, ''),
+				'software_display_name', COALESCE(stdn.display_name, ''),
+				'app_store_id', vaua.adam_id,
+				'command_uuid', ua.execution_id,
+				'self_service', ua.payload->'$.self_service' IS TRUE,
+				'status', 'pending_install',
+				'host_platform', h.platform,
+				'vpp_token', IF(vt.id IS NULL, NULL, JSON_OBJECT(
+					'id', vt.id,
+					'location', vt.location,
+					'country_code', COALESCE(vt.country_code, '')
+				))
+			) AS details,
+			IF(ua.activated_at IS NULL, 0, 1) as topmost,
+			ua.priority as priority,
+			ua.automdm_initiated as automdm_initiated
+		FROM
+			upcoming_activities ua
+		INNER JOIN
+			vpp_app_upcoming_activities vaua ON vaua.upcoming_activity_id = ua.id
+		LEFT JOIN
+			vpp_tokens vt ON vt.id = vaua.vpp_token_id
+		LEFT OUTER JOIN
+			users u ON ua.user_id = u.id
+		LEFT OUTER JOIN
+			hosts h ON h.id = ua.host_id
+		LEFT OUTER JOIN
+			host_display_names hdn ON hdn.host_id = ua.host_id
+		LEFT OUTER JOIN
+			vpp_apps vpa ON vaua.adam_id = vpa.adam_id AND vaua.platform = vpa.platform
+		LEFT OUTER JOIN
+			software_titles st ON st.id = vpa.title_id
+		LEFT OUTER JOIN
+			software_title_display_names stdn
+				ON stdn.software_title_id = st.id
+				AND stdn.team_id = COALESCE(h.team_id, 0)
+		WHERE
+			ua.host_id = :host_id AND
+			ua.activity_type = 'vpp_app_install'
+		`,
+		// list pending in-house apps
+		`SELECT
+			ua.execution_id AS uuid,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			u.id AS user_id,
+			u.api_only as api_only,
+			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
+			COALESCE(u.email, ua.payload->>'$.user.email') as user_email,
+			:installed_software_type as activity_type,
+			ua.created_at AS created_at,
+			JSON_OBJECT(
+				'host_id', ua.host_id,
+				'host_display_name', COALESCE(hdn.display_name, ''),
+				'software_title', COALESCE(st.name, ''),
+				'software_display_name', COALESCE(stdn.display_name, ''),
+				'command_uuid', ua.execution_id,
+				'self_service', ua.payload->'$.self_service' IS TRUE,
+				'status', 'pending_install'
+			) AS details,
+			IF(ua.activated_at IS NULL, 0, 1) as topmost,
+			ua.priority as priority,
+			ua.automdm_initiated as automdm_initiated
+		FROM
+			upcoming_activities ua
+		INNER JOIN
+			in_house_app_upcoming_activities ihua ON ihua.upcoming_activity_id = ua.id
+		LEFT OUTER JOIN
+			users u ON ua.user_id = u.id
+		LEFT OUTER JOIN
+			host_display_names hdn ON hdn.host_id = ua.host_id
+		LEFT OUTER JOIN
+			software_titles st ON st.id = ihua.software_title_id
+		LEFT OUTER JOIN
+			hosts h ON h.id = ua.host_id
+		LEFT OUTER JOIN
+			software_title_display_names stdn
+				ON stdn.software_title_id = st.id
+				AND stdn.team_id = COALESCE(h.team_id, 0)
+		WHERE
+			ua.host_id = :host_id AND
+			ua.activity_type = 'in_house_app_install'
+		`,
+	}
+
+	listStmt := `
+		SELECT
+			uuid,
+			name,
+			user_id,
+			gravatar_url,
+			user_email,
+			api_only,
+			activity_type,
+			created_at,
+			details,
+			automdm_initiated
+		FROM ( ` + strings.Join(listStmts, " UNION ALL ") + ` ) AS upcoming
+		ORDER BY topmost DESC, priority DESC, created_at ASC`
+
+	listStmt, args, err := sqlx.Named(listStmt, map[string]any{
+		"host_id":                      hostID,
+		"ran_script_type":              automdm.ActivityTypeRanScript{}.ActivityName(),
+		"installed_software_type":      automdm.ActivityTypeInstalledSoftware{}.ActivityName(),
+		"uninstalled_software_type":    automdm.ActivityTypeUninstalledSoftware{}.ActivityName(),
+		"installed_app_store_app_type": automdm.ActivityInstalledAppStoreApp{}.ActivityName(),
+	})
+	if err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "build list query from named args")
+	}
+
+	// the ListOptions supported for this query are limited, only the pagination
+	// OFFSET and LIMIT can be added, so it's fine to have the ORDER BY already
+	// in the query before calling this (enforced at the server layer).
+	stmt, args, err := appendListOptionsWithCursorToSQLSecure(listStmt, args, &opt, hostUpcomingActivitiesAllowedOrderKeys)
+	if err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "list upcoming activities")
+	}
+
+	var activities []*automdm.UpcomingActivity
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &activities, stmt, args...); err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "select upcoming activities")
+	}
+
+	metaData := &automdm.PaginationMetadata{HasPreviousResults: opt.Page > 0, TotalResults: count}
+	if len(activities) > int(opt.PerPage) { //nolint:gosec // dismiss G115
+		metaData.HasNextResults = true
+		activities = activities[:len(activities)-1]
+	}
+
+	return activities, metaData, nil
+}
+
+func (ds *Datastore) CleanupExpiredLiveQueries(ctx context.Context, expiredWindowDays int) error {
+	// All expired live queries are deleted in batch sizes of
+	// `deleteIDsBatchSize` to ensure the table size is kept in check
+	// with high volumes of live queries (zero-trust workflows).
+
+	const selectUnsavedQueryIDs = `
+		SELECT id
+		FROM queries
+		WHERE NOT saved
+		AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+		ORDER BY id`
+	var allUnsavedQueryIDs []uint
+
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &allUnsavedQueryIDs, selectUnsavedQueryIDs, expiredWindowDays); err != nil {
+		return ctxerr.Wrap(ctx, err, "selecting expired unsaved query IDs")
+	}
+
+	unsavedQueryIter := slices.Chunk(allUnsavedQueryIDs, deleteIDsBatchSize)
+
+	for unsavedQueryIDs := range unsavedQueryIter {
+		const deleteStmt = `DELETE FROM queries WHERE id IN (?)`
+		deleteQuery, args, err := sqlx.In(deleteStmt, unsavedQueryIDs)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "creating query to delete unsaved queries")
+		}
+		if _, err := ds.writer(ctx).ExecContext(ctx, deleteQuery, args...); err != nil {
+			return ctxerr.Wrap(ctx, err, "deleting expired unsaved queries")
+		}
+	}
+
+	// Cleanup orphaned distributed campaigns that reference non-existing queries.
+	const selectCampaignIDs = `
+		SELECT id
+		FROM distributed_query_campaigns dqc
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM queries q
+			WHERE q.id = dqc.query_id
+		)
+		ORDER BY id`
+	var allCampaignIDs []uint
+
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &allCampaignIDs, selectCampaignIDs); err != nil {
+		return ctxerr.Wrap(ctx, err, "selecting expired distributed query campaigns")
+	}
+
+	campaignIter := slices.Chunk(allCampaignIDs, deleteIDsBatchSize)
+
+	for campaignIDs := range campaignIter {
+		const deleteStmt = `DELETE FROM distributed_query_campaigns WHERE id IN (?)`
+		deleteQuery, args, err := sqlx.In(deleteStmt, campaignIDs)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "creating delete expired distributed query campaigns stmt")
+		}
+		if _, err := ds.writer(ctx).ExecContext(ctx, deleteQuery, args...); err != nil {
+			return ctxerr.Wrap(ctx, err, "deleting expired distributed query campaigns")
+		}
+	}
+
+	// Cleanup orphaned distributed campaign targets that reference non-existing distributed campaigns.
+	const selectCampaignTargets = `
+		SELECT id
+		FROM distributed_query_campaign_targets dqct
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM distributed_query_campaigns dqc
+			WHERE dqc.id = dqct.distributed_query_campaign_id
+		)
+		ORDER BY id`
+	var allCampaignTargetIDs []uint
+
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &allCampaignTargetIDs, selectCampaignTargets); err != nil {
+		return ctxerr.Wrap(ctx, err, "selecting expired distributed query campaign targets")
+	}
+
+	campaignTargetIter := slices.Chunk(allCampaignTargetIDs, deleteIDsBatchSize)
+
+	for campaignTargetIDs := range campaignTargetIter {
+		const deleteStmt = `DELETE FROM distributed_query_campaign_targets WHERE id IN (?)`
+		deleteQuery, args, err := sqlx.In(deleteStmt, campaignTargetIDs)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "creating query to delete expired query campaign targets")
+		}
+		if _, err := ds.writer(ctx).ExecContext(ctx, deleteQuery, args...); err != nil {
+			return ctxerr.Wrap(ctx, err, "deleting expired distributed query campaign targets")
+		}
+	}
+
+	return nil
+}
+
+func (ds *Datastore) CancelHostUpcomingActivity(ctx context.Context, hostID uint, executionID string) (automdm.ActivityDetails, error) {
+	var details automdm.ActivityDetails
+	if err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
+		activityDetails, err := ds.cancelHostUpcomingActivity(ctx, tx, hostID, executionID, true)
+		details = activityDetails
+		return err
+	}); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "cancel upcoming activity transaction")
+	}
+
+	return details, nil
+}
+
+// BatchCancelAllHostUpcomingActivities cancels every upcoming activity (both queued
+// and already-activated) for the given host in a single transaction. Unlike the public
+// single-cancel API, this bypasses the lock/wipe service-layer guard intentionally -
+// this is called after a Wipe so there's no need for this check. Returns the canceled
+// activities.
+func (ds *Datastore) BatchCancelAllHostUpcomingActivities(ctx context.Context, hostID uint) ([]automdm.ActivityDetails, error) {
+	var canceled []automdm.ActivityDetails
+	if err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
+		var err error
+		canceled, err = ds.batchCancelAllHostUpcomingActivities(ctx, tx, hostID)
+		return err
+	}); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "batch cancel upcoming activities transaction")
+	}
+
+	return canceled, nil
+}
+
+// batchCancelAllHostUpcomingActivities is the tx-aware variant of
+// BatchCancelAllHostUpcomingActivities. Call this from within a surrounding
+// withTx/withRetryTxx callback to keep cancellations atomic with the caller's other writes.
+func (ds *Datastore) batchCancelAllHostUpcomingActivities(ctx context.Context, tx sqlx.ExtContext, hostID uint) ([]automdm.ActivityDetails, error) {
+	const loadStmt = `SELECT execution_id FROM upcoming_activities WHERE host_id = ? ORDER BY id FOR UPDATE`
+	var execIDs []string
+	if err := sqlx.SelectContext(ctx, tx, &execIDs, loadStmt, hostID); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "load upcoming activity execution ids")
+	}
+
+	canceled := make([]automdm.ActivityDetails, 0, len(execIDs))
+	for i, execID := range execIDs {
+		// only the last cancellation triggers activation of the next activity; the others
+		// would activate something that is about to be canceled in the next iteration.
+		// Technically we could always pass "false" as there shouldn't be any activity
+		// at the end, but there's no harm in doing it just in case a race could happen.
+		activateNext := i == len(execIDs)-1
+		details, err := ds.cancelHostUpcomingActivity(ctx, tx, hostID, execID, activateNext)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "cancel upcoming activity")
+		}
+		canceled = append(canceled, details)
+	}
+	return canceled, nil
+}
+
+type activityToCancel struct {
+	ActivityType        string  `db:"activity_type"`
+	HostID              uint    `db:"host_id"`
+	HostDisplayName     string  `db:"host_display_name"`
+	CanceledName        string  `db:"canceled_name"`
+	CanceledDisplayName *string `db:"canceled_display_name"`
+	CanceledID          *uint   `db:"canceled_id"`
+	Activated           bool    `db:"activated"`
+}
+
+func (ds *Datastore) cancelHostUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, executionID string, activateNext bool) (automdm.ActivityDetails, error) {
+	const (
+		loadScriptActivityStmt = `
+	SELECT
+		ua.activity_type,
+		ua.host_id,
+		COALESCE(hdn.display_name, '') as host_display_name,
+		COALESCE(ses.name, scr.name, '') as canceled_name, -- script name in this case
+		NULL as canceled_display_name, -- scripts have no display name override
+		NULL as canceled_id, -- no ID for scripts in the canceled activity
+		IF(ua.activated_at IS NULL, 0, 1) as activated
+	FROM
+		upcoming_activities ua
+	INNER JOIN
+		script_upcoming_activities sua ON sua.upcoming_activity_id = ua.id
+	LEFT OUTER JOIN
+		host_display_names hdn ON hdn.host_id = ua.host_id
+	LEFT OUTER JOIN
+		scripts scr ON scr.id = sua.script_id
+	LEFT OUTER JOIN
+		setup_experience_scripts ses ON ses.id = sua.setup_experience_script_id
+	WHERE
+		ua.host_id = :host_id AND
+		ua.execution_id = :execution_id AND
+		ua.activity_type = 'script'
+`
+
+		loadSoftwareInstallActivityStmt = `
+	SELECT
+		ua.activity_type,
+		ua.host_id,
+		COALESCE(hdn.display_name, '') as host_display_name,
+		COALESCE(st.name, ua.payload->>'$.software_title_name', '') as canceled_name, -- software title name in this case
+		stdn.display_name as canceled_display_name,
+		st.id as canceled_id,
+		IF(ua.activated_at IS NULL, 0, 1) as activated
+	FROM
+		upcoming_activities ua
+	INNER JOIN
+		software_install_upcoming_activities siua ON siua.upcoming_activity_id = ua.id
+	LEFT OUTER JOIN
+		software_installers si ON si.id = siua.software_installer_id
+	LEFT OUTER JOIN
+		software_titles st ON st.id = si.title_id
+	LEFT OUTER JOIN
+		host_display_names hdn ON hdn.host_id = ua.host_id
+	LEFT OUTER JOIN
+		hosts h ON h.id = ua.host_id
+	LEFT OUTER JOIN
+		software_title_display_names stdn
+			ON stdn.software_title_id = st.id
+			AND stdn.team_id = COALESCE(h.team_id, 0)
+	WHERE
+		ua.host_id = :host_id AND
+		ua.execution_id = :execution_id AND
+		ua.activity_type = 'software_install'
+`
+
+		loadSoftwareUninstallActivityStmt = `
+	SELECT
+		ua.activity_type,
+		ua.host_id,
+		COALESCE(hdn.display_name, '') as host_display_name,
+		COALESCE(st.name, ua.payload->>'$.software_title_name', '') as canceled_name, -- software title name in this case
+		stdn.display_name as canceled_display_name,
+		st.id as canceled_id,
+		IF(ua.activated_at IS NULL, 0, 1) as activated
+	FROM
+		upcoming_activities ua
+	INNER JOIN
+		software_install_upcoming_activities siua ON siua.upcoming_activity_id = ua.id
+	LEFT OUTER JOIN
+		software_installers si ON si.id = siua.software_installer_id
+	LEFT OUTER JOIN
+		software_titles st ON st.id = si.title_id
+	LEFT OUTER JOIN
+		host_display_names hdn ON hdn.host_id = ua.host_id
+	LEFT OUTER JOIN
+		hosts h ON h.id = ua.host_id
+	LEFT OUTER JOIN
+		software_title_display_names stdn
+			ON stdn.software_title_id = st.id
+			AND stdn.team_id = COALESCE(h.team_id, 0)
+	WHERE
+		ua.host_id = :host_id AND
+		ua.execution_id = :execution_id AND
+		activity_type = 'software_uninstall'
+`
+
+		loadVPPAppInstallActivityStmt = `
+	SELECT
+		ua.activity_type,
+		ua.host_id,
+		COALESCE(hdn.display_name, '') as host_display_name,
+		COALESCE(st.name, '') as canceled_name, -- software title name in this case
+		stdn.display_name as canceled_display_name,
+		st.id as canceled_id,
+		IF(ua.activated_at IS NULL, 0, 1) as activated
+	FROM
+		upcoming_activities ua
+	INNER JOIN
+		vpp_app_upcoming_activities vaua ON vaua.upcoming_activity_id = ua.id
+	LEFT OUTER JOIN
+		host_display_names hdn ON hdn.host_id = ua.host_id
+	LEFT OUTER JOIN
+		hosts h ON h.id = ua.host_id
+	LEFT OUTER JOIN
+		vpp_apps vpa ON vaua.adam_id = vpa.adam_id AND vaua.platform = vpa.platform
+	LEFT OUTER JOIN
+		software_titles st ON st.id = vpa.title_id
+	LEFT OUTER JOIN
+		software_title_display_names stdn
+			ON stdn.software_title_id = vpa.title_id
+			AND stdn.team_id = COALESCE(h.team_id, 0)
+	WHERE
+		ua.host_id = :host_id AND
+		ua.execution_id = :execution_id AND
+		ua.activity_type = 'vpp_app_install'
+`
+
+		loadInHouseAppInstallActivityStmt = `
+	SELECT
+		ua.activity_type,
+		ua.host_id,
+		COALESCE(hdn.display_name, '') as host_display_name,
+		COALESCE(st.name, '') as canceled_name, -- software title name in this case
+		stdn.display_name as canceled_display_name,
+		st.id as canceled_id,
+		IF(ua.activated_at IS NULL, 0, 1) as activated
+	FROM
+		upcoming_activities ua
+	INNER JOIN
+		in_house_app_upcoming_activities ihua ON ihua.upcoming_activity_id = ua.id
+	LEFT OUTER JOIN
+		host_display_names hdn ON hdn.host_id = ua.host_id
+	LEFT OUTER JOIN
+		hosts h ON h.id = ua.host_id
+	LEFT OUTER JOIN
+		in_house_apps iha ON ihua.in_house_app_id = iha.id
+	LEFT OUTER JOIN
+		software_titles st ON st.id = iha.title_id
+	LEFT OUTER JOIN
+		software_title_display_names stdn
+			ON stdn.software_title_id = iha.title_id
+			AND stdn.team_id = COALESCE(h.team_id, 0)
+	WHERE
+		ua.host_id = :host_id AND
+		ua.execution_id = :execution_id AND
+		ua.activity_type = 'in_house_app_install'
+`
+	)
+
+	var act activityToCancel
+	// read the activity along with the required information to create the
+	// "canceled" past activity, and check if the activity was activated or
+	// not.
+	stmt := strings.Join([]string{
+		loadScriptActivityStmt, loadSoftwareInstallActivityStmt,
+		loadSoftwareUninstallActivityStmt, loadVPPAppInstallActivityStmt,
+		loadInHouseAppInstallActivityStmt,
+	}, " UNION ALL ")
+	stmt, args, err := sqlx.Named(stmt, map[string]any{"host_id": hostID, "execution_id": executionID})
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "build load upcoming activity to cancel statement")
+	}
+
+	if err := sqlx.GetContext(ctx, tx, &act, stmt, args...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ctxerr.Wrap(ctx, notFound("UpcomingActivity").WithName(executionID))
+		}
+		return nil, ctxerr.Wrap(ctx, err, "load upcoming activity to cancel")
+	}
+
+	// in all cases, we must delete the row from upcoming_activities
+	const delStmt = `DELETE FROM upcoming_activities WHERE host_id = ? AND execution_id = ?`
+	if _, err := tx.ExecContext(ctx, delStmt, hostID, executionID); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "delete upcoming activity")
+	}
+
+	// if the activity is related to lock/wipe actions, clear the status for that
+	// action as it was canceled (note that lock/wipe is prevented at the service
+	// layer from being canceled if it was already activated).
+	if err := clearHostMDMActionsForCanceledLockWipe(ctx, tx, hostID, executionID); err != nil {
+		return nil, err
+	}
+
+	// Must get the host uuid, osquery_host_id, and platform for the setup experience and nano table updates.
+	const getHostUUIDStmt = `SELECT uuid, osquery_host_id, platform FROM hosts WHERE id = ?`
+	var host automdm.Host
+	if err := sqlx.GetContext(ctx, tx, &host, getHostUUIDStmt, hostID); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "load host UUID fields")
+	}
+	hostUUID := host.UUID
+	if automdm.IsSetupExperienceSupported(host.Platform) {
+		hostUUID, err = automdm.HostUUIDForSetupExperience(&host)
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "failed to get host's UUID for the setup experience")
+		}
+	}
+
+	var pastAct automdm.ActivityDetails
+	switch act.ActivityType {
+	case "script":
+		pastAct, err = cancelHostScriptUpcomingActivity(ctx, tx, act, hostUUID, executionID)
+		if err != nil {
+			return nil, err
+		}
+
+	case "software_install":
+		pastAct, err = cancelHostSoftwareInstallUpcomingActivity(ctx, tx, act, hostUUID, executionID)
+		if err != nil {
+			return nil, err
+		}
+
+	case "software_uninstall":
+		pastAct, err = cancelHostSoftwareUninstallUpcomingActivity(ctx, tx, act, executionID)
+		if err != nil {
+			return nil, err
+		}
+
+	case "vpp_app_install":
+		pastAct, err = cancelHostVPPAppInstallUpcomingActivity(ctx, tx, act, hostID, hostUUID, executionID)
+		if err != nil {
+			return nil, err
+		}
+
+	case "in_house_app_install":
+		pastAct, err = cancelHostInHouseAppInstallUpcomingActivity(ctx, tx, act, hostID, hostUUID, executionID)
+		if err != nil {
+			return nil, err
+		}
+
+	default:
+		// cannot happen since activity type comes from the UNION query above,
+		// but can be useful to detect a missing case in tests
+		panic(fmt.Sprintf("unexpected activity type %q", act.ActivityType))
+	}
+
+	if activateNext {
+		// must activate the next activity, if any (this should be required only if
+		// the canceled activity was already "activated", but there's no harm in
+		// doing it if it wasn't, and it makes sure there's always progress even in
+		// unsuspected scenarios)
+		if _, err := ds.activateNextUpcomingActivity(ctx, tx, hostID, ""); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "activate next upcoming activity")
+		}
+	}
+
+	// creating the canceled activity must be done via svc.NewActivity, so we
+	// return the ready-to-insert activity struct to the caller and let svc do
+	// the rest.
+	return pastAct, nil
+}
+
+func cancelHostInHouseAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostID uint, hostUUID, executionID string) (automdm.ActivityDetails, error) {
+	// in-house apps currently cannot be part of setup experience, so there's no
+	// update for that in this case.
+
+	if act.Activated {
+		const updInHouseStmt = `UPDATE host_in_house_software_installs SET canceled = 1 WHERE command_uuid = ?`
+		if _, err := tx.ExecContext(ctx, updInHouseStmt, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update host_in_house_software_installs as canceled")
+		}
+
+		const updNanoStmt = `UPDATE nano_enrollment_queue SET active = 0 WHERE id = ? AND command_uuid = ?`
+		if _, err := tx.ExecContext(ctx, updNanoStmt, hostUUID, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update nano_enrollment_queue as canceled")
+		}
+
+		const delHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
+		if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "delete verify from host_mdm_commands")
+		}
+	}
+
+	var titleID uint
+	if act.CanceledID != nil {
+		titleID = *act.CanceledID
+	}
+	return automdm.ActivityTypeCanceledInstallSoftware{
+		HostID:              act.HostID,
+		HostDisplayName:     act.HostDisplayName,
+		SoftwareTitle:       act.CanceledName,
+		SoftwareDisplayName: ptr.ValOrZero(act.CanceledDisplayName),
+		SoftwareTitleID:     titleID,
+	}, nil
+}
+
+func cancelHostVPPAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostID uint, hostUUID, executionID string) (automdm.ActivityDetails, error) {
+	// if the VPP install was part of the setup experience, then it must be
+	// marked as "failed" for that setup experience flow (regardless of
+	// whether or not it was activated).
+	const failSetupExpStmt = `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND nano_command_uuid = ?`
+	if _, err := tx.ExecContext(ctx, failSetupExpStmt, automdm.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "update setup_experience_status_results as failed")
+	}
+
+	if act.Activated {
+		const updVPPStmt = `UPDATE host_vpp_software_installs SET canceled = 1 WHERE command_uuid = ?`
+		if _, err := tx.ExecContext(ctx, updVPPStmt, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update host_vpp_software_installs as canceled")
+		}
+
+		const updNanoStmt = `UPDATE nano_enrollment_queue SET active = 0 WHERE id = ? AND command_uuid = ?`
+		if _, err := tx.ExecContext(ctx, updNanoStmt, hostUUID, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update nano_enrollment_queue as canceled")
+		}
+
+		const delHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
+		if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "delete verify vpp from host_mdm_commands")
+		}
+	}
+
+	var titleID uint
+	if act.CanceledID != nil {
+		titleID = *act.CanceledID
+	}
+	return automdm.ActivityTypeCanceledInstallAppStoreApp{
+		HostID:              act.HostID,
+		HostDisplayName:     act.HostDisplayName,
+		SoftwareTitle:       act.CanceledName,
+		SoftwareDisplayName: ptr.ValOrZero(act.CanceledDisplayName),
+		SoftwareTitleID:     titleID,
+	}, nil
+}
+
+func cancelHostSoftwareUninstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, executionID string) (automdm.ActivityDetails, error) {
+	// uninstall cannot be part of setup experience, so there's no update for
+	// that in this case.
+
+	if act.Activated {
+		// uninstall is a combination of software install and script result,
+		// with the same execution id.
+		const updSoftwareStmt = `UPDATE host_software_installs SET canceled = 1 WHERE execution_id = ?`
+		if _, err := tx.ExecContext(ctx, updSoftwareStmt, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update host_software_installs as canceled")
+		}
+
+		const updScriptStmt = `UPDATE host_script_results SET canceled = 1 WHERE execution_id = ?`
+		if _, err := tx.ExecContext(ctx, updScriptStmt, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update host_script_results as canceled")
+		}
+	}
+
+	var titleID uint
+	if act.CanceledID != nil {
+		titleID = *act.CanceledID
+	}
+	return automdm.ActivityTypeCanceledUninstallSoftware{
+		HostID:              act.HostID,
+		HostDisplayName:     act.HostDisplayName,
+		SoftwareTitle:       act.CanceledName,
+		SoftwareDisplayName: ptr.ValOrZero(act.CanceledDisplayName),
+		SoftwareTitleID:     titleID,
+	}, nil
+}
+
+func cancelHostSoftwareInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostUUID, executionID string) (automdm.ActivityDetails, error) {
+	// if the install was part of the setup experience, then it must be
+	// marked as "failed" for that setup experience flow (regardless of
+	// whether or not it was activated).
+	const failSetupExpStmt = `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND host_software_installs_execution_id = ?`
+	if _, err := tx.ExecContext(ctx, failSetupExpStmt, automdm.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "update setup_experience_status_results as failed")
+	}
+
+	if act.Activated {
+		const updStmt = `UPDATE host_software_installs SET canceled = 1 WHERE execution_id = ?`
+		if _, err := tx.ExecContext(ctx, updStmt, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update host_software_installs as canceled")
+		}
+	}
+
+	var titleID uint
+	if act.CanceledID != nil {
+		titleID = *act.CanceledID
+	}
+	return automdm.ActivityTypeCanceledInstallSoftware{
+		HostID:              act.HostID,
+		HostDisplayName:     act.HostDisplayName,
+		SoftwareTitle:       act.CanceledName,
+		SoftwareDisplayName: ptr.ValOrZero(act.CanceledDisplayName),
+		SoftwareTitleID:     titleID,
+	}, nil
+}
+
+func cancelHostScriptUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostUUID, executionID string) (automdm.ActivityDetails, error) {
+	// if the script was part of the setup experience, then it must be marked
+	// as "failed" for that setup experience flow (regardless of whether or
+	// not it was activated).
+	const failSetupExpStmt = `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND script_execution_id = ?`
+	if _, err := tx.ExecContext(ctx, failSetupExpStmt, automdm.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "update setup_experience_status_results as failed")
+	}
+
+	if act.Activated {
+		const updStmt = `UPDATE host_script_results SET canceled = 1 WHERE execution_id = ?`
+		if _, err := tx.ExecContext(ctx, updStmt, executionID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "update host_script_results as canceled")
+		}
+	}
+
+	return automdm.ActivityTypeCanceledRunScript{
+		HostID:          act.HostID,
+		HostDisplayName: act.HostDisplayName,
+		ScriptName:      act.CanceledName,
+	}, nil
+}
+
+func clearHostMDMActionsForCanceledLockWipe(ctx context.Context, tx sqlx.ExtContext, hostID uint, executionID string) error {
+	const clearLockStmt = `DELETE FROM host_mdm_actions WHERE host_id = ? AND lock_ref = ?`
+	_, err := tx.ExecContext(ctx, clearLockStmt, hostID, executionID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "delete host_mdm_actions for lock")
+	}
+
+	const clearWipeStmt = `DELETE FROM host_mdm_actions WHERE host_id = ? AND wipe_ref = ?`
+	_, err = tx.ExecContext(ctx, clearWipeStmt, hostID, executionID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "delete host_mdm_actions for wipe")
+	}
+
+	return nil
+}
+
+// GetHostUpcomingActivityMeta returns metadata for an upcoming activity,
+// such as whether it is activated or not, if the activity corresponds to a
+// lock/wipe/unlock command, etc.
+func (ds *Datastore) GetHostUpcomingActivityMeta(ctx context.Context, hostID uint, executionID string) (*automdm.UpcomingActivityMeta, error) {
+	const getStmt = `
+	SELECT
+		ua.execution_id,
+		ua.activated_at,
+		ua.activity_type,
+		CASE
+			WHEN hma.lock_ref = :execution_id THEN :lock_action
+			WHEN hma.unlock_ref = :execution_id THEN :unlock_action
+			WHEN hma.wipe_ref = :execution_id THEN :wipe_action
+			ELSE :none_action
+		END AS well_known_action
+	FROM
+		upcoming_activities ua
+		LEFT JOIN host_mdm_actions hma ON hma.host_id = ua.host_id
+	WHERE
+		ua.host_id = :host_id AND
+		ua.execution_id = :execution_id
+`
+
+	namedArgs := map[string]any{
+		"host_id":       hostID,
+		"execution_id":  executionID,
+		"lock_action":   automdm.WellKnownActionLock,
+		"unlock_action": automdm.WellKnownActionUnlock,
+		"wipe_action":   automdm.WellKnownActionWipe,
+		"none_action":   automdm.WellKnownActionNone,
+	}
+	stmt, args, err := sqlx.Named(getStmt, namedArgs)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "build named query for upcoming activity meta")
+	}
+
+	var actMeta automdm.UpcomingActivityMeta
+	err = sqlx.GetContext(ctx, ds.reader(ctx), &actMeta, stmt, args...)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, notFound("UpcomingActivity").WithName(executionID)
+		}
+		return nil, ctxerr.Wrap(ctx, err, "lookup upcoming activity meta")
+	}
+	return &actMeta, nil
+}
+
+// UnblockHostsUpcomingActivityQueue checks for hosts that have upcoming
+// activities but none is "activated", meaning that the queue is blocked
+// (cannot make progress anymore), possibly due to a failure when activating
+// the next activity, or to a missing call to activateNextUpcomingActivity. It
+// unblocks up to maxHosts found in this situation (by activating the next
+// activity for each host).
+//
+// When skipAutoMDMInitiated is true (the automdm-initiated release budget is
+// enabled), a host is only considered blocked if it has an unactivated
+// non-automdm-initiated activity: hosts waiting solely on deferred
+// automdm-initiated activities are the release cron's job, and activating them
+// here would bypass its budget.
+func (ds *Datastore) UnblockHostsUpcomingActivityQueue(ctx context.Context, maxHosts int, skipAutoMDMInitiated bool) (int, error) {
+	const findBlockedHostsStmt = `
+		SELECT
+			DISTINCT inactive_ua.host_id
+		FROM
+			upcoming_activities inactive_ua
+			LEFT OUTER JOIN upcoming_activities active_ua ON
+				active_ua.host_id = inactive_ua.host_id AND
+				active_ua.activated_at IS NOT NULL
+		WHERE
+			active_ua.host_id IS NULL AND
+			inactive_ua.activated_at IS NULL AND
+			-- activation skips installs of a custom package a GitOps apply removed
+			NOT EXISTS (
+				SELECT 1 FROM software_install_upcoming_activities siua
+				JOIN software_installers si ON si.id = siua.software_installer_id
+				WHERE siua.upcoming_activity_id = inactive_ua.id AND si.is_active = 0 AND si.automdm_maintained_app_id IS NULL
+			)
+		%s
+		LIMIT ?`
+
+	var automdmInitiatedFilter string
+	if skipAutoMDMInitiated {
+		automdmInitiatedFilter = "AND inactive_ua.automdm_initiated = 0"
+	}
+	stmt := fmt.Sprintf(findBlockedHostsStmt, automdmInitiatedFilter)
+
+	var blockedHostIDs []uint
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &blockedHostIDs, stmt, maxHosts); err != nil {
+		return 0, ctxerr.Wrap(ctx, err, "select blocked hosts")
+	}
+	return ds.activateNextUpcomingActivityForBatchOfHosts(ctx, blockedHostIDs)
+}
+
+// ReleaseAutoMDMInitiatedUpcomingActivities activates the upcoming activities
+// queue of up to maxHosts hosts that have no activated activity and at least
+// one automdm-initiated activity waiting (enqueued with deferred activation by
+// the policy-automation paths). Hosts with the oldest waiting automdm-initiated
+// activity are released first. It returns the number of hosts released.
+//
+// This is the release valve for the activity.automdm_initiated_release_per_minute
+// budget: enqueue is unthrottled, but hosts only start executing
+// automdm-initiated work at the pace this method is called with.
+func (ds *Datastore) ReleaseAutoMDMInitiatedUpcomingActivities(ctx context.Context, maxHosts int) (int, error) {
+	const findGatedHostsStmt = `
+		SELECT
+			gated_ua.host_id
+		FROM
+			upcoming_activities gated_ua
+			LEFT OUTER JOIN upcoming_activities active_ua ON
+				active_ua.host_id = gated_ua.host_id AND
+				active_ua.activated_at IS NOT NULL
+		WHERE
+			active_ua.host_id IS NULL AND
+			gated_ua.activated_at IS NULL AND
+			gated_ua.automdm_initiated = 1 AND
+			-- activation skips installs of a custom package a GitOps apply removed
+			NOT EXISTS (
+				SELECT 1 FROM software_install_upcoming_activities siua
+				JOIN software_installers si ON si.id = siua.software_installer_id
+				WHERE siua.upcoming_activity_id = gated_ua.id AND si.is_active = 0 AND si.automdm_maintained_app_id IS NULL
+			)
+		GROUP BY
+			gated_ua.host_id
+		ORDER BY
+			MIN(gated_ua.created_at), gated_ua.host_id
+		LIMIT ?`
+
+	var gatedHostIDs []uint
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &gatedHostIDs, findGatedHostsStmt, maxHosts); err != nil {
+		return 0, ctxerr.Wrap(ctx, err, "select gated hosts")
+	}
+	return ds.activateNextUpcomingActivityForBatchOfHosts(ctx, gatedHostIDs)
+}
+
+// mdmApplePushDeliveryGraceDays is how long an activated command has to reach its device before the
+// reaper gives up on it, matching the window in GetEnrollmentIDsWithPendingMDMAppleCommands past
+// which AutoMDM stops pushing it.
+//
+// Measured from activated_at, not from nano_enrollment_queue.created_at even though that is the
+// column the pusher compares. Both enqueue paths copy the queue row's created_at from the activity's
+// to preserve ordering, so a command that activates after a long wait is born already outside the
+// window, which is the state of every install behind a head the reaper has just freed.
+const mdmApplePushDeliveryGraceDays = 7
+
+// reapableActivatedInstallWhere matches an activated MDM-command-backed install that is old enough
+// to reap and can no longer make progress. An answered install is judged on the age of the answer,
+// taken from ncr.updated_at, the column AutoMDM measures the verification budget from. Only an
+// unanswered one is judged on delivery, having either lost its queue row or gone past the delivery
+// grace. Anything else is still in flight, including an unanswered command for a device that is
+// simply switched off. Arguments come from reapableActivatedInstallArgs.
+//
+// A device unreachable for days accumulates activation age the whole time, which is why neither
+// branch uses that age: judging it on activation, or on delivery once it has answered, would fail
+// the install seconds after the device came back and started running it.
+//
+// A NotNow answer does not count: nanomdm records one but keeps the command queued and re-serves it
+// (RetrieveNextCommand joins results with `status != 'NotNow'`), so the install has not run.
+//
+// Microseconds and not seconds: truncating to whole seconds turns any positive sub-second value into
+// INTERVAL 0, which matches every activated install on the team and walks past the callers' guards.
+//
+// The nano lookups key on command_uuid alone, its primary key in nano_commands, so there is nothing
+// for an enrollment id to disambiguate.
+const reapableActivatedInstallWhere = `
+	ua.activity_type IN ('vpp_app_install', 'in_house_app_install')
+	AND ua.activated_at IS NOT NULL
+	AND ua.activated_at < NOW(6) - INTERVAL ? MICROSECOND
+	AND (
+		EXISTS (
+			SELECT 1
+			FROM nano_command_results ncr
+			WHERE ncr.command_uuid = ua.execution_id
+				AND ncr.status != 'NotNow'
+				AND ncr.updated_at < NOW(6) - INTERVAL ? MICROSECOND
+		)
+		OR (
+			NOT EXISTS (
+				SELECT 1
+				FROM nano_command_results ncr
+				WHERE ncr.command_uuid = ua.execution_id
+					AND ncr.status != 'NotNow'
+			)
+			AND (
+				NOT EXISTS (
+					SELECT 1
+					FROM nano_enrollment_queue neq
+					WHERE neq.command_uuid = ua.execution_id
+						AND neq.active = 1
+				)
+				OR ua.activated_at < NOW(6) - INTERVAL ? DAY
+			)
+		)
+	)`
+
+// reapableActivatedInstallArgs returns the positional arguments
+// reapableActivatedInstallWhere expects, in order.
+func reapableActivatedInstallArgs(olderThan time.Duration) []any {
+	micros := olderThan.Microseconds()
+	return []any{micros, micros, mdmApplePushDeliveryGraceDays}
+}
+
+func (ds *Datastore) ReapStuckActivatedMDMInstalls(ctx context.Context, olderThan time.Duration, maxHosts int) ([]automdm.ReapedMDMInstall, error) {
+	findHostsStmt := `
+	SELECT DISTINCT
+		ua.host_id,
+		h.uuid AS host_uuid
+	FROM
+		upcoming_activities ua
+		JOIN hosts h ON h.id = ua.host_id
+	WHERE ` + reapableActivatedInstallWhere + `
+	LIMIT ?`
+
+	type reapableHost struct {
+		HostID   uint   `db:"host_id"`
+		HostUUID string `db:"host_uuid"`
+	}
+	var hosts []reapableHost
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, findHostsStmt,
+		append(reapableActivatedInstallArgs(olderThan), maxHosts)...); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "find hosts with a stuck activated MDM install")
+	}
+
+	var (
+		reaped []automdm.ReapedMDMInstall
+		errs   []error
+	)
+	for _, host := range hosts {
+		hostReaped, err := ds.reapStuckActivatedMDMInstallsForHost(ctx, host.HostID, host.HostUUID, olderThan)
+		if err != nil {
+			// one host must not stop the rest, as in activateNextUpcomingActivityForBatchOfHosts
+			errs = append(errs, err)
+			continue
+		}
+		reaped = append(reaped, hostReaped...)
+	}
+	return reaped, errors.Join(errs...)
+}
+
+// reapStuckActivatedMDMInstallsForHost fails every reapable install for one host and releases its
+// queue, in a single transaction. It is per host rather than per install because activation
+// batches up to maxMDMCommandActivations installs at once and stops at the first row that is still
+// activated, so failing one of a batch would advance nothing, and because the verify lock it
+// clears is one row for the whole host.
+func (ds *Datastore) reapStuckActivatedMDMInstallsForHost(ctx context.Context, hostID uint, hostUUID string,
+	olderThan time.Duration,
+) ([]automdm.ReapedMDMInstall, error) {
+	findInstallsStmt := `
+	SELECT
+		ua.execution_id,
+		ua.activity_type,
+		COALESCE(JSON_EXTRACT(ua.payload, '$.from_auto_update') = 1, 0) AS from_auto_update,
+		COALESCE(JSON_EXTRACT(ua.payload, '$.from_configuration_resend') = 1, 0) AS from_configuration_resend
+	FROM
+		upcoming_activities ua
+	WHERE
+		ua.host_id = ? AND ` + reapableActivatedInstallWhere + `
+	ORDER BY ua.id`
+
+	type reapableInstall struct {
+		ExecutionID             string `db:"execution_id"`
+		ActivityType            string `db:"activity_type"`
+		FromAutoUpdate          bool   `db:"from_auto_update"`
+		FromConfigurationResend bool   `db:"from_configuration_resend"`
+	}
+
+	var reaped []automdm.ReapedMDMInstall
+	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
+		reaped = nil // a retry re-runs the whole host
+
+		var installs []reapableInstall
+		if err := sqlx.SelectContext(ctx, tx, &installs, findInstallsStmt,
+			append([]any{hostID}, reapableActivatedInstallArgs(olderThan)...)...); err != nil {
+			return ctxerr.Wrap(ctx, err, "list stuck activated MDM installs for host")
+		}
+		// the host was found on the reader, so its rows may have resolved since
+		if len(installs) == 0 {
+			return nil
+		}
+
+		var failedAny bool
+		for _, inst := range installs {
+			swType := softwareTypeVPP
+			if inst.ActivityType == "in_house_app_install" {
+				swType = softwareTypeInHouseApp
+			}
+
+			// Eligibility is re-checked here, not trusted from the select above: that
+			// select took the transaction's snapshot while this update reads the latest
+			// committed rows, so a device that checked in between would otherwise be
+			// overruled mid-verification. No rows affected means it did check in, so
+			// nothing is recorded here, though the queue is still advanced past the row.
+			failStmt := fmt.Sprintf(`
+UPDATE %s
+SET verification_failed_at = CURRENT_TIMESTAMP(6)
+WHERE command_uuid = ?
+	AND verification_at IS NULL
+	AND verification_failed_at IS NULL
+	AND canceled = 0
+	AND NOT EXISTS (
+		SELECT 1
+		FROM nano_command_results ncr
+		WHERE ncr.command_uuid = ?
+			AND ncr.status != 'NotNow'
+			AND ncr.updated_at >= NOW(6) - INTERVAL ? MICROSECOND
+	)`, swType.getInstallMappingTableName())
+			res, err := tx.ExecContext(ctx, failStmt,
+				inst.ExecutionID, inst.ExecutionID, olderThan.Microseconds())
+			if err != nil {
+				return ctxerr.Wrap(ctx, err, "set stuck activated MDM install as failed")
+			}
+			if affected, _ := res.RowsAffected(); affected == 0 {
+				continue
+			}
+			failedAny = true
+
+			// Stop the APNs retry cron pushing a command AutoMDM has now given up on, and
+			// stop a device that comes back from installing an app already reported as
+			// failed, which would leak the verify lock on the way through.
+			const deactivateNanoStmt = `UPDATE nano_enrollment_queue SET active = 0 WHERE id = ? AND command_uuid = ?`
+			if _, err := tx.ExecContext(ctx, deactivateNanoStmt, hostUUID, inst.ExecutionID); err != nil {
+				return ctxerr.Wrap(ctx, err, "deactivate nano queue row for reaped MDM install")
+			}
+
+			cmdResults := &mdm.CommandResults{CommandUUID: inst.ExecutionID, Status: automdm.MDMAppleStatusError}
+			entry := automdm.ReapedMDMInstall{HostID: hostID, HostUUID: hostUUID, CommandUUID: inst.ExecutionID}
+			switch swType {
+			case softwareTypeVPP:
+				user, act, err := ds.getPastActivityDataForVPPAppInstallDB(ctx, tx, cmdResults)
+				if err != nil {
+					if automdm.IsNotFound(err) {
+						continue // shouldn't happen, but the install is failed either way
+					}
+					return ctxerr.Wrap(ctx, err, "get past activity data for reaped app store app install")
+				}
+				act.FromAutoUpdate = inst.FromAutoUpdate
+				act.FromConfigurationResend = inst.FromConfigurationResend
+				entry.User, entry.AppStoreActivity = user, act
+				if act.PolicyID != nil {
+					err = incrementHostPolicyAutomationRunCountDB(ctx, tx, *act.PolicyID, act.HostID, act, false)
+					if err != nil {
+						return err
+					}
+				}
+			case softwareTypeInHouseApp:
+				user, act, err := ds.getPastActivityDataForInHouseAppInstallDB(ctx, tx, cmdResults)
+				if err != nil {
+					if automdm.IsNotFound(err) {
+						continue
+					}
+					return ctxerr.Wrap(ctx, err, "get past activity data for reaped in-house app install")
+				}
+				entry.User, entry.InHouseActivity = user, act
+			}
+			reaped = append(reaped, entry)
+		}
+
+		// The verify lock is one row per host, not per install, so it is cleared once and
+		// only if something was failed. Leaving it would suppress verification of the next
+		// install acknowledged on this host, turning one stuck install into two. The cost is
+		// that an unrelated install mid-verification loses its suppression and the next
+		// acknowledgement sends a redundant InstalledApplicationList; accepted, because every
+		// narrower condition instead risks retaining the lock when it does damage.
+		if failedAny {
+			const delHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
+			if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
+				return ctxerr.Wrap(ctx, err, "delete verify vpp from host_mdm_commands")
+			}
+		}
+
+		// Advancing per install converges by itself: each call deletes only its own row and
+		// then stops at whatever is still activated, so only the last one activates the next
+		// batch. Any row left activated because it is not reapable yet keeps the queue
+		// blocked on purpose, since its command can still be delivered.
+		for _, inst := range installs {
+			if _, err := ds.activateNextUpcomingActivity(ctx, tx, hostID, inst.ExecutionID); err != nil {
+				return ctxerr.Wrap(ctx, err, "activate next activity after reaping MDM install")
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return reaped, nil
+}
+
+// ActivateNextUpcomingActivityForHost activates the next upcoming activity for the given host.
+// fromCompletedExecID is the execution ID of the activity that just completed (if any).
+//
+// NOTE: this intentionally does not use a transaction wrapper. The original
+// call site in NewActivity (now in the activity bounded context) also called
+// activateNextUpcomingActivity outside a transaction. See @mna's comment in
+// cab7cc15bef (2025-10-28) explaining that this non-transactional approach is
+// accepted and consistent with how other critical state updates work in AutoMDM.
+func (ds *Datastore) ActivateNextUpcomingActivityForHost(ctx context.Context, hostID uint, fromCompletedExecID string) error {
+	_, err := ds.activateNextUpcomingActivity(ctx, ds.writer(ctx), hostID, fromCompletedExecID)
+	return err
+}
+
+// maxHostIDsPerActivationTx is small because activating an install locks its installer until commit, and a GitOps apply
+// removing that installer, with every install queued behind the apply, waits for the whole transaction.
+const maxHostIDsPerActivationTx = 10
+
+// activateNextUpcomingActivityForBatchOfHosts activates the next upcoming
+// activity of each host, chunked into batch transactions. It returns the
+// number of hosts whose activation committed, along with any per-host
+// activation errors joined together (partial success returns both a non-zero
+// count and a non-nil error).
+func (ds *Datastore) activateNextUpcomingActivityForBatchOfHosts(ctx context.Context, hostIDs []uint) (int, error) {
+	slices.Sort(hostIDs)              // sorting can help avoid deadlocks
+	hostIDs = slices.Compact(hostIDs) // dedupe IDs (must be sorted first)
+
+	var activated int
+	var errs []error
+	for batch := range slices.Chunk(hostIDs, maxHostIDsPerActivationTx) {
+		err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
+			for _, hostID := range batch {
+				if _, err := ds.activateNextUpcomingActivity(ctx, tx, hostID, ""); err != nil {
+					return ctxerr.Wrap(ctx, err, "activate next activity")
+				}
+			}
+			return nil
+		})
+		if err == nil {
+			activated += len(batch)
+			continue
+		}
+
+		// The chunk transaction is all-or-nothing: one host whose activation
+		// deterministically fails (e.g. an FK or duplicate-key violation on its
+		// queued row) would roll back every other host in the chunk, and the
+		// callers that select hosts in a deterministic order (the release and
+		// unblock crons) would re-pick the same hosts on every run, wedging the
+		// queue behind the poison host. Retry each host of the failed chunk in
+		// its own transaction so a bad host only loses its own slot.
+		for _, hostID := range batch {
+			hostErr := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
+				_, err := ds.activateNextUpcomingActivity(ctx, tx, hostID, "")
+				return err
+			})
+			if hostErr != nil {
+				ds.logger.ErrorContext(ctx, "activate next upcoming activity failed for host; skipping it",
+					"host_id", hostID,
+					"err", hostErr,
+				)
+				errs = append(errs, ctxerr.Wrapf(ctx, hostErr, "activate next activity for host %d", hostID))
+				continue
+			}
+			activated++
+		}
+	}
+	return activated, errors.Join(errs...)
+}
+
+// This function activates the next upcoming activity, if any, for the specified host.
+// It does a few things to achieve this:
+//   - If there was an activity already marked as activated (activated_at is
+//     not NULL) and fromCompletedExecID is provided, it deletes it, as calling
+//     this function means that this activated activity is now completed (in a
+//     final state, either success or failure).
+//   - If no other activity is still activated and there is an upcoming
+//     activity to activate next, it does so, respecting the priority and enqueue
+//     order. Activation consists of inserting the activity in its respective
+//     table, e.g. `host_script_results` for scripts, `host_software_installs` for
+//     software installs, `host_vpp_software_installs` and nano command queue for
+//     VPP installs, `host_in_house_software_installs` and nano command queue for
+//     in-house installs;  and setting the activated_at timestamp in the
+//     `upcoming_activities` table.
+//   - As an optimization for MDM, if the activity type is `vpp_app_install`
+//     and the next few upcoming activities are all of this type, they are
+//     batch-activated together (up to a limit) to reduce the processing
+//     latency and number of push notifications to send to this host.
+//
+// When called after receiving results for an activity, the fromCompletedExecID
+// argument identifies that completed activity.
+func (ds *Datastore) activateNextUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, fromCompletedExecID string) (activatedExecIDs []string, err error) {
+	const maxMDMCommandActivations = 5
+
+	const deleteCompletedStmt = `
+DELETE FROM upcoming_activities
+WHERE
+	host_id = ? AND
+	activated_at IS NOT NULL AND
+	execution_id = ?
+`
+
+	const findNextStmt = `
+SELECT
+	execution_id,
+	activity_type,
+	activated_at,
+	IF(activated_at IS NULL, 0, 1) as topmost,
+	priority
+FROM
+	upcoming_activities
+WHERE
+	host_id = ? AND
+	-- skip a queued install of a custom package a GitOps apply removed; it's deleted after the apply commits
+	(activated_at IS NOT NULL OR NOT EXISTS (
+		SELECT 1 FROM software_install_upcoming_activities siua
+		JOIN software_installers si ON si.id = siua.software_installer_id
+		WHERE siua.upcoming_activity_id = upcoming_activities.id AND si.is_active = 0 AND si.automdm_maintained_app_id IS NULL
+	))
+	%s
+ORDER BY topmost DESC, priority DESC, created_at ASC
+LIMIT ?
+`
+
+	const findNextSpecificExecIDsClause = ` AND execution_id IN (?) `
+
+	const markActivatedStmt = `
+UPDATE upcoming_activities
+SET
+	activated_at = NOW()
+WHERE
+	host_id = ? AND
+	execution_id IN (?)
+`
+
+	// first we delete the completed activity, if any
+	if fromCompletedExecID != "" {
+		if _, err := tx.ExecContext(ctx, deleteCompletedStmt, hostID, fromCompletedExecID); err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "delete completed upcoming activity")
+		}
+	}
+
+	// next we look for an upcoming activity to activate
+	type nextActivity struct {
+		ExecutionID  string     `db:"execution_id"`
+		ActivityType string     `db:"activity_type"`
+		ActivatedAt  *time.Time `db:"activated_at"`
+		Topmost      bool       `db:"topmost"`
+		Priority     int        `db:"priority"`
+	}
+	var nextActivities []nextActivity
+	stmt, args := fmt.Sprintf(findNextStmt, ""), []any{hostID, maxMDMCommandActivations}
+	if len(ds.testActivateSpecificNextActivities) > 0 {
+		stmt, args, err = sqlx.In(fmt.Sprintf(findNextStmt, findNextSpecificExecIDsClause),
+			hostID, ds.testActivateSpecificNextActivities, len(ds.testActivateSpecificNextActivities))
+		if err != nil {
+			return nil, ctxerr.Wrap(ctx, err, "prepare find next upcoming activities statement with test execution ids")
+		}
+	}
+	if err := sqlx.SelectContext(ctx, tx, &nextActivities, stmt, args...); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "find next upcoming activities to activate")
+	}
+
+	var toActivate []nextActivity
+	for _, act := range nextActivities {
+		if act.ActivatedAt != nil {
+			// there are still activated activities, do not activate more
+			break
+		}
+		if len(toActivate) > 0 {
+			// we already identified one to activate, allow more only if they are a)
+			// the same type, b) that type is vpp_app_install, c) the same priority.
+			// The reason for that is to batch-activate MDM commands to reduce
+			// latency and push notifications required, and the same priority check
+			// is because we can't enforce the ordering of commands if they don't
+			// share the same priority (we transfer the created_at timestamp to the
+			// nano queue, which guarantees same order of processing for activities
+			// with the same priority).
+			if toActivate[0].ActivityType != act.ActivityType ||
+				toActivate[0].ActivityType != "vpp_app_install" ||
+				toActivate[0].Priority != act.Priority {
+				break
+			}
+		}
+		toActivate = append(toActivate, act)
+		activatedExecIDs = append(activatedExecIDs, act.ExecutionID)
+	}
+
+	if len(toActivate) == 0 {
+		return nil, nil
+	}
+
+	// activate the next activities as required for its activity type
+	var fn func(context.Context, sqlx.ExtContext, uint, []string) error
+	switch actType := toActivate[0].ActivityType; actType {
+	case "script":
+		fn = ds.activateNextScriptActivity
+	case "software_install":
+		fn = ds.activateNextSoftwareInstallActivity
+	case "software_uninstall":
+		fn = ds.activateNextSoftwareUninstallActivity
+	case "vpp_app_install":
+		fn = ds.activateNextVPPAppInstallActivity
+	case "in_house_app_install":
+		fn = ds.activateNextInHouseAppInstallActivity
+	default:
+		return nil, ctxerr.Errorf(ctx, "unsupported activity type %s", actType)
+	}
+	if err := fn(ctx, tx, hostID, activatedExecIDs); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "activate next activities")
+	}
+
+	// finally, mark the activities as activated
+	stmt, args, err = sqlx.In(markActivatedStmt, hostID, activatedExecIDs)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "prepare statement to mark upcoming activities as activated")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "mark upcoming activities as activated")
+	}
+
+	switch toActivate[0].ActivityType {
+	case "script", "software_install", "software_uninstall":
+		// automdmd picks these up from its orbit config. MDM command activities
+		// are delivered by the APNs push instead.
+		ds.notifyOrbitConfig(ctx, tx, automdm.AgentWSReasonActivity, hostID)
+	}
+	return activatedExecIDs, nil
+}
+
+func (ds *Datastore) activateNextScriptActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, execIDs []string) error {
+	const insStmt = `
+INSERT INTO
+	host_script_results
+(host_id, execution_id, script_content_id, output, script_id, policy_id,
+	user_id, sync_request, setup_experience_script_id, is_internal)
+SELECT
+	ua.host_id,
+	ua.execution_id,
+	sua.script_content_id,
+	'',
+	sua.script_id,
+	sua.policy_id,
+	ua.user_id,
+	COALESCE(ua.payload->'$.sync_request', 0),
+	sua.setup_experience_script_id,
+	COALESCE(ua.payload->'$.is_internal', 0)
+FROM
+	upcoming_activities ua
+	INNER JOIN script_upcoming_activities sua
+		ON sua.upcoming_activity_id = ua.id
+WHERE
+	ua.host_id = ? AND
+	ua.execution_id IN (?)
+ORDER BY
+	ua.priority DESC, ua.created_at ASC
+`
+
+	// sanity-check that there's something to activate
+	if len(execIDs) == 0 {
+		return nil
+	}
+	stmt, args, err := sqlx.In(insStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert to activate scripts")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert to activate scripts")
+	}
+	return nil
+}
+
+func (ds *Datastore) activateNextSoftwareInstallActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, execIDs []string) error {
+	const insStmt = `
+INSERT INTO host_software_installs
+	(execution_id, host_id, software_installer_id, user_id, self_service,
+		policy_id, patch_when_closed, installer_filename, version, software_title_id, software_title_name, override_pre_install_query, attempt_number)
+SELECT
+	ua.execution_id,
+	ua.host_id,
+	siua.software_installer_id,
+	ua.user_id,
+	COALESCE(ua.payload->'$.self_service', 0),
+	siua.policy_id,
+	-- Snapshot the triggering policy's patch_when_closed at activation so a
+	-- later toggle or policy delete (policy_id becomes NULL via ON DELETE SET
+	-- NULL) can't retroactively reclassify this row as an ordinary failure.
+	COALESCE(p.patch_when_closed, 0),
+	COALESCE(si.filename, ua.payload->>'$.installer_filename', '[deleted installer]'),
+	COALESCE(si.version, ua.payload->>'$.version', 'unknown'),
+	COALESCE(si.title_id, siua.software_title_id),
+	COALESCE(st.name, ua.payload->>'$.software_title_name', '[deleted title]'),
+	-- Activities queued before the payload carried this key fall back to the
+	-- policy flags so an in-flight patch install keeps its app-open gate.
+	COALESCE(ua.payload->'$.override_pre_install_query', p.patch_when_closed OR p.notify_before_patching OR p.patch_deadline, 0),
+	-- Compute the attempt number for this activation. Each retry creates a
+	-- new upcoming_activity (via InsertSoftwareInstallRequest), so when that
+	-- new activity activates, COUNT(*) of previous completed attempts gives
+	-- the number of prior tries. +1 makes this the next attempt in sequence:
+	-- first install = 1, first retry = 2, second retry = 3, etc.
+	CASE
+		WHEN siua.policy_id IS NULL AND COALESCE(ua.payload->'$.with_retries', 0) = 1 THEN (
+			SELECT COUNT(*) + 1
+			FROM host_software_installs hsi2
+			WHERE hsi2.host_id = ua.host_id
+			AND hsi2.software_installer_id = siua.software_installer_id
+			AND hsi2.policy_id IS NULL
+			AND hsi2.removed = 0 AND hsi2.canceled = 0 AND hsi2.host_deleted_at IS NULL
+			AND (hsi2.attempt_number > 0 OR hsi2.attempt_number IS NULL)
+		)
+		ELSE NULL
+	END
+FROM
+	upcoming_activities ua
+	INNER JOIN software_install_upcoming_activities siua
+		ON siua.upcoming_activity_id = ua.id
+	LEFT JOIN software_installers si
+		ON si.id = siua.software_installer_id
+	LEFT JOIN software_titles st
+		ON st.id = si.title_id
+	LEFT JOIN policies p
+		ON p.id = siua.policy_id
+WHERE
+	ua.host_id = ? AND
+	ua.execution_id IN (?)
+ORDER BY
+	ua.priority DESC, ua.created_at ASC
+`
+
+	// sanity-check that there's something to activate
+	if len(execIDs) == 0 {
+		return nil
+	}
+	stmt, args, err := sqlx.In(insStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert to activate software installs")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert to activate software installs")
+	}
+	return nil
+}
+
+func (ds *Datastore) activateNextSoftwareUninstallActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, execIDs []string) error {
+	const insScriptStmt = `
+INSERT INTO
+	host_script_results
+(host_id, execution_id, script_content_id, output, user_id, is_internal)
+SELECT
+	ua.host_id,
+	ua.execution_id,
+	si.uninstall_script_content_id,
+	'',
+	ua.user_id,
+	1
+FROM
+	upcoming_activities ua
+	INNER JOIN software_install_upcoming_activities siua
+		ON siua.upcoming_activity_id = ua.id
+	INNER JOIN software_installers si
+		ON si.id = siua.software_installer_id
+WHERE
+	ua.host_id = ? AND
+	ua.execution_id IN (?)
+ORDER BY
+	ua.priority DESC, ua.created_at ASC
+`
+
+	const insSwStmt = `
+INSERT INTO
+	host_software_installs
+(execution_id, host_id, software_installer_id, user_id, uninstall, installer_filename,
+	software_title_id, software_title_name, self_service, version)
+SELECT
+	ua.execution_id,
+	ua.host_id,
+	siua.software_installer_id,
+	ua.user_id,
+	1,  -- uninstall
+	'', -- no installer_filename for uninstalls
+	COALESCE(si.title_id, siua.software_title_id),
+	COALESCE(st.name, ua.payload->>'$.software_title_name', '[deleted title]'),
+	COALESCE(ua.payload->>'$.self_service', FALSE),
+	'unknown'
+FROM
+	upcoming_activities ua
+	INNER JOIN software_install_upcoming_activities siua
+		ON siua.upcoming_activity_id = ua.id
+	LEFT JOIN software_installers si
+		ON si.id = siua.software_installer_id
+	LEFT JOIN software_titles st
+		ON st.id = si.title_id
+WHERE
+	ua.host_id = ? AND
+	ua.execution_id IN (?)
+ORDER BY
+	ua.priority DESC, ua.created_at ASC
+`
+	// sanity-check that there's something to activate
+	if len(execIDs) == 0 {
+		return nil
+	}
+
+	stmt, args, err := sqlx.In(insScriptStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert script to activate software uninstalls")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert script to activate software uninstalls")
+	}
+
+	stmt, args, err = sqlx.In(insSwStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert software to activate software uninstalls")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert software to activate software uninstalls")
+	}
+	return nil
+}
+
+func (ds *Datastore) activateNextVPPAppInstallActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, execIDs []string) error {
+	if len(execIDs) == 0 {
+		return nil
+	}
+
+	const insStmt = `
+INSERT INTO
+	host_vpp_software_installs
+(host_id, adam_id, platform, command_uuid,
+	user_id, associated_event_id, self_service, policy_id, vpp_app_team_id, vpp_token_id)
+SELECT
+	ua.host_id,
+	vaua.adam_id,
+	vaua.platform,
+	ua.execution_id,
+	ua.user_id,
+	ua.payload->>'$.associated_event_id',
+	COALESCE(ua.payload->'$.self_service', 0),
+	vaua.policy_id,
+	vaua.vpp_app_team_id,
+	vaua.vpp_token_id
+FROM
+	upcoming_activities ua
+	INNER JOIN vpp_app_upcoming_activities vaua
+		ON vaua.upcoming_activity_id = ua.id
+WHERE
+	ua.host_id = ? AND
+	ua.execution_id IN (?)
+ORDER BY
+	ua.priority DESC, ua.created_at ASC
+`
+
+	// insert the host vpp app row
+	stmt, args, err := sqlx.In(insStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert to activate vpp apps")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert to activate vpp apps")
+	}
+
+	return ds.nanoEnqueueVPPInstall(ctx, tx, hostID, execIDs)
+}
+
+// activateNextInHouseAppInstallActivity is the single fan-in point for every
+// InstallApplication command AutoMDM sends for an in-house (.ipa) app. All of:
+//
+//   - manual install from host details > software > library (including admin reinstall)
+//   - self-service install
+//
+// land here. Configuration is fetched and per-host $AUTOMDM_VAR_* substitution
+// is performed inside this function so every send path inherits the latest
+// stored config.
+func (ds *Datastore) activateNextInHouseAppInstallActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, execIDs []string) error {
+	const insStmt = `
+INSERT INTO
+	host_in_house_software_installs
+(host_id, in_house_app_id, command_uuid, user_id, platform, self_service)
+SELECT
+	ua.host_id,
+	ihua.in_house_app_id,
+	ua.execution_id,
+	ua.user_id,
+	iha.platform,
+	COALESCE(ua.payload->'$.self_service', 0)
+FROM
+	upcoming_activities ua
+	INNER JOIN in_house_app_upcoming_activities ihua
+		ON ihua.upcoming_activity_id = ua.id
+	INNER JOIN in_house_apps iha
+		ON iha.id = ihua.in_house_app_id
+WHERE
+	ua.host_id = ? AND
+	ua.execution_id IN (?)
+ORDER BY
+	ua.priority DESC, ua.created_at ASC
+`
+
+	// is_user_enrollment must reflect the actual MDM enrollment channel, NOT
+	// host_mdm.is_personal_enrollment: the latter is also set for
+	// manual-profile BYOD, which is device-channel and must install
+	// device-scoped like company-owned manual. Only Account-Driven User
+	// Enrollment (ADUE) is user-scoped, and its primary enrollment row
+	// (id = host UUID) has type 'User Enrollment (Device)' — every other
+	// device-channel enrollment is 'Device'. See #48879.
+	const getHostStmt = `
+SELECT
+	h.uuid,
+	h.team_id,
+	h.platform,
+	h.hardware_serial,
+	COALESCE((
+		SELECT 1 FROM nano_enrollments ne
+		WHERE ne.id = h.uuid AND ne.type = 'User Enrollment (Device)' AND ne.enabled = 1
+		LIMIT 1
+	), 0) AS is_user_enrollment
+FROM
+	hosts h
+WHERE
+	h.id = ?
+`
+
+	const insNanoQueueStmt = `
+INSERT INTO
+	nano_enrollment_queue
+(id, command_uuid, created_at)
+SELECT
+	?,
+	execution_id,
+	-- distinct, forward-dated timestamps: nanomdm orders the queue by
+	-- created_at alone, and one statement's rows would otherwise tie on the
+	-- column default and be served in arbitrary order
+	NOW(6) + INTERVAL ROW_NUMBER() OVER (ORDER BY priority DESC, created_at ASC, id ASC) MICROSECOND
+FROM
+	upcoming_activities
+WHERE
+	host_id = ? AND
+	execution_id IN (?)
+ORDER BY
+	priority DESC, created_at ASC
+`
+
+	// sanity-check that there's something to activate
+	if len(execIDs) == 0 {
+		return nil
+	}
+
+	var hostData struct {
+		UUID             string `db:"uuid"`
+		TeamID           *uint  `db:"team_id"`
+		Platform         string `db:"platform"`
+		HardwareSerial   string `db:"hardware_serial"`
+		IsUserEnrollment bool   `db:"is_user_enrollment"`
+	}
+	if err := sqlx.GetContext(ctx, tx, &hostData, getHostStmt, hostID); err != nil {
+		return ctxerr.Wrap(ctx, err, "get host info for in-house install")
+	}
+
+	// insert the host in-house app row
+	stmt, args, err := sqlx.In(insStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert to activate in-house apps")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert to activate in-house apps")
+	}
+
+	appConfig, err := appConfigDB(ctx, tx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "activate in house app install: get app config")
+	}
+
+	var tid uint
+	if hostData.TeamID != nil {
+		tid = *hostData.TeamID
+	}
+
+	// Pull the (execution_id, in_house_app_id, software_title_id) tuples for
+	// each pending activation so we can build a per-app InstallApplication
+	// command in Go and inject the managed-app-configuration dict.
+	const pendingStmt = `
+SELECT
+	ua.execution_id,
+	ihua.in_house_app_id,
+	ihua.software_title_id
+FROM
+	upcoming_activities ua
+	INNER JOIN in_house_app_upcoming_activities ihua
+		ON ihua.upcoming_activity_id = ua.id
+WHERE
+	ua.host_id = ? AND ua.execution_id IN (?)
+`
+	type ihPending struct {
+		ExecutionID   string `db:"execution_id"`
+		InHouseAppID  uint   `db:"in_house_app_id"`
+		SoftwareTitle uint   `db:"software_title_id"`
+	}
+	stmt, args, err = sqlx.In(pendingStmt, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare pending in-house install lookup")
+	}
+	var pending []ihPending
+	if err := sqlx.SelectContext(ctx, tx, &pending, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "list pending in-house installs")
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+
+	// Bulk-fetch managed configurations for the in-house apps being installed.
+	// In-house Configuration is iOS/iPadOS-only; the builder drops it for
+	// macOS hosts anyway, but in_house_apps are always Apple-mobile so we just
+	// fetch unconditionally.
+	ids := make([]uint, 0, len(pending))
+	for _, p := range pending {
+		ids = append(ids, p.InHouseAppID)
+	}
+	configsByAppID, err := ds.BulkGetInHouseAppConfigurationsTx(ctx, tx, ids)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "bulk get in-house app configurations")
+	}
+
+	// Build the InstallApplication plist for each pending activation, then do
+	// one batch INSERT into nano_commands. Per-host, per-app build also drives
+	// $AUTOMDM_VAR_* substitution against host context.
+	subHost := apple_mdm.AppConfigSubstitutionHost{
+		HostID:         hostID,
+		UUID:           hostData.UUID,
+		HardwareSerial: hostData.HardwareSerial,
+		Platform:       hostData.Platform,
+	}
+	insValues := make([]string, 0, len(pending))
+	insArgs := make([]any, 0, len(pending)*4)
+	for _, p := range pending {
+		// Mint inside this tx so the token rolls back with the nano_commands
+		// row on activation failure.
+		token := uuid.NewString()
+		if err := ds.CreateInHouseAppInstallToken(ctx, tx, token, p.SoftwareTitle, tid, hostID); err != nil {
+			return ctxerr.Wrap(ctx, err, "mint in-house app install token")
+		}
+		// The device fetches this itself, so it has to be the URL Apple devices
+		// reach AutoMDM on, which is a separate hostname when apple_server_url is set.
+		manifestURL := fmt.Sprintf(
+			"%s/api/latest/automdm/software/titles/%d/in_house_app/manifest/%s",
+			appConfig.MDMUrl(), p.SoftwareTitle, token)
+		cfg := configsByAppID[p.InHouseAppID]
+		if len(cfg) > 0 {
+			substituted, err := apple_mdm.SubstituteAutoMDMVarsInAppConfig(ctx, ds, cfg, subHost)
+			if err != nil {
+				return ctxerr.Wrap(ctx, err, "substitute automdm variables in in-house app configuration")
+			}
+			cfg = substituted
+		}
+		cmdBytes := apple_mdm.BuildInstallApplicationCommand(apple_mdm.InstallApplicationParams{
+			CommandUUID:      p.ExecutionID,
+			HostPlatform:     hostData.Platform,
+			ManifestURL:      manifestURL,
+			Configuration:    cfg,
+			IsUserEnrollment: hostData.IsUserEnrollment,
+		})
+		insValues = append(insValues, "(?, 'InstallApplication', ?, ?)")
+		insArgs = append(insArgs, p.ExecutionID, string(cmdBytes), mdm.CommandSubtypeNone)
+	}
+	insCmdStmt := `INSERT INTO nano_commands (command_uuid, request_type, command, subtype) VALUES ` +
+		strings.Join(insValues, ", ")
+	if _, err := tx.ExecContext(ctx, insCmdStmt, insArgs...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert nano commands")
+	}
+
+	// enqueue the nano command in the nano queue
+	stmt, args, err = sqlx.In(insNanoQueueStmt, hostData.UUID, hostID, execIDs)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "prepare insert nano queue")
+	}
+	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
+		return ctxerr.Wrap(ctx, err, "insert nano queue")
+	}
+
+	if ds.pusher == nil {
+		return nil
+	}
+
+	switch v := tx.(type) {
+	case common_mysql.WrappedExtContext:
+		v.AddOnCommitHook(func() {
+			if _, err := ds.pusher.Push(ctx, []string{hostData.UUID}); err != nil {
+				ds.logger.ErrorContext(ctx, "failed to send push notification", "err", err, "hostID", hostID, "hostUUID", hostData.UUID)
+			}
+		})
+	case *sqlx.DB:
+		// We are not in a transaction but rather just auto-commit mode, fire the push immediately.
+		if _, err := ds.pusher.Push(ctx, []string{hostData.UUID}); err != nil {
+			ds.logger.ErrorContext(ctx, "failed to send push notification", "err", err, "hostID", hostID, "hostUUID", hostData.UUID)
+		}
+	}
+
+	return nil
+}
+
+// policyAutomationCols is the common SELECT column list for all UNION branches.
+// All branches must project the same columns in the same order.
+const policyAutomationCols = `
+    ap.id,
+    ap.created_at,
+    ap.activity_type,
+    ap.automdm_initiated,
+    ap.details,
+    ahp.host_id,
+    COALESCE(hdn.display_name, '') AS host_display_name`
+
+// policyAutomationHostJoin is the JOIN from activity_past to hosts, shared
+// across all branches. The hosts table is included so whereFilterHostsByTeams
+// can filter by h.team_id.
+const policyAutomationHostJoin = `
+    JOIN  activity_host_past  ahp ON ahp.activity_id = ap.id
+    JOIN  hosts               h   ON h.id            = ahp.host_id
+    LEFT JOIN host_display_names hdn ON hdn.host_id  = ahp.host_id`
+
+// statusOutputCols renders the trailing status/output columns that every UNION
+// branch must project after policyAutomationCols. Modeling it as a struct
+// (rather than a raw SQL fragment) makes the positional contract that UNION ALL
+// relies on impossible to break by hand: the columns are always present, always
+// aliased, and always in this order, so no branch can silently reorder or drop
+// one. All fields are SQL expressions. status and output are required; an empty
+// preInstallOutput/postInstallOutput is projected as NULL (only the
+// installed_software branch surfaces those).
+type statusOutputCols struct {
+	status            string
+	output            string
+	preInstallOutput  string
+	postInstallOutput string
+}
+
+func (c statusOutputCols) sql() string {
+	pre, post := c.preInstallOutput, c.postInstallOutput
+	if pre == "" {
+		pre = "NULL"
+	}
+	if post == "" {
+		post = "NULL"
+	}
+	return fmt.Sprintf("%s AS status, %s AS output, %s AS pre_install_output, %s AS post_install_output",
+		c.status, c.output, pre, post)
+}
+
+// policyAutomationNamedStatusCols projects the status/output pair for the named
+// automation branch. Named activities encode their outcome in the type name —
+// every error type is prefixed "failed_" — and carry no script or install
+// output, so output is NULL.
+var policyAutomationNamedStatusCols = statusOutputCols{
+	status: `IF(ap.activity_type LIKE 'failed\_%', 'error', 'success')`,
+	output: "NULL",
+}
+
+// policyAutomationTaskBranch describes a UNION branch whose link to the policy
+// and whose success/failure state both live in a task result table (scripts,
+// in-house installs, VPP installs) rather than in the activity_past.details column.
+type policyAutomationTaskBranch struct {
+	// activityType is the activity_past.activity_type this branch matches.
+	activityType string
+	// joins are the additional JOINs binding the result table to the policy.
+	// They contain exactly one placeholder, for the policy ID.
+	joins string
+	// errorCond and successCond are the WHERE fragments selecting failed and
+	// successful tasks respectively. They are wrapped in parentheses when
+	// applied, so internal OR/AND precedence is preserved. Together they must
+	// partition the rows the branch surfaces: every row is matched by exactly one
+	// of them, and that must agree with statusCols.
+	errorCond   string
+	successCond string
+	// statusCols projects the status/output pair for this branch. The
+	// statusOutputCols type guarantees the columns and their order stay in sync
+	// with every other branch.
+	statusCols statusOutputCols
+	// policyCond is the WHERE fragment matching the policy, with one placeholder for the policy ID.
+	policyCond string
+	// countedInRunCounts is set for activity types whose total comes from host_policy_automation_run_counts instead of
+	// counting the branch's rows.
+	countedInRunCounts bool
+}
+
+// policyAutomationTaskBranches are the non-named-automation sources of policy
+// activities: their rows are joined to the policy through a result table's
+// policy_id column rather than through activity_past.details.policy_id.
+var policyAutomationTaskBranches = []policyAutomationTaskBranch{
+	{
+		activityType:       "ran_script",
+		policyCond:         "ap.policy_id = ?",
+		countedInRunCounts: true,
+		joins: `
+            INNER JOIN host_script_results hsr
+                ON  hsr.host_id      = ahp.host_id
+                AND hsr.execution_id = ap.details->>'$.script_execution_id'
+                AND hsr.policy_id    = ?`,
+		errorCond:   "hsr.exit_code IS NOT NULL AND hsr.exit_code != 0",
+		successCond: "hsr.exit_code = 0",
+		statusCols: statusOutputCols{
+			status: "IF(hsr.exit_code = 0, 'success', 'error')",
+			output: "hsr.output",
+		},
+	},
+	{
+		activityType:       "installed_software",
+		policyCond:         "ap.policy_id = ?",
+		countedInRunCounts: true,
+		joins: `
+            INNER JOIN host_software_installs hsi
+                ON  hsi.host_id      = ahp.host_id
+                AND hsi.execution_id = ap.details->>'$.install_uuid'
+                AND hsi.policy_id    = ?`,
+		// Outcome comes from the recorded details.status (a historical snapshot),
+		// not the live host_software_installs status, which goes NULL once the row
+		// is removed. The activity is only written for a terminal install (see
+		// svc.NewActivity in orbit.go, gated on status != pending_install), and
+		// details.status has been recorded since the activity type was introduced,
+		// so in practice the only values are 'installed' and 'failed_install'.
+		// 'failed_install' is treated as the sole failure and anything else (an
+		// unexpected or empty status) as success, so errorCond and successCond are
+		// null-safe complements that exactly partition what statusCols reports.
+		errorCond:   "ap.details->>'$.status' = 'failed_install'",
+		successCond: "NOT (ap.details->>'$.status' <=> 'failed_install')",
+		// A software install can fail at the pre-install query, install script, or
+		// post-install script stage, so surface all three outputs; the modal shows
+		// them as separate sections.
+		statusCols: statusOutputCols{
+			status:            "IF(ap.details->>'$.status' = 'failed_install', 'error', 'success')",
+			output:            "hsi.install_script_output",
+			preInstallOutput:  "hsi.pre_install_query_output",
+			postInstallOutput: "hsi.post_install_script_output",
+		},
+	},
+	{
+		activityType:       "installed_app_store_app",
+		policyCond:         "ap.policy_id = ?",
+		countedInRunCounts: true,
+		joins: `
+            INNER JOIN host_vpp_software_installs hvsi
+                ON  hvsi.host_id      = ahp.host_id
+                AND hvsi.command_uuid = ap.details->>'$.command_uuid'
+                AND hvsi.policy_id    = ?`,
+		// Like installed_software, a VPP activity is only written in a terminal
+		// state — either on a command error (apple_mdm.go) or once the install is
+		// verified/timed out (setStatusForExpectedInstall in
+		// apple_mdm_cmd_results.go) — recording the outcome in details.status. Read
+		// that historical snapshot rather than the live hvsi.verification_* columns,
+		// which mutate over the install's lifetime and go NULL when the row is
+		// removed. 'failed_install' is the sole failure; everything else is a
+		// success. error and success conditions are null-safe complements that
+		// exactly partition what statusCols reports.
+		errorCond:   "ap.details->>'$.status' = 'failed_install'",
+		successCond: "NOT (ap.details->>'$.status' <=> 'failed_install')",
+		// VPP apps are installed via MDM command, not a script, so there is no
+		// script output to surface.
+		statusCols: statusOutputCols{
+			status: "IF(ap.details->>'$.status' = 'failed_install', 'error', 'success')",
+			output: "NULL",
+		},
+	},
+	{
+		activityType: "notified_end_user_before_patching",
+		joins: `
+            INNER JOIN patch_notification_apps pna
+                ON  pna.notification_uuid = ap.details->>'$.patch_notification_uuid'
+                AND pna.policy_id         = ?`,
+		// Skip reading the patch notification activities of every policy when this policy has no patch notifications.
+		// NO_SEMIJOIN keeps MySQL from joining it per activity row, so the check runs once before any row is read.
+		policyCond:  "EXISTS (SELECT /*+ NO_SEMIJOIN() */ 1 FROM patch_notification_apps WHERE policy_id = ?)",
+		errorCond:   "ap.details->>'$.status' = 'failed'",
+		successCond: "NOT (ap.details->>'$.status' <=> 'failed')",
+		statusCols: statusOutputCols{
+			status: "IF(ap.details->>'$.status' = 'failed', 'error', 'success')",
+			output: "NULL",
+		},
+	},
+}
+
+// policyAutomationRunCountsSQL sums a policy's script, software install and VPP install runs from
+// host_policy_automation_run_counts. The first %s picks the summed columns and the second is the team filter on h.
+const policyAutomationRunCountsSQL = `SELECT COALESCE(SUM(%s), 0) FROM host_policy_automation_run_counts c
+    JOIN hosts h ON h.id = c.host_id
+    WHERE c.policy_id = ? AND %s`
+
+// policyAutomationBranch is a single UNION ALL branch: a complete SELECT (minus
+// the optional host-name filter) together with its bound arguments.
+type policyAutomationBranch struct {
+	sql  string
+	args []any
+	// countRows is set when the total counts the branch's rows.
+	countRows bool
+}
+
+// buildPolicyAutomationBranches assembles every UNION branch contributing to
+// the policy automation activity feed, filtered by status ("error", "success",
+// or "" for both) and scoped to the hosts visible to the viewer via filter.
+func buildPolicyAutomationBranches(ds *Datastore, policyID uint, filter automdm.TeamFilter, status string) ([]policyAutomationBranch, error) {
+	teamFilterSQL := ds.whereFilterHostsByTeams(filter, "h")
+	// Named automation activities (webhook/ticket/calendar/CA) are selected by
+	// activity_type and linked to the policy through activity_past.policy_id. The
+	// status filter chooses which set of types to match.
+	namedTypes := policyAutomationActivityTypes
+	switch status {
+	case "error":
+		namedTypes = policyAutomationErrorActivityTypes
+	case "success":
+		namedTypes = policyAutomationSuccessActivityTypes
+	}
+	namedSQL, namedArgs, err := sqlx.In(fmt.Sprintf(`SELECT %s, %s FROM activity_past ap %s
+        WHERE ap.activity_type IN (?)
+          AND ap.policy_id = ?
+          AND %s`, policyAutomationCols, policyAutomationNamedStatusCols.sql(), policyAutomationHostJoin, teamFilterSQL), namedTypes, policyID)
+	if err != nil {
+		return nil, err
+	}
+	branches := []policyAutomationBranch{{sql: namedSQL, args: namedArgs, countRows: true}}
+
+	// Task activities are linked to the policy through a result table; their
+	// success/failure condition is appended based on the requested status.
+	for _, b := range policyAutomationTaskBranches {
+		// The policy_id placeholder lives in the joins (before WHERE), so it is
+		// bound before the activity_type placeholder.
+		sql := fmt.Sprintf("SELECT %s, %s FROM activity_past ap %s %s WHERE ap.activity_type = ? AND %s",
+			policyAutomationCols, b.statusCols.sql(), policyAutomationHostJoin, b.joins, teamFilterSQL)
+		sql += " AND " + b.policyCond
+		args := []any{policyID, b.activityType, policyID}
+		switch status {
+		case "error":
+			sql += " AND (" + b.errorCond + ")"
+		case "success":
+			sql += " AND (" + b.successCond + ")"
+		}
+		branches = append(branches, policyAutomationBranch{sql: sql, args: args, countRows: !b.countedInRunCounts})
+	}
+	return branches, nil
+}
+
+// ListPolicyAutomationActivities returns automation activities for the given
+// policy. Each row is one (activity, host) pair. The result set combines four
+// branches via UNION ALL:
+//  1. Named policy automation activities (webhook/ticket/calendar/CA), linked
+//     via details.policy_id.
+//  2. Script-run activities (ran_script), linked via host_script_results.
+//  3. In-house software-install activities (installed_software), linked via
+//     host_software_installs.
+//  4. VPP software-install activities (installed_app_store_app), linked via
+//     host_vpp_software_installs.
+func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyID uint, filter automdm.TeamFilter, opts automdm.ListOptions, status string) ([]*automdm.PolicyAutomationActivity, *automdm.PaginationMetadata, error) {
+	branches, err := buildPolicyAutomationBranches(ds, policyID, filter, status)
+	if err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "build policy automation branches")
+	}
+
+	// Apply the optional host-name filter (shared by every branch) and collect
+	// each branch's SQL and args in order.
+	parts := make([]string, 0, len(branches))
+	var allArgs []any
+	var countParts []string
+	var countArgs []any
+	var likeArg string
+	if opts.MatchQuery != "" {
+		// Escape LIKE wildcards so host names containing '_' or '%' match literally.
+		escaped := strings.ReplaceAll(opts.MatchQuery, "_", "\\_")
+		escaped = strings.ReplaceAll(escaped, "%", "\\%")
+		likeArg = escaped + "%"
+	}
+	// Break activity type ties by created_at in the opposite direction, which the policy_id, activity_type, created_at DESC
+	// index reads in order both ways.
+	if opts.OrderKey == "activity_type" {
+		opts.TestSecondaryOrderKey = "created_at"
+		opts.TestSecondaryOrderDirection = automdm.OrderDescending
+		if opts.OrderDirection == automdm.OrderDescending {
+			opts.TestSecondaryOrderDirection = automdm.OrderAscending
+		}
+	}
+	// Sort and cut each branch to the rows up to the end of the requested page, so a branch reads only those rows from the
+	// index instead of the policy's whole history. Skip it for cursor pagination, which filters after the cut.
+	var branchOrderAndLimit string
+	branchOrderColumn, orderKeyAllowed := policyAutomationActivityBranchOrderKeys[opts.OrderKey]
+	if orderKeyAllowed && opts.After == "" {
+		perPage := opts.PerPage
+		if perPage == 0 {
+			perPage = automdm.DefaultPerPage
+		}
+		direction := "ASC"
+		if opts.OrderDirection == automdm.OrderDescending {
+			direction = "DESC"
+		}
+		branchOrder := branchOrderColumn + " " + direction
+		secondaryOrderColumn, secondaryOrderKeyAllowed := policyAutomationActivityBranchOrderKeys[opts.TestSecondaryOrderKey]
+		if secondaryOrderKeyAllowed {
+			secondaryDirection := "ASC"
+			if opts.TestSecondaryOrderDirection == automdm.OrderDescending {
+				secondaryDirection = "DESC"
+			}
+			branchOrder += ", " + secondaryOrderColumn + " " + secondaryDirection
+		}
+		branchOrderAndLimit = fmt.Sprintf(" ORDER BY %s LIMIT %d", branchOrder, (opts.Page+1)*perPage+1)
+	}
+
+	for _, b := range branches {
+		sql, args := b.sql, b.args
+		if opts.MatchQuery != "" {
+			sql += " AND hdn.display_name LIKE ?"
+			args = append(args, likeArg)
+		}
+		parts = append(parts, "("+sql+branchOrderAndLimit+")")
+		allArgs = append(allArgs, args...)
+
+		if b.countRows {
+			countParts = append(countParts, "("+sql+")")
+			countArgs = append(countArgs, args...)
+		}
+	}
+
+	runCountColumns := "c.success_count + c.fail_count"
+	switch status {
+	case "error":
+		runCountColumns = "c.fail_count"
+	case "success":
+		runCountColumns = "c.success_count"
+	}
+	runCountSQL := fmt.Sprintf(policyAutomationRunCountsSQL, runCountColumns, ds.whereFilterHostsByTeams(filter, "h"))
+	countArgs = append(countArgs, policyID)
+	if opts.MatchQuery != "" {
+		runCountSQL += " AND c.host_id IN (SELECT host_id FROM host_display_names WHERE display_name LIKE ?)"
+		countArgs = append(countArgs, likeArg)
+	}
+
+	// Wrap the UNION in a subquery so ORDER BY / cursor pagination apply to the
+	// combined result set rather than to any single branch.
+	unionCore := strings.Join(parts, " UNION ALL ")
+	listSQL := fmt.Sprintf("SELECT * FROM (%s) AS t", unionCore)
+	countSQL := fmt.Sprintf("SELECT (SELECT COUNT(*) FROM (%s) AS t_cnt) + (%s)", strings.Join(countParts, " UNION ALL "), runCountSQL)
+
+	listSQL, listArgs, err := appendListOptionsWithCursorToSQLSecure(listSQL, allArgs, &opts, policyAutomationActivityAllowedOrderKeys)
+	if err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "apply list options")
+	}
+
+	activities := []*automdm.PolicyAutomationActivity{}
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &activities, listSQL, listArgs...); err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "select policy automation activities")
+	}
+
+	var meta *automdm.PaginationMetadata
+	if opts.IncludeMetadata {
+		var count uint
+		if err := sqlx.GetContext(ctx, ds.reader(ctx), &count, countSQL, countArgs...); err != nil {
+			return nil, nil, ctxerr.Wrap(ctx, err, "count policy automation activities")
+		}
+		meta = &automdm.PaginationMetadata{
+			HasPreviousResults: opts.Page > 0,
+			TotalResults:       count,
+		}
+		if len(activities) > int(opts.PerPage) { //nolint:gosec // G115: bounded by maxPolicyAutomationActivitiesPerPage
+			meta.HasNextResults = true
+			activities = activities[:len(activities)-1]
+		}
+	}
+
+	return activities, meta, nil
+}
+
+func (ds *Datastore) IncrementHostPolicyAutomationRunCount(ctx context.Context, policyID uint, hostID uint, activity automdm.ActivityDetails, succeeded bool) error {
+	return incrementHostPolicyAutomationRunCountDB(ctx, ds.writer(ctx), policyID, hostID, activity, succeeded)
+}
+
+func incrementHostPolicyAutomationRunCountDB(ctx context.Context, tx sqlx.ExecerContext, policyID uint, hostID uint, activity automdm.ActivityDetails, succeeded bool) error {
+	const stmt = `
+		INSERT INTO host_policy_automation_run_counts (policy_id, activity_type, host_id, success_count, fail_count)
+		VALUES (?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			success_count = success_count + VALUES(success_count),
+			fail_count = fail_count + VALUES(fail_count)`
+	_, err := tx.ExecContext(ctx, stmt, policyID, activity.ActivityName(), hostID, succeeded, !succeeded)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "increment host policy automation run count")
+	}
+	return nil
+}
+
+func decrementHostPolicyAutomationRunCountsDB(
+	ctx context.Context,
+	tx sqlx.ExecerContext,
+	activity automdm.ActivityDetails,
+	ids []uint,
+	olderThan time.Time,
+) error {
+	const scriptRunCountsStmt = `
+SELECT ` + deletableHostScriptResultHints + `
+	hsr.policy_id,
+	hsr.host_id,
+	SUM(hsr.exit_code = 0) AS success_count,
+	SUM(hsr.exit_code != 0) AS fail_count
+FROM host_script_results hsr
+WHERE hsr.id IN (?)
+	AND hsr.policy_id IS NOT NULL
+	AND hsr.exit_code IS NOT NULL
+	AND hsr.canceled = 0
+	AND ` + deletableHostScriptResultPredicate + `
+GROUP BY hsr.policy_id, hsr.host_id`
+
+	const installRunCountsStmt = `
+SELECT
+	hsi.policy_id,
+	hsi.host_id,
+	SUM(hsi.execution_status = 'installed') AS success_count,
+	SUM(hsi.execution_status = 'failed_install') AS fail_count
+FROM host_software_installs hsi
+WHERE hsi.id IN (?)
+	AND hsi.policy_id IS NOT NULL
+	AND hsi.execution_status IN ('installed', 'failed_install')
+	AND ` + deletableHostSoftwareInstallPredicate + `
+	AND (` + unreadHostSoftwareInstall + `
+		OR EXISTS (SELECT 1 FROM host_software_installs newer WHERE ` + supersededHostSoftwareInstall + `))
+GROUP BY hsi.policy_id, hsi.host_id`
+
+	var runCountsStmt string
+	switch activity.(type) {
+	case automdm.ActivityTypeRanScript:
+		runCountsStmt = scriptRunCountsStmt
+	case automdm.ActivityTypeInstalledSoftware:
+		runCountsStmt = installRunCountsStmt
+	default:
+		return ctxerr.Errorf(ctx, "decrement host policy automation run counts: unsupported activity %s", activity.ActivityName())
+	}
+
+	decrementStmt := `
+UPDATE host_policy_automation_run_counts c
+JOIN (` + runCountsStmt + `) d
+	ON c.policy_id = d.policy_id
+	AND c.host_id = d.host_id
+	AND c.activity_type = ?
+SET
+	c.success_count = c.success_count - LEAST(c.success_count, d.success_count),
+	c.fail_count = c.fail_count - LEAST(c.fail_count, d.fail_count)`
+	stmt, args, err := sqlx.In(decrementStmt, ids, olderThan, olderThan, activity.ActivityName())
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "build decrement host policy automation run counts")
+	}
+	_, err = tx.ExecContext(ctx, stmt, args...)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "decrement host policy automation run counts")
+	}
+	return nil
+}

@@ -1,0 +1,10 @@
+.mdm-settings {
+  @include vertical-card-layout;
+  // Room for toasts, which otherwise cover the last section when the page is
+  // scrolled to the bottom.
+  padding-bottom: $pad-large;
+
+  .disabled-by-gitops-mode {
+    @include disabled;
+  }
+}

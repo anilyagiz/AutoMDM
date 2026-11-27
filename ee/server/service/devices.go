@@ -1,0 +1,651 @@
+package service
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/sso"
+)
+
+func (svc *Service) ListDevicePolicies(ctx context.Context, host *automdm.Host, includeHidden bool) ([]*automdm.DevicePolicy, error) {
+	policies, err := svc.ds.ListPoliciesForHost(ctx, host)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "list policies for host")
+	}
+	if !includeHidden {
+		policies = slices.DeleteFunc(policies, func(p *automdm.HostPolicy) bool { return p.Hidden })
+	}
+	// return the device-safe representation of the policies, which excludes
+	// the policy author's identity and the raw SQL query.
+	return automdm.HostPoliciesToDevicePolicies(policies), nil
+}
+
+// TriggerMigrateMDMDevice triggers the webhook associated with the MDM
+// migration to AutoMDM configuration. It is located in the ee package instead of
+// the server/webhooks one because it is an AutoMDM Premium only feature and for
+// licensing reasons this needs to live under this package.
+func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *automdm.Host) error {
+	svc.logger.DebugContext(ctx, "trigger migration webhook", "host_id", host.ID,
+		"refetch_critical_queries_until", host.RefetchCriticalQueriesUntil)
+
+	ac, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if !ac.MDM.EnabledAndConfigured {
+		return automdm.ErrMDMNotConfigured
+	}
+
+	if host.RefetchCriticalQueriesUntil != nil && host.RefetchCriticalQueriesUntil.After(svc.clock.Now()) {
+		// the webhook has already been triggered successfully recently (within the
+		// refetch critical queries delay), so return as if it did send it successfully
+		// but do not re-send.
+		svc.logger.DebugContext(ctx, "waiting for critical queries refetch, skip sending webhook",
+			"host_id", host.ID)
+		return nil
+	}
+
+	connected, err := svc.ds.IsHostConnectedToAutoMDMMDM(ctx, host)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking if host is connected to AutoMDM")
+	}
+
+	var bre automdm.BadRequestError
+	switch {
+	case !ac.MDM.MacOSMigration.Enable:
+		bre.InternalErr = ctxerr.New(ctx, "macOS migration not enabled")
+	case ac.MDM.MacOSMigration.WebhookURL == "":
+		bre.InternalErr = ctxerr.New(ctx, "macOS migration webhook URL not configured")
+	}
+
+	mdmInfo, err := svc.ds.GetHostMDM(ctx, host.ID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "fetching host mdm info")
+	}
+
+	manualMigrationEligible, err := automdm.IsEligibleForManualMigration(host, mdmInfo, connected)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking manual migration eligibility")
+	}
+
+	if !automdm.IsEligibleForDEPMigration(host, mdmInfo, connected) && !manualMigrationEligible {
+		bre.InternalErr = ctxerr.New(ctx, "host not eligible for macOS migration")
+	}
+
+	if bre.InternalErr != nil {
+		return &bre
+	}
+
+	p := automdm.MigrateMDMDeviceWebhookPayload{}
+	p.Timestamp = time.Now().UTC()
+	p.Host.ID = host.ID
+	p.Host.UUID = host.UUID
+	p.Host.HardwareSerial = host.HardwareSerial
+
+	if err := server.PostJSONWithTimeout(ctx, ac.MDM.MacOSMigration.WebhookURL, p, svc.logger); err != nil {
+		return ctxerr.Wrap(ctx, err, "posting macOS migration webhook")
+	}
+
+	// if the webhook was successfully triggered, we update the host to
+	// constantly run the query to check if it has been unenrolled from its
+	// existing third-party MDM.
+	refetchUntil := svc.clock.Now().Add(automdm.RefetchMDMUnenrollCriticalQueryDuration)
+	host.RefetchCriticalQueriesUntil = &refetchUntil
+	if err := svc.ds.UpdateHostRefetchCriticalQueriesUntil(ctx, host.ID, &refetchUntil); err != nil {
+		return ctxerr.Wrap(ctx, err, "save host with refetch critical queries timestamp")
+	}
+
+	return nil
+}
+
+func (svc *Service) BypassConditionalAccess(ctx context.Context, host *automdm.Host) error {
+	// this is not a user-authenticated endpoint
+	svc.authz.SkipAuthorization(ctx)
+
+	// iOS/iPadOS devices authenticate by UUID in the URL and don't participate in
+	// conditional access policies, so they can't bypass it.
+	if svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceURL) {
+		return automdm.NewUserMessageError(errors.New("conditional access bypass is not supported on this device"), http.StatusForbidden)
+	}
+
+	ac, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "getting device config")
+	}
+
+	if ac.ConditionalAccess != nil && !ac.ConditionalAccess.BypassEnabled() {
+		return automdm.NewUserMessageError(errors.New("conditional access bypass disabled"), http.StatusForbidden)
+	}
+
+	if err := svc.ds.ConditionalAccessBypassDevice(ctx, host.ID); err != nil {
+		return ctxerr.Wrap(ctx, err, "setting conditional access bypass")
+	}
+
+	idpFullName, err := automdm.GetEndUserIdpFullName(ctx, svc.ds, host.ID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "getting end users for bypass activity")
+	}
+
+	if idpFullName == "" {
+		idpFullName = "An end user"
+	}
+
+	if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeHostBypassedConditionalAccess{
+		HostID:          host.ID,
+		HostDisplayName: host.DisplayName(),
+		IdPFullName:     idpFullName,
+	}); err != nil {
+		return ctxerr.Wrap(ctx, err, "creating host bypass activity")
+	}
+
+	return nil
+}
+
+func (svc *Service) GetAutoMDMDesktopSummary(ctx context.Context) (automdm.DesktopSummary, error) {
+	// this is not a user-authenticated endpoint
+	svc.authz.SkipAuthorization(ctx)
+
+	var sum automdm.DesktopSummary
+
+	host, ok := hostctx.FromContext(ctx)
+
+	if !ok {
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+		return sum, err
+	}
+
+	hasSelfService, err := svc.ds.HasSelfServiceSoftwareInstallers(ctx, host.Platform, host.TeamID)
+	if err != nil {
+		return sum, ctxerr.Wrap(ctx, err, "retrieving self service software installers")
+	}
+	sum.SelfService = &hasSelfService
+
+	total, unhidden, err := svc.ds.FailingPoliciesCount(ctx, host)
+	if err != nil {
+		return sum, ctxerr.Wrap(ctx, err, "retrieving failing policies")
+	}
+	sum.FailingPolicies = &total
+	sum.FailingUnhiddenPolicies = &unhidden
+
+	appCfg, err := svc.AppConfigObfuscated(ctx)
+	if err != nil {
+		return sum, ctxerr.Wrap(ctx, err, "retrieving app config")
+	}
+
+	if appCfg.MDM.EnabledAndConfigured && appCfg.MDM.MacOSMigration.Enable {
+		connected, err := svc.ds.IsHostConnectedToAutoMDMMDM(ctx, host)
+		if err != nil {
+			return sum, ctxerr.Wrap(ctx, err, "checking if host is connected to AutoMDM")
+		}
+
+		mdmInfo, err := svc.ds.GetHostMDM(ctx, host.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return sum, ctxerr.Wrap(ctx, err, "could not retrieve mdm info")
+		}
+
+		needsDEPEnrollment := mdmInfo != nil && !mdmInfo.Enrolled && host.IsDEPAssignedToAutoMDM()
+
+		if needsDEPEnrollment {
+			sum.Notifications.RenewEnrollmentProfile = true
+		}
+
+		manualMigrationEligible, err := automdm.IsEligibleForManualMigration(host, mdmInfo, connected)
+		if err != nil {
+			return sum, ctxerr.Wrap(ctx, err, "checking manual migration eligibility")
+		}
+
+		if automdm.IsEligibleForDEPMigration(host, mdmInfo, connected) || manualMigrationEligible {
+			sum.Notifications.NeedsMDMMigration = true
+		}
+
+	}
+
+	// AutoMDM Desktop prompts the end user to create a BitLocker startup PIN, but only when this host's automdmd can
+	// actually apply one.
+	if host.AutoMDMPlatform() == "windows" {
+		needsPIN, err := svc.hostNeedsBitLockerPINPrompt(ctx, host, appCfg)
+		if err != nil {
+			return sum, ctxerr.Wrap(ctx, err, "checking whether to prompt for a bitlocker pin")
+		}
+		sum.Notifications.NeedsBitLockerPIN = needsPIN
+	}
+
+	// organization information
+	sum.Config.OrgInfo.OrgName = appCfg.OrgInfo.OrgName
+	sum.Config.OrgInfo.OrgLogoURLDarkMode = appCfg.OrgInfo.OrgLogoURLDarkMode
+	sum.Config.OrgInfo.OrgLogoURLLightMode = appCfg.OrgInfo.OrgLogoURLLightMode
+	sum.Config.OrgInfo.ContactURL = appCfg.OrgInfo.ContactURL
+
+	// mdm information
+	sum.Config.MDM.MacOSMigration.Mode = appCfg.MDM.MacOSMigration.Mode
+
+	sum.AlternativeBrowserHost = appCfg.AutoMDMDesktop.AlternativeBrowserHost
+
+	return sum, nil
+}
+
+// hostNeedsBitLockerPINPrompt reports whether AutoMDM Desktop should prompt this Windows host's end user to create a
+// BitLocker startup PIN.
+func (svc *Service) hostNeedsBitLockerPINPrompt(ctx context.Context, host *automdm.Host, appCfg *automdm.AppConfig) (bool, error) {
+	cfg := appCfg.MDM.DiskEncryptionConfig()
+	if host.TeamID != nil && *host.TeamID > 0 {
+		teamMDM, err := svc.ds.TeamMDMConfig(ctx, *host.TeamID)
+		if err != nil {
+			return false, ctxerr.Wrap(ctx, err, "get team mdm config for bitlocker pin prompt")
+		}
+		cfg = teamMDM.DiskEncryptionConfig()
+	}
+	if !cfg.WindowsEnabled || !cfg.BitLockerPINRequired || host.TPMPINSet {
+		return false, nil
+	}
+
+	agent, err := svc.bitLockerPINAgent(ctx, host)
+	if err != nil || agent != bitLockerPINAgentCapable {
+		return false, err
+	}
+
+	diskEncryption, err := svc.ds.GetMDMWindowsBitLockerStatus(ctx, host)
+	if err != nil {
+		return false, ctxerr.Wrap(ctx, err, "get bitlocker status for pin prompt")
+	}
+	return diskEncryption.NeedsBitLockerPIN(), nil
+}
+
+func (svc *Service) TriggerLinuxDiskEncryptionEscrow(ctx context.Context, host *automdm.Host) error {
+	escrow, err := svc.ds.GetHostEscrowState(ctx, host.ID)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "getting linux escrow state")
+	}
+	// queued but not yet picked up by automdmd, so a prompt is still on its way
+	if escrow.Pending {
+		return nil
+	}
+	// automdmd is still prompting for the previous request; queueing again would prompt twice.
+	if remaining := escrow.InFlightRemaining(automdm.LinuxEscrowInFlightWindow); remaining > 0 {
+		return &automdm.LinuxEscrowInFlightError{RetryAfterSeconds: int(math.Ceil(remaining.Seconds()))}
+	}
+
+	if err := svc.ds.AssertHasNoEncryptionKeyStored(ctx, host.ID); err != nil {
+		return err
+	}
+
+	if err := svc.validateReadyForLinuxEscrow(ctx, host); err != nil {
+		_ = svc.ds.ReportEscrowError(ctx, host.ID, err.Error())
+		return err
+	}
+
+	return svc.ds.QueueEscrow(ctx, host.ID)
+}
+
+func (svc *Service) validateReadyForLinuxEscrow(ctx context.Context, host *automdm.Host) error {
+	if !host.IsLUKSSupported() {
+		return &automdm.BadRequestError{Message: "AutoMDM does not yet support creating LUKS disk encryption keys on this platform."}
+	}
+
+	ac, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return err
+	}
+
+	if host.TeamID == nil {
+		if !ac.MDM.LinuxSettings.EnableEscrowDiskEncryptionKey.Value {
+			return &automdm.BadRequestError{Message: "Disk encryption is not enabled for hosts not assigned to a team."}
+		}
+	} else {
+		tc, err := svc.ds.TeamMDMConfig(ctx, *host.TeamID)
+		if err != nil {
+			return err
+		}
+		if !tc.DiskEncryptionConfig().LinuxEscrowEnabled {
+			return &automdm.BadRequestError{Message: "Disk encryption is not enabled for this host's team."}
+		}
+	}
+
+	if host.DiskEncryptionEnabled == nil || !*host.DiskEncryptionEnabled {
+		return &automdm.BadRequestError{Message: "Host's disk is not encrypted. Please encrypt your disk first."}
+	}
+
+	// We have to pull Orbit info because the auth context doesn't fill in host.OrbitVersion
+	orbitInfo, err := svc.ds.GetHostOrbitInfo(ctx, host.ID)
+	if err != nil {
+		return err
+	}
+
+	minOrbitVersion := automdm.MinOrbitLUKSVersion
+	if host.Platform == "omarchy" {
+		minOrbitVersion = automdm.MinOrbitOmarchyLUKSVersion
+	}
+	if orbitInfo == nil || !automdm.IsAtLeastVersion(orbitInfo.Version, minOrbitVersion) {
+		return &automdm.BadRequestError{Message: "Your version of automdmd does not support creating disk encryption keys on Linux. Please upgrade automdmd, then click Refetch, then try again."}
+	}
+
+	return nil
+}
+
+func (svc *Service) GetDeviceSoftwareIconsTitleIcon(ctx context.Context, teamID uint, titleID uint) ([]byte, int64, string, error) {
+	// can't call the already made GetSoftwareTitleIcon(ctx, teamID, titleID) method
+	// because svc is the concrete open source service implementation despite it being in the ee/directory
+	var err error
+
+	icon, err := svc.ds.GetSoftwareTitleIcon(ctx, teamID, titleID)
+	if err != nil && !automdm.IsNotFound(err) {
+		return nil, 0, "", ctxerr.Wrap(ctx, err, "getting software title icon")
+	}
+	if icon == nil {
+		vppApp, err := svc.ds.GetVPPAppMetadataByTeamAndTitleID(ctx, &teamID, titleID)
+		if vppApp != nil && vppApp.IconURL != nil {
+			return nil, 0, "", &automdm.VPPIconAvailable{IconURL: *vppApp.IconURL}
+		}
+
+		return nil, 0, "", ctxerr.Wrap(ctx, err, "getting software title icon")
+	}
+
+	iconData, size, err := svc.softwareTitleIconStore.Get(ctx, icon.StorageID)
+	if err != nil {
+		return nil, 0, "", ctxerr.Wrap(ctx, err, "getting software title icon data")
+	}
+	defer iconData.Close()
+	imageBytes, err := io.ReadAll(iconData)
+	if err != nil {
+		return nil, 0, "", ctxerr.Wrap(ctx, err, "reading icon data")
+	}
+
+	return imageBytes, size, icon.Filename, nil
+}
+
+func (svc *Service) GetDeviceSetupExperienceStatus(ctx context.Context) (*automdm.DeviceSetupExperienceStatusPayload, error) {
+	// This is a device endpoint, not a user-authenticated endpoint.
+	svc.authz.SkipAuthorization(ctx)
+
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		return nil, ctxerr.New(ctx, "internal error: missing host from request context")
+	}
+
+	return svc.getHostSetupExperienceStatus(ctx, host)
+}
+
+func (svc *Service) getHostSetupExperienceStatus(ctx context.Context, host *automdm.Host) (*automdm.DeviceSetupExperienceStatusPayload, error) {
+	hostUUID, err := automdm.HostUUIDForSetupExperience(host)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "failed to get host's UUID for the setup experience")
+	}
+
+	// Get current status of the setup experience.
+	results, err := svc.ds.ListSetupExperienceResultsByHostUUID(ctx, hostUUID, ptr.ValOrZero(host.TeamID))
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "listing setup experience results")
+	}
+
+	// Add activities for canceled installs + setup experience run
+	err = svc.recordCanceledSetupExperienceSoftwareActivities(ctx, host.ID, hostUUID, host.DisplayName(), host.TeamID, results)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "recording cancelled setup experience installs")
+	}
+
+	var software []*automdm.SetupExperienceStatusResult
+	var scripts []*automdm.SetupExperienceStatusResult
+	for _, result := range results {
+		if result.IsForSoftware() {
+			software = append(software, result)
+		}
+		if result.IsForScript() {
+			scripts = append(scripts, result)
+		}
+	}
+
+	// Continue with next step in setup experience.
+	if _, err = svc.SetupExperienceNextStep(ctx, host); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "getting next step for host setup experience")
+	}
+
+	return &automdm.DeviceSetupExperienceStatusPayload{
+		Software: software,
+		Scripts:  scripts,
+	}, nil
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// My Device SSO Flow
+/////////////////////////////////////////////////////////////////////////////////
+
+const (
+	deviceSSOSessionKeyPrefix = "device_sso_session:"
+	deviceSSOSessionIDLength  = 24
+)
+
+// createDeviceSSOSession mints a new device SSO session for host.
+func (svc *Service) createDeviceSSOSession(ctx context.Context, host *automdm.Host, idpAccountUUID string) (sessionID string, ttl time.Duration, err error) {
+	sessionID, err = server.GenerateRandomURLSafeText(deviceSSOSessionIDLength)
+	if err != nil {
+		return "", 0, ctxerr.Wrap(ctx, err, "generate device sso session id")
+	}
+
+	ttl = svc.config.Session.Duration
+	session := automdm.DeviceSSOSession{
+		HostID:         host.ID,
+		IdPAccountUUID: idpAccountUUID,
+		ExpiresAt:      svc.clock.Now().Add(ttl),
+	}
+	b, err := json.Marshal(session)
+	if err != nil {
+		return "", 0, ctxerr.Wrap(ctx, err, "marshal device sso session")
+	}
+
+	if err := svc.keyValueStore.Set(ctx, deviceSSOSessionKeyPrefix+sessionID, string(b), ttl); err != nil {
+		return "", 0, ctxerr.Wrap(ctx, err, "store device sso session")
+	}
+
+	return sessionID, ttl, nil
+}
+
+func (svc *Service) validateDeviceSSOSession(ctx context.Context, sessionID string) (*automdm.DeviceSSOSession, error) {
+	if sessionID == "" {
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("device sso session not found"))
+	}
+
+	val, err := svc.keyValueStore.Get(ctx, deviceSSOSessionKeyPrefix+sessionID)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "get device sso session")
+	}
+	if val == nil {
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("device sso session not found"))
+	}
+
+	var session automdm.DeviceSSOSession
+	if err := json.Unmarshal([]byte(*val), &session); err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "unmarshal device sso session")
+	}
+
+	if !svc.clock.Now().Before(session.ExpiresAt) {
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("device sso session expired"))
+	}
+
+	return &session, nil
+}
+
+func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *automdm.Host, sessionID string) error {
+	appConfig, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "getting app config")
+	}
+	if !appConfig.AutoMDMDesktop.SSOEnabled {
+		return nil
+	}
+
+	// Setup Experience opens the device page in a web view while Setup Assistant
+	// is still running, where the user won't be able to initiate the SSO flow.
+	inSetupExperience, err := automdm.HostIsInSetupExperience(ctx, svc.ds, host)
+	if err != nil {
+		return ctxerr.Wrap(ctx, err, "checking if host is in setup experience")
+	}
+	if inSetupExperience {
+		return nil
+	}
+
+	session, err := svc.validateDeviceSSOSession(ctx, sessionID)
+	var noSession *automdm.AuthRequiredError
+	switch {
+	case errors.As(err, &noSession):
+		svc.logger.DebugContext(ctx, "no device sso session for request", "host_id", host.ID, "err", err)
+	case err != nil:
+		// Anything else is the session store failing, not the end user being
+		// signed out.
+		return ctxerr.Wrap(ctx, err, "validating device sso session")
+	case session.HostID != host.ID:
+		// The session is bound to the host its device token minted it for, so one
+		// device's cookie cannot unlock another device's page in the same browser.
+		svc.logger.WarnContext(ctx, "device sso session belongs to another host",
+			"host_id", host.ID, "session_host_id", session.HostID)
+	default:
+		if !svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceURL) {
+			// only run the IDP account check for iOS/iPadOS UUID device authentications
+			return nil
+		}
+
+		// Require primary read for SSO/Auth allow decisions
+		ctx = ctxdb.RequirePrimary(ctx, true)
+
+		// The session is valid for this host, so it also has to belong to the
+		// host's IdP end user. A host with no IdP mapping has nothing to compare
+		// against (ADE-enrolled iPhones never get one), so it passes rather than
+		// locking the end user out of their own device page, which is accepted fleetdm/security#38
+		deviceMappings, err := svc.ds.ListHostDeviceMapping(ctx, host.ID)
+		if err != nil {
+			return ctxerr.Wrap(ctx, err, "listing host device mappings")
+		}
+
+		if len(deviceMappings) == 0 {
+			return nil
+		}
+
+		var mdmIdpMappings []*automdm.HostDeviceMapping
+		for _, mapping := range deviceMappings {
+			if mapping.Source == automdm.DeviceMappingMDMIdpAccounts {
+				mdmIdpMappings = append(mdmIdpMappings, mapping)
+			}
+		}
+
+		// no mdm_idp_account mapping is treated as none.
+		if len(mdmIdpMappings) == 0 {
+			return nil
+		}
+
+		for _, mapping := range mdmIdpMappings {
+			// first we have to lookup email -> mdm_idp_account UUID to correlate to the session IDP account UUID
+			idpAccount, err := svc.ds.GetMDMIdPAccountByEmail(ctx, mapping.Email)
+			if err != nil && !automdm.IsNotFound(err) {
+				return ctxerr.Wrap(ctx, err, "getting MDM IdP account by email")
+			} else if idpAccount == nil {
+				// not found should not happen, but no-op on it, and fall through to deny after all mappings
+				continue
+			}
+
+			if idpAccount.UUID == session.IdPAccountUUID {
+				// found a matching IdP account, no need to check further
+				return nil
+			}
+
+			// try the next, if none match we fall through to the error outside.
+		}
+
+		return ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "mismatched SSO user for this device"})
+	}
+
+	return ctxerr.Wrap(ctx, automdm.NewDeviceSSORequiredError("no device sso session"), "require device sso session")
+}
+
+func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*automdm.DeviceSSOInitiation, error) {
+	// the device middleware already authenticated the host via its device token.
+	svc.authz.SkipAuthorization(ctx)
+
+	host, ok := hostctx.FromContext(ctx)
+	if !ok {
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
+	}
+
+	appConfig, err := svc.ds.AppConfig(ctx)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "getting app config")
+	}
+
+	if !appConfig.AutoMDMDesktop.SSOEnabled {
+		err := &automdm.BadRequestError{Message: "Single sign-on for AutoMDM Desktop is not enabled."}
+		return nil, ctxerr.Wrap(ctx, err, "initiate device sso")
+	}
+
+	mdmSSOSettings := appConfig.MDM.EndUserAuthentication.SSOProviderSettings
+	if mdmSSOSettings.IsEmpty() {
+		err := &automdm.BadRequestError{Message: "Couldn't initiate single sign-on for AutoMDM Desktop because no IdP is configured for end user authentication."}
+		return nil, ctxerr.Wrap(ctx, err, "initiate device sso")
+	}
+
+	// The ACS base must match what the IdP app has registered,
+	// will be ServerURL if none currently set.
+	acsBase, err := url.Parse(appConfig.MDMUrl())
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "invalid MDM URL")
+	}
+
+	browserBase, err := appConfig.AutoMDMDesktopBrowserUrl()
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "invalid server URL")
+	}
+
+	// SSO cookies are __Host- prefixed, so each is pinned to one host name.
+	// The handshake cookie is set on the browser's host but read on the ACS, and
+	// the session cookie the other way around: if those hosts differ, neither
+	// arrives and the end user loops.
+	if !strings.EqualFold(browserBase.Hostname(), acsBase.Hostname()) {
+		err := &automdm.BadRequestError{
+			Message: "AutoMDM Desktop single sign-on requires the device page and the SAML callback on the same host.",
+		}
+		return nil, ctxerr.Wrap(ctx, err, "initiate device sso")
+	}
+
+	acsURL := sso.CallbackURL(acsBase, svc.config.Server.URLPrefix, "/api/v1/automdm/mdm/sso/callback").String()
+
+	samlProvider, err := sso.SAMLProviderFromConfiguredMetadata(ctx, mdmSSOSettings.EntityID, acsURL, &mdmSSOSettings)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "failed to create provider from metadata")
+	}
+
+	sessionDuration := svc.config.Auth.SsoSessionValidityPeriod
+	sessionID, idpURL, err := sso.CreateAuthorizationRequest(
+		ctx,
+		samlProvider,
+		svc.ssoSessionStore,
+		sso.URLWithPrefix(browserBase, svc.config.Server.URLPrefix, deviceURL).String(),
+		uint(sessionDuration.Seconds()), //nolint:gosec // dismiss G115
+		automdm.SSORelayState(automdm.SSOInitiatorAutoMDMDesktop),
+		sso.SSORequestData{
+			HostUUID:  host.UUID,
+			Initiator: automdm.SSOInitiatorAutoMDMDesktop,
+		},
+	)
+	if err != nil {
+		return nil, ctxerr.Wrap(ctx, err, "InitiateDeviceSSO creating authorization")
+	}
+
+	return &automdm.DeviceSSOInitiation{
+		IdPURL:          idpURL,
+		SessionID:       sessionID,
+		SessionDuration: sessionDuration,
+	}, nil
+}

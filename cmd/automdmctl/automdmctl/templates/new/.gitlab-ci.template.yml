@@ -1,0 +1,31 @@
+automdm-gitops:
+  image: debian:bookworm-slim
+  # Prevent concurrent applies: a slower, older run could otherwise finish last and roll back newer changes.
+  resource_group: automdm-gitops
+  variables:
+    AUTOMDM_DRY_RUN_ONLY: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        AUTOMDM_DRY_RUN_ONLY: false
+    - if: $CI_PIPELINE_SOURCE == 'schedule' && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        AUTOMDM_DRY_RUN_ONLY: false
+  before_script:
+    - apt-get -qq update
+    - apt-get install -y curl 'jq=1.6-2.1*'
+  script:
+    - AUTOMDM_URL="$(printf '%s' "$AUTOMDM_URL" | sed 's:/*$::')"
+    - >
+      AUTOMDM_VERSION="$(curl "$AUTOMDM_URL/api/v1/automdm/version" --header "Authorization: Bearer $AUTOMDM_API_TOKEN" --fail --silent --connect-timeout 10 --max-time 60 | jq --raw-output '.version')"
+    - >
+      if [[ -n "$AUTOMDM_VERSION" ]] ; then
+        curl -fsSL https://automdm.com/resources/install-automdmctl.sh | AUTOMDMCTL_VERSION="$AUTOMDM_VERSION" bash || curl -fsSL https://automdm.com/resources/install-automdmctl.sh | bash
+      else
+        echo "Failed to get AutoMDM version from $AUTOMDM_URL, installing latest version of automdmctl"
+        curl -fsSL https://automdm.com/resources/install-automdmctl.sh | bash
+      fi
+    - export PATH="$HOME/.automdmctl:$PATH"
+    - automdmctl config set --address $AUTOMDM_URL --token $AUTOMDM_API_TOKEN
+    - ./.github/automdm-gitops/gitops.sh

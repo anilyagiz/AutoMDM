@@ -1,0 +1,86 @@
+package seed
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
+)
+
+// Team is the minimal team representation we need to chain seeders. Many
+// downstream seeders (policies, profiles, scripts) need the integer ID.
+type Team struct {
+	ID   uint
+	Name string
+}
+
+type teamCreateResp struct {
+	Team struct {
+		ID   uint   `json:"id"`
+		Name string `json:"name"`
+	} `json:"team"`
+}
+
+// Teams creates `count` teams (aka teams) and returns the resulting list.
+// Existing teams with the same name are looked up so callers always get an ID.
+func Teams(c Client, log Logger, theme themes.Theme, count int) ([]Team, Result) {
+	res := Result{Entity: "teams"}
+	teams := make([]Team, 0, count)
+	for i := 0; i < count; i++ {
+		name := themes.TeamName(theme, i)
+		body := map[string]any{"name": name}
+		var resp teamCreateResp
+		err := c.Post("/api/latest/automdm/teams", body, &resp)
+		id := resp.Team.ID
+		switch {
+		case err == nil:
+			res.Created++
+			teams = append(teams, Team{ID: id, Name: name})
+			log.Printf("team %s (id=%d)", name, id)
+		case IsAlreadyExists(err):
+			res.Skipped++
+			// Look up the existing team so downstream seeders can scope by
+			// team id. A genuine lookup failure (network, auth) is a hard
+			// error; "not found" is silently ignored so a renamed/deleted
+			// team doesn't block the rest of the run.
+			got, lookupErr := findTeamByName(c, name)
+			switch {
+			case lookupErr == nil:
+				teams = append(teams, got)
+			case errors.As(lookupErr, new(errTeamNotFound)):
+				// Team exists by name conflict but not in the list — odd,
+				// but treat as a no-op rather than failing the run.
+			default:
+				res.Errors = append(res.Errors,
+					fmt.Errorf("lookup existing team %q: %w", name, lookupErr))
+			}
+		default:
+			res.Errors = append(res.Errors, err)
+		}
+	}
+	return teams, res
+}
+
+type listTeamsResp struct {
+	Teams []struct {
+		ID   uint   `json:"id"`
+		Name string `json:"name"`
+	} `json:"teams"`
+}
+
+func findTeamByName(c Client, name string) (Team, error) {
+	var resp listTeamsResp
+	if err := c.Get("/api/latest/automdm/teams?per_page=500", &resp); err != nil {
+		return Team{}, err
+	}
+	for _, t := range resp.Teams {
+		if t.Name == name {
+			return Team{ID: t.ID, Name: t.Name}, nil
+		}
+	}
+	return Team{}, errTeamNotFound{name: name}
+}
+
+type errTeamNotFound struct{ name string }
+
+func (e errTeamNotFound) Error() string { return "team not found: " + e.name }

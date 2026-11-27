@@ -1,0 +1,4 @@
+#!/bin/bash
+source $AUTOMDM_ENV_PATH
+endpoint="api/latest/automdm/queries"
+curl $CURL_FLAGS -H "Authorization: Bearer $TOKEN" "$SERVER_URL/$endpoint" 

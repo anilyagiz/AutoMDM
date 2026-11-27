@@ -1,0 +1,11 @@
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Path	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Paths	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Name	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Description	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Activation	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	SelfService	bool
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Hidden	bool
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	Labels	[]string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	LabelsIncludeAll	[]string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	LabelsIncludeAny	[]string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMProfileSpec	LabelsExcludeAny	[]string
