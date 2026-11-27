@@ -1,0 +1,4 @@
+--- FAIL: TestMailService (0.02s)
+panic: Assets may not be used when running Fleet as a library [recovered, repanicked]
+FAIL	github.com/fleetdm/fleet/v4/server/service	55.496s
+FAIL
