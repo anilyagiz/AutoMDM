@@ -1,0 +1,4 @@
+--- FAIL: TestIntegrationsMDM (289.23s)
+FAIL
+FAIL	github.com/anilyagiz/automdm/v4/server/service	289.313s
+FAIL
