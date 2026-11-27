@@ -1,0 +1,44 @@
+ok  	github.com/fleetdm/fleet/v4/server/contexts/installersize	0.003s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/license	0.011s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/logging	0.004s
+?   	github.com/fleetdm/fleet/v4/server/contexts/osqueryauth	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/contexts/preservedsources	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/contexts/publicip	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/contexts/redact	0.005s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/token	0.003s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/viewer	0.012s
+ok  	github.com/fleetdm/fleet/v4/server/cron	0.047s
+ok  	github.com/fleetdm/fleet/v4/server/crypto	0.011s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/azure	0.079s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/cached_mysql	2.026s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/cloudstorage	0.008s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/etag_invalidate	0.012s
+?   	github.com/fleetdm/fleet/v4/server/datastore/failing	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/datastore/filesystem	0.029s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysql	29.360s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysql/migrations/tables	265.757s
+?   	github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/datastore/mysql/rdsauth	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysqlredis	0.078s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/orbitconfig_notify	0.015s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/osqueryconfig_notify	0.031s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/redis	4.327s
+?   	github.com/fleetdm/fleet/v4/server/datastore/redis/redistest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/datastore/s3	0.150s
+?   	github.com/fleetdm/fleet/v4/server/datastore/s3/s3test	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/dev_mode	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/errorstore	0.014s
+ok  	github.com/fleetdm/fleet/v4/server/fleet	1.971s
+?   	github.com/fleetdm/fleet/v4/server/fleet/policytest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/fleetmcp	0.226s
+ok  	github.com/fleetdm/fleet/v4/server/goose	0.005s
+?   	github.com/fleetdm/fleet/v4/server/goose/cmd/goose	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/health	0.005s
+ok  	github.com/fleetdm/fleet/v4/server/live_query	0.046s
+?   	github.com/fleetdm/fleet/v4/server/live_query/live_query_mock	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/logging	4.376s
+?   	github.com/fleetdm/fleet/v4/server/logging/mock	[no test files]
+--- FAIL: TestTemplateProcessor (0.00s)
+panic: Assets may not be used when running Fleet as a library [recovered, repanicked]
+
+goroutine 20 [running]:

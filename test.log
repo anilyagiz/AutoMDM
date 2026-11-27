@@ -1,0 +1,565 @@
+# github.com/mattn/go-sqlite3
+sqlite3-binding.c: In function ‘sqlite3ShadowTableName’:
+sqlite3-binding.c:123133:9: warning: assignment discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]
+123133 |   zTail = strrchr(zName, '_');
+       |         ^
+ok  	github.com/fleetdm/fleet/v4/client	69.972s
+ok  	github.com/fleetdm/fleet/v4/cmd/android-amapi-mock	0.049s
+ok  	github.com/fleetdm/fleet/v4/cmd/apple-apns-mock	0.079s
+ok  	github.com/fleetdm/fleet/v4/cmd/cpe	0.081s
+?   	github.com/fleetdm/fleet/v4/cmd/cpe/validate	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/cve	0.029s
+?   	github.com/fleetdm/fleet/v4/cmd/cve/validate	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/fleet	12.067s
+ok  	github.com/fleetdm/fleet/v4/cmd/fleet-mcp	0.020s
+?   	github.com/fleetdm/fleet/v4/cmd/fleetctl	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/fleetctl/fleetctl	299.706s
+?   	github.com/fleetdm/fleet/v4/cmd/fleetctl/fleetctl/fleetctltest	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/fleetctl/fleetctl/goquerycmd	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/fleetctl/fleetctl/testing_utils	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/fleetctl/integrationtest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/fleetctl/integrationtest/gitops	71.999s
+ok  	github.com/fleetdm/fleet/v4/cmd/fleetctl/integrationtest/package	0.048s
+ok  	github.com/fleetdm/fleet/v4/cmd/fleetctl/integrationtest/preview	0.056s
+ok  	github.com/fleetdm/fleet/v4/cmd/fleetctl/integrationtest/vuln	0.035s
+?   	github.com/fleetdm/fleet/v4/cmd/google-conditional-access-mock	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/govulndb-mirror	0.082s
+?   	github.com/fleetdm/fleet/v4/cmd/macoffice	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/maintained-apps	0.030s
+?   	github.com/fleetdm/fleet/v4/cmd/msrc	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/osquery-perf	0.847s
+?   	github.com/fleetdm/fleet/v4/cmd/osquery-perf/hostidentity	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/osquery-perf/installer_cache	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/osquery-perf/osquery_perf	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/osquery-perf/software-library/tools/generate-sql	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/osquery-perf/software-library/tools/import-data	[no test files]
+?   	github.com/fleetdm/fleet/v4/cmd/osquery-perf/softwaredb	[no test files]
+ok  	github.com/fleetdm/fleet/v4/cmd/osv-processor	0.103s
+ok  	github.com/fleetdm/fleet/v4/ee/fleetctl	37.038s
+?   	github.com/fleetdm/fleet/v4/ee/fleetd-chrome	[no test files]
+?   	github.com/fleetdm/fleet/v4/ee/maintained-apps	[no test files]
+ok  	github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/homebrew	10.770s
+ok  	github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/homebrew/external_refs	0.173s
+ok  	github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/winget	0.063s
+ok  	github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/winget/external_refs	0.006s
+ok  	github.com/fleetdm/fleet/v4/ee/orbit/pkg/hostidentity	1.409s
+?   	github.com/fleetdm/fleet/v4/ee/orbit/pkg/httpsigproxy	[no test files]
+ok  	github.com/fleetdm/fleet/v4/ee/orbit/pkg/scep	0.449s
+ok  	github.com/fleetdm/fleet/v4/ee/orbit/pkg/securehw	0.010s
+ok  	github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types	0.024s
+ok  	github.com/fleetdm/fleet/v4/ee/server/calendar	0.111s
+?   	github.com/fleetdm/fleet/v4/ee/server/calendar/load_test	[no test files]
+ok  	github.com/fleetdm/fleet/v4/ee/server/googleworkspace	0.622s
+ok  	github.com/fleetdm/fleet/v4/ee/server/integrationtest/condaccess	0.083s
+ok  	github.com/fleetdm/fleet/v4/ee/server/integrationtest/hostidentity	0.126s
+ok  	github.com/fleetdm/fleet/v4/ee/server/integrationtest/scim	0.073s
+ok  	github.com/fleetdm/fleet/v4/ee/server/licensing	0.012s
+ok  	github.com/fleetdm/fleet/v4/ee/server/mdm/android	0.973s
+ok  	github.com/fleetdm/fleet/v4/ee/server/scim	0.051s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service	38.104s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/certissue	0.653s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/condaccess	0.644s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/condaccess/depot	0.016s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/digicert	2.940s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/ejbca	1.389s
+?   	github.com/fleetdm/fleet/v4/ee/server/service/ejbca/ejbcatest	[no test files]
+?   	github.com/fleetdm/fleet/v4/ee/server/service/est	[no test files]
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/googlecas	5.283s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/hostidentity	0.356s
+?   	github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/depot	[no test files]
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig	0.013s
+ok  	github.com/fleetdm/fleet/v4/ee/server/service/scep	2.259s
+?   	github.com/fleetdm/fleet/v4/ee/server/service/scep/sceptest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/ee/server/webhooks	0.013s
+ok  	github.com/fleetdm/fleet/v4/ee/tools/mdm	0.006s
+ok  	github.com/fleetdm/fleet/v4/orbit/cmd/desktop	0.024s
+ok  	github.com/fleetdm/fleet/v4/orbit/cmd/desktop/menu	0.013s
+?   	github.com/fleetdm/fleet/v4/orbit/cmd/fetch_cert	[no test files]
+?   	github.com/fleetdm/fleet/v4/orbit/cmd/fleetd_tables	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/cmd/orbit	0.142s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/augeas	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/autopilot	0.012s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/backoff	0.188s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/bitlocker	0.004s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/build	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/cabundle	0.020s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/constant	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/cryptoinfo	0.018s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/dataflatten	0.016s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/dialog	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/entratoken	0.364s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/execuser	0.014s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/go-paniclog	[no test files]
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/go-paniclog/example	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/insecure	0.004s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/installer	1.794s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/kdialog	0.004s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/keystore	[no test files]
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/logging	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/luks	0.021s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/lvm	0.003s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/managedaccount	0.119s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/migration	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/osquery	0.006s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/osservice	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/packaging	1.372s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/packaging/wix	[no test files]
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/platform	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/process	0.042s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/profiles	0.010s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/scripts	2.105s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/setup_experience	0.010s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/swiftdialog	0.006s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table	0.045s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/adobe_plugins	0.042s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_agent_sessions	1.664s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools	0.015s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/agents	0.061s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/apps	0.015s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/browserext	0.020s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/classify	0.007s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/evidence	0.021s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/ide	0.039s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/instructions	0.012s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/mcp	0.015s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/netsock	0.006s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/paths	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/proc	0.069s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/containerd	0.022s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/crowdstrike/falcon_kernel_check	0.006s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/crowdstrike/falconctl	0.008s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/cryptoinfotable	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/cryptsetup	0.005s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/cryptsetup_luks_salt	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/dataflattentable	0.009s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/dconf_read	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/filecontents	0.007s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/firefox_preferences	0.005s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/firmwarepasswd	0.006s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_logs	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_nix_packages	0.009s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_pacman_packages	0.004s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/go_binaries	0.008s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/homebrew_outdated	0.018s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil	0.070s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes	0.006s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/mcp_listening_servers	0.007s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/mdm_bridge	0.011s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/netskope	0.011s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/nvram_info	0.004s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/orbit_info	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/sentinelone	0.010s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/table/sntp_request	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/software_update	0.067s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/sshd_config	1.090s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/tablehelpers	1.005s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/table/yaml_to_json	0.004s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/toast	0.003s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/token	0.458s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/update	10.170s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/update/badgerstore	0.009s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/update/filestore	0.012s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/user	0.004s
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/useraction	[no test files]
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/windows/oleconv	[no test files]
+?   	github.com/fleetdm/fleet/v4/orbit/pkg/windows/windowsupdate	[no test files]
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/wstransport	3.528s
+ok  	github.com/fleetdm/fleet/v4/orbit/pkg/zenity	0.004s
+?   	github.com/fleetdm/fleet/v4/orbit/tools/build	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/automatic_policy	0.004s
+?   	github.com/fleetdm/fleet/v4/pkg/buildpkg	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/certificate	0.006s
+ok  	github.com/fleetdm/fleet/v4/pkg/download	0.201s
+ok  	github.com/fleetdm/fleet/v4/pkg/file	0.862s
+?   	github.com/fleetdm/fleet/v4/pkg/filepath_windows	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/fleetdbase	0.006s
+ok  	github.com/fleetdm/fleet/v4/pkg/fleethttp	1.753s
+?   	github.com/fleetdm/fleet/v4/pkg/fleethttpsig	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/markdown	0.321s
+ok  	github.com/fleetdm/fleet/v4/pkg/mdm	0.009s
+ok  	github.com/fleetdm/fleet/v4/pkg/mdm/apnsmock	0.752s
+ok  	github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest	0.100s
+ok  	github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation	1.785s
+?   	github.com/fleetdm/fleet/v4/pkg/nettest	[no test files]
+?   	github.com/fleetdm/fleet/v4/pkg/open	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/optjson	0.009s
+ok  	github.com/fleetdm/fleet/v4/pkg/patch_policy	0.013s
+?   	github.com/fleetdm/fleet/v4/pkg/race	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/rawjson	0.010s
+ok  	github.com/fleetdm/fleet/v4/pkg/removednames	0.199s
+ok  	github.com/fleetdm/fleet/v4/pkg/retry	0.575s
+?   	github.com/fleetdm/fleet/v4/pkg/scripts	[no test files]
+ok  	github.com/fleetdm/fleet/v4/pkg/secure	0.005s
+ok  	github.com/fleetdm/fleet/v4/pkg/spec	1.302s
+ok  	github.com/fleetdm/fleet/v4/pkg/str	0.009s
+?   	github.com/fleetdm/fleet/v4/pkg/testutils	[no test files]
+?   	github.com/fleetdm/fleet/v4/schema	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server	0.005s
+?   	github.com/fleetdm/fleet/v4/server/acl/acmeacl	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/acl/activityacl	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/acl/chartacl	0.014s
+?   	github.com/fleetdm/fleet/v4/server/acl/notificationsacl	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/activity	6.721s
+?   	github.com/fleetdm/fleet/v4/server/activity/api	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/activity/api/http	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/activity/bootstrap	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/activity/internal/mysql	0.015s
+ok  	github.com/fleetdm/fleet/v4/server/activity/internal/service	0.714s
+ok  	github.com/fleetdm/fleet/v4/server/activity/internal/tests	0.012s
+?   	github.com/fleetdm/fleet/v4/server/activity/internal/testutils	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/activity/internal/types	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/agentws	1.449s
+ok  	github.com/fleetdm/fleet/v4/server/api_endpoints	0.036s
+ok  	github.com/fleetdm/fleet/v4/server/archtest	4.932s
+ok  	github.com/fleetdm/fleet/v4/server/archtest/test_files/dependency	0.005s
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/dontdependonanything	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/nesteddependency	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/nodependency	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/testfiledeps/testonlydependency	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/testfiledeps/testpkgdependency	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/testfiledeps/transitivetestdep	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/testpackage	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/archtest/test_files/testpackage/nested/dep	0.008s
+?   	github.com/fleetdm/fleet/v4/server/archtest/test_files/transative	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/authz	2.302s
+?   	github.com/fleetdm/fleet/v4/server/aws_common	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/bindata	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/chart	7.143s
+?   	github.com/fleetdm/fleet/v4/server/chart/api	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/chart/api/http	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/chart/bootstrap	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/chart/internal/mysql	0.011s
+ok  	github.com/fleetdm/fleet/v4/server/chart/internal/service	0.034s
+?   	github.com/fleetdm/fleet/v4/server/chart/internal/testutils	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/chart/internal/types	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/config	3.745s
+?   	github.com/fleetdm/fleet/v4/server/contexts/apple_bm	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/contexts/authz	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/contexts/capabilities	0.017s
+?   	github.com/fleetdm/fleet/v4/server/contexts/carvestore	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/contexts/ctxdb	0.008s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/ctxerr	0.026s
+?   	github.com/fleetdm/fleet/v4/server/contexts/devicesso	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/contexts/host	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/contexts/installersize	0.003s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/license	0.011s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/logging	0.004s
+?   	github.com/fleetdm/fleet/v4/server/contexts/osqueryauth	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/contexts/preservedsources	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/contexts/publicip	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/contexts/redact	0.005s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/token	0.003s
+ok  	github.com/fleetdm/fleet/v4/server/contexts/viewer	0.012s
+ok  	github.com/fleetdm/fleet/v4/server/cron	0.047s
+ok  	github.com/fleetdm/fleet/v4/server/crypto	0.011s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/azure	0.079s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/cached_mysql	2.026s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/cloudstorage	0.008s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/etag_invalidate	0.012s
+?   	github.com/fleetdm/fleet/v4/server/datastore/failing	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/datastore/filesystem	0.029s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysql	29.360s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysql/migrations/tables	265.757s
+?   	github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/datastore/mysql/rdsauth	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/datastore/mysqlredis	0.078s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/orbitconfig_notify	0.015s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/osqueryconfig_notify	0.031s
+ok  	github.com/fleetdm/fleet/v4/server/datastore/redis	4.327s
+?   	github.com/fleetdm/fleet/v4/server/datastore/redis/redistest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/datastore/s3	0.150s
+?   	github.com/fleetdm/fleet/v4/server/datastore/s3/s3test	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/dev_mode	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/errorstore	0.014s
+ok  	github.com/fleetdm/fleet/v4/server/fleet	1.971s
+?   	github.com/fleetdm/fleet/v4/server/fleet/policytest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/fleetmcp	0.226s
+ok  	github.com/fleetdm/fleet/v4/server/goose	0.005s
+?   	github.com/fleetdm/fleet/v4/server/goose/cmd/goose	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/health	0.005s
+ok  	github.com/fleetdm/fleet/v4/server/live_query	0.046s
+?   	github.com/fleetdm/fleet/v4/server/live_query/live_query_mock	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/logging	4.376s
+?   	github.com/fleetdm/fleet/v4/server/logging/mock	[no test files]
+--- FAIL: TestTemplateProcessor (0.00s)
+panic: Assets may not be used when running Fleet as a library [recovered, repanicked]
+
+goroutine 20 [running]:
+testing.tRunner.func1.2({0x185c7b0, 0xf71d90})
+	/opt/hostedtoolcache/go/1.27.4/x64/src/testing/testing.go:2125 +0x232
+testing.tRunner.func1()
+	/opt/hostedtoolcache/go/1.27.4/x64/src/testing/testing.go:2128 +0x329
+panic({0x185c7b0?, 0xf71d90?})
+	/opt/hostedtoolcache/go/1.27.4/x64/src/runtime/panic.go:859 +0x125
+github.com/fleetdm/fleet/v4/server/bindata.Asset(...)
+	/home/runner/work/AutoMDM/AutoMDM/server/bindata/placeholder.go:13
+github.com/fleetdm/fleet/v4/server.GetTemplate({0xfd653f?, 0xf?}, {0x1a0b100?, 0x39?})
+	/home/runner/work/AutoMDM/AutoMDM/server/utils.go:112 +0x25
+github.com/fleetdm/fleet/v4/server/mail.PasswordResetMailer.Message({{0xecd02f, 0x1a}, {0x0, 0x0}, {0xeb51f0, 0x5}, 0x7ea})
+	/home/runner/work/AutoMDM/AutoMDM/server/mail/users.go:45 +0x65
+github.com/fleetdm/fleet/v4/server/mail.TestTemplateProcessor(0x28d53e7d6908)
+	/home/runner/work/AutoMDM/AutoMDM/server/mail/mail_test.go:314 +0x7e
+testing.tRunner(0x28d53e7d6908, 0x19642c8)
+	/opt/hostedtoolcache/go/1.27.4/x64/src/testing/testing.go:2195 +0xea
+created by testing.(*T).Run in goroutine 1
+	/opt/hostedtoolcache/go/1.27.4/x64/src/testing/testing.go:2260 +0x4d4
+FAIL	github.com/fleetdm/fleet/v4/server/mail	0.026s
+ok  	github.com/fleetdm/fleet/v4/server/mdm	0.825s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/acme	3.354s
+?   	github.com/fleetdm/fleet/v4/server/mdm/acme/api	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/acme/api/http	0.450s
+?   	github.com/fleetdm/fleet/v4/server/mdm/acme/bootstrap	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/acme/internal/mysql	0.009s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/acme/internal/redis_nonces_store	0.032s
+?   	github.com/fleetdm/fleet/v4/server/mdm/acme/internal/service	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/acme/internal/tests	0.045s
+?   	github.com/fleetdm/fleet/v4/server/mdm/acme/internal/testutils	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/acme/testhelpers	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/android	16.417s
+?   	github.com/fleetdm/fleet/v4/server/mdm/android/mock	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/android/service	10.212s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt	0.456s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/android/tests	0.081s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/android/tests/enterprise	0.059s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple	3.240s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/apple_apps	7.043s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/appmanifest	0.010s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/gdmf	3.032s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/gdmf/integrationtest	0.290s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig	0.014s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/psso/pssocrypto	0.027s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/psso/regtoken	0.009s
+?   	github.com/fleetdm/fleet/v4/server/mdm/apple/rootcert	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/apple/vpp	15.704s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/assets	0.417s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/crypto	0.018s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/cryptoutil	0.007s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/internal/commonmdm	0.003s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/lifecycle	0.026s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/maintainedapps	0.039s
+?   	github.com/fleetdm/fleet/v4/server/mdm/maintainedapps/maintainedappstest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/microsoft	0.091s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/microsoft/admx	0.010s
+?   	github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/microsoft/wlanxml	0.015s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/client	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep	0.005s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/http/api	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/log	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/log/ctxlog	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage/mysql	0.007s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage/storagetest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanodep/sync	0.017s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/certverify	0.004s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil	0.010s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/http	1.507s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/http/api	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/http/mdm	0.005s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm	0.005s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush	0.515s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/service	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service	0.008s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/certauth	0.004s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/dump	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/microwebhook	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/multi	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/nanomdm	0.036s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage/mysql	0.323s
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test/e2e	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test/enrollment	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test/protocol	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/profiles	0.024s
+?   	github.com/fleetdm/fleet/v4/server/mdm/psso	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/psso/internal/redis_nonces_store	0.016s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/reconcile	0.012s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/challenge	1.502s
+?   	github.com/fleetdm/fleet/v4/server/mdm/scep/challenge/bolt	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/scep/client	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/scep/cmd/scepclient	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/scep/cmd/scepserver	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/scep/csrverifier	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mdm/scep/csrverifier/executable	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/depot	0.387s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/depot/bolt	0.094s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/depot/file	0.010s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment	4.663s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter	0.017s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/server	1.049s
+ok  	github.com/fleetdm/fleet/v4/server/mdm/scep/x509util	0.108s
+?   	github.com/fleetdm/fleet/v4/server/mdm/testing_utils	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/microsoft/msgraph	0.044s
+?   	github.com/fleetdm/fleet/v4/server/mock	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/digicert	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/ejbca	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/googlecas	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/mdm	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/mock/mockimpl	8.360s
+?   	github.com/fleetdm/fleet/v4/server/mock/mockresult	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/nanodep	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/redis	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/redis_advanced	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/scep	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/service	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/mock/software	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/notifications	9.558s
+?   	github.com/fleetdm/fleet/v4/server/notifications/api	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/notifications/api/http	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/notifications/bootstrap	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/notifications/internal/mysql	0.015s
+ok  	github.com/fleetdm/fleet/v4/server/notifications/internal/service	0.021s
+?   	github.com/fleetdm/fleet/v4/server/notifications/internal/types	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/platform	8.026s
+?   	github.com/fleetdm/fleet/v4/server/platform/authz	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/platform/crypto	0.030s
+ok  	github.com/fleetdm/fleet/v4/server/platform/endpointer	0.140s
+?   	github.com/fleetdm/fleet/v4/server/platform/errors	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/platform/http	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/platform/jsondecode	0.013s
+ok  	github.com/fleetdm/fleet/v4/server/platform/logging	0.035s
+?   	github.com/fleetdm/fleet/v4/server/platform/logging/testutils	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/platform/middleware/authzcheck	0.035s
+ok  	github.com/fleetdm/fleet/v4/server/platform/middleware/ratelimit	0.023s
+ok  	github.com/fleetdm/fleet/v4/server/platform/mysql	0.637s
+?   	github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/platform/tracing	2.225s
+ok  	github.com/fleetdm/fleet/v4/server/policies	0.260s
+?   	github.com/fleetdm/fleet/v4/server/ptr	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/pubsub	1.142s
+ok  	github.com/fleetdm/fleet/v4/server/service	153.986s
+ok  	github.com/fleetdm/fleet/v4/server/service/async	0.019s
+?   	github.com/fleetdm/fleet/v4/server/service/calendar	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/service/conditional_access_google	7.281s
+ok  	github.com/fleetdm/fleet/v4/server/service/conditional_access_google/mockserver	1.504s
+ok  	github.com/fleetdm/fleet/v4/server/service/conditional_access_microsoft_proxy	0.016s
+?   	github.com/fleetdm/fleet/v4/server/service/contract	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/service/externalsvc	5.638s
+?   	github.com/fleetdm/fleet/v4/server/service/integrationtest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/service/integrationtest/android	0.093s
+?   	github.com/fleetdm/fleet/v4/server/service/integrationtest/scep_server	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/service/middleware/auth	0.078s
+?   	github.com/fleetdm/fleet/v4/server/service/middleware/log	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/service/middleware/mdmconfigured	0.047s
+ok  	github.com/fleetdm/fleet/v4/server/service/middleware/otel	0.016s
+?   	github.com/fleetdm/fleet/v4/server/service/mock	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/service/osquery_utils	0.599s
+ok  	github.com/fleetdm/fleet/v4/server/service/redis_config_etag	0.059s
+ok  	github.com/fleetdm/fleet/v4/server/service/redis_install_attempts	0.030s
+ok  	github.com/fleetdm/fleet/v4/server/service/redis_key_value	0.016s
+ok  	github.com/fleetdm/fleet/v4/server/service/redis_lock	0.035s
+ok  	github.com/fleetdm/fleet/v4/server/service/redis_policy_set	0.042s
+ok  	github.com/fleetdm/fleet/v4/server/service/schedule	61.256s
+?   	github.com/fleetdm/fleet/v4/server/service/schedule/scheduletest	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/service/svctest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/shellquote	0.006s
+ok  	github.com/fleetdm/fleet/v4/server/sso	0.173s
+?   	github.com/fleetdm/fleet/v4/server/test	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/test/httptest	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/variables	4.513s
+?   	github.com/fleetdm/fleet/v4/server/version	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/android	0.029s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/customcve	0.016s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/goval_dictionary	0.043s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb	0.049s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/io	280.475s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/macoffice	0.038s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc	0.293s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/parsed	0.032s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/xml	0.003s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd	60.789s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/sync	12.275s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cpedict	0.006s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed	0.022s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd	0.014s
+?   	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/providers/lib/client	[no test files]
+?   	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/providers/lib/rate	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/providers/nvd	0.279s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn	0.004s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/osv	0.040s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/oval	0.043s
+?   	github.com/fleetdm/fleet/v4/server/vulnerabilities/oval/input	[no test files]
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/oval/parsed	0.016s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/utils	0.023s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo	0.007s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/vulntest	0.033s
+ok  	github.com/fleetdm/fleet/v4/server/vulnerabilities/winoffice	0.016s
+ok  	github.com/fleetdm/fleet/v4/server/webhooks	0.989s
+ok  	github.com/fleetdm/fleet/v4/server/websocket	0.023s
+ok  	github.com/fleetdm/fleet/v4/server/worker	0.069s
+?   	github.com/fleetdm/fleet/v4/tools/agentws-viz	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/android	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/android/cert-auth-server	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/bump-migration	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/calendar	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/calendar/delete-events	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/calendar/get-events	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/calendar/move-events	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/calendar/stop-channel	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/charts-backfill	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/charts-collect	[no test files]
+ok  	github.com/fleetdm/fleet/v4/tools/check-nilaway-func-size	0.319s
+?   	github.com/fleetdm/fleet/v4/tools/check-no-testing-in-prod	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/cloner-check	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/custom-package-parser	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/dbutils	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/desktop	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/desktop-rate-limit	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/dialog	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/fdm	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/file-server	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/github-releases	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/gw-directory-fake	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/inspect-cert	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/jira-integration	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/loadtest/fleetd_labels	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/loadtest/scripts_and_profiles	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/loadtest/unified_queue	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/luks/luks	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/luks/lvm	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/apple	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/apple/apnspush	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/apple/applebmapi	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/apple/appmanifest	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/apple/setupexperience	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/assets	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/decrypt-disk-encryption-key	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/migration/echo	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/migration/jamf	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/migration/kandji	[no test files]
+ok  	github.com/fleetdm/fleet/v4/tools/mdm/migration/mdmproxy	0.439s
+?   	github.com/fleetdm/fleet/v4/tools/mdm/migration/micromdm	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mdm/migration/simplemdm	[no test files]
+ok  	github.com/fleetdm/fleet/v4/tools/migration-cleanup	0.768s
+?   	github.com/fleetdm/fleet/v4/tools/migration-retry-check	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mock-ndes	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/mysql-tests/rds	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/nvd/nvdvuln	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/open	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/osquery-agent-options	[no test files]
+ok  	github.com/fleetdm/fleet/v4/tools/profile-schema-gen	0.704s
+ok  	github.com/fleetdm/fleet/v4/tools/profile-validate	0.109s
+ok  	github.com/fleetdm/fleet/v4/tools/redis-stress	0.013s
+?   	github.com/fleetdm/fleet/v4/tools/redis-tests	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/redis-tests/elasticache	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/run-scripts	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/seed_data/queries	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/software/fma-script-hashes	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/software/vulnerabilities/performance_test/seeder	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/software/vulnerabilities/performance_test/tester	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/software/vulnerabilities/seed_data	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/test_extensions/hello_world	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/tuf/download-artifacts	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/tuf/replace	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/tuf/status	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/vex-parser	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/webhook	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/windows-mdm-enroll	[no test files]
+?   	github.com/fleetdm/fleet/v4/tools/zendesk-integration	[no test files]
+FAIL
+exit=1
