@@ -1,0 +1,58 @@
+package service
+
+import (
+	"fmt"
+	"net/url"
+
+	"github.com/fleetdm/fleet/v4/server/fleet"
+)
+
+// ApplyLabels sends the list of Labels to be applied (upserted) to the
+// Fleet instance. Use teamID = nil for global labels.
+func (c *Client) ApplyLabels(
+	specs []*fleet.LabelSpec,
+	teamID *uint,
+	moves []fleet.LabelToMove,
+) error {
+	req := fleet.ApplyLabelSpecsRequest{TeamID: teamID, Specs: specs, LabelsToMove: moves}
+	verb, path := "POST", "/api/latest/fleet/spec/labels"
+	var responseBody fleet.ApplyLabelSpecsResponse
+
+	if teamID != nil {
+		return c.authenticatedRequestWithQuery(
+			req,
+			verb,
+			path,
+			&responseBody,
+			fmt.Sprintf("fleet_id=%d", *teamID),
+		)
+	}
+	return c.authenticatedRequest(req, verb, path, &responseBody)
+}
+
+// GetLabel retrieves information about a label by name
+func (c *Client) GetLabel(name string, fleetID *uint) (*fleet.LabelSpec, error) {
+	verb, path := "GET", "/api/latest/fleet/spec/labels/"+url.PathEscape(name)
+	var responseBody fleet.GetLabelSpecResponse
+	var query string
+	if fleetID != nil {
+		query = fmt.Sprintf("fleet_id=%d", *fleetID)
+	}
+	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
+	return responseBody.Spec, err
+}
+
+// GetLabels retrieves the list of all LabelSpecs.
+func (c *Client) GetLabels(teamID uint) ([]*fleet.LabelSpec, error) {
+	verb, path := "GET", "/api/latest/fleet/spec/labels"
+	var responseBody fleet.GetLabelSpecsResponse
+	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, fmt.Sprintf("fleet_id=%d", teamID))
+	return responseBody.Specs, err
+}
+
+// DeleteLabelByID deletes the label with the given ID.
+func (c *Client) DeleteLabelByID(id uint) error {
+	verb, path := "DELETE", fmt.Sprintf("/api/latest/fleet/labels/id/%d", id)
+	var responseBody fleet.DeleteLabelByIDResponse
+	return c.authenticatedRequest(nil, verb, path, &responseBody)
+}

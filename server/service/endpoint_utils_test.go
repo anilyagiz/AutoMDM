@@ -1,0 +1,625 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/fleetdm/fleet/v4/pkg/optjson"
+	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
+	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
+	"github.com/go-kit/kit/endpoint"
+	kithttp "github.com/go-kit/kit/transport/http"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestUniversalDecoderIDs(t *testing.T) {
+	type universalStruct struct {
+		ID1        uint `url:"some-id"`
+		OptionalID uint `url:"some-other-id,optional"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	req := httptest.NewRequest("POST", "/target", nil)
+	req.SetPathValue("some-id", "999")
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, uint(999), casted.ID1)
+	assert.Equal(t, uint(0), casted.OptionalID)
+
+	// fails if non optional IDs are not provided
+	req = httptest.NewRequest("POST", "/target", nil)
+	_, err = decoder(context.Background(), req)
+	require.Error(t, err)
+}
+
+func TestUniversalDecoderIDsAndJSON(t *testing.T) {
+	type universalStruct struct {
+		ID1        uint   `url:"some-id"`
+		SomeString string `json:"some_string"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	body := `{"some_string": "hello"}`
+	req := httptest.NewRequest("POST", "/target", strings.NewReader(body))
+	req.SetPathValue("some-id", "999")
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, uint(999), casted.ID1)
+	assert.Equal(t, "hello", casted.SomeString)
+}
+
+func TestUniversalDecoderIDsAndJSONEmbedded(t *testing.T) {
+	type EmbeddedJSON struct {
+		SomeString string `json:"some_string"`
+	}
+	type UniversalStruct struct {
+		ID1 uint `url:"some-id"`
+		EmbeddedJSON
+	}
+	decoder := makeDecoder(UniversalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	body := `{"some_string": "hello"}`
+	req := httptest.NewRequest("POST", "/target", strings.NewReader(body))
+	req.SetPathValue("some-id", "999")
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*UniversalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, uint(999), casted.ID1)
+	assert.Equal(t, "hello", casted.SomeString)
+}
+
+func TestUniversalDecoderIDsAndListOptions(t *testing.T) {
+	type universalStruct struct {
+		ID1        uint              `url:"some-id"`
+		Opts       fleet.ListOptions `url:"list_options"`
+		SomeString string            `json:"some_string"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	body := `{"some_string": "bye"}`
+	req := httptest.NewRequest("POST", "/target?per_page=77&page=4", strings.NewReader(body))
+	req.SetPathValue("some-id", "123")
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, uint(123), casted.ID1)
+	assert.Equal(t, "bye", casted.SomeString)
+	assert.Equal(t, uint(77), casted.Opts.PerPage)
+	assert.Equal(t, uint(4), casted.Opts.Page)
+}
+
+func TestUniversalDecoderHandlersEmbeddedAndNot(t *testing.T) {
+	type EmbeddedJSON struct {
+		SomeString string `json:"some_string"`
+	}
+	type universalStruct struct {
+		ID1  uint              `url:"some-id"`
+		Opts fleet.ListOptions `url:"list_options"`
+		EmbeddedJSON
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	body := `{"some_string": "o/"}`
+	req := httptest.NewRequest("POST", "/target?per_page=77&page=4", strings.NewReader(body))
+	req.SetPathValue("some-id", "123")
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, uint(123), casted.ID1)
+	assert.Equal(t, "o/", casted.SomeString)
+	assert.Equal(t, uint(77), casted.Opts.PerPage)
+	assert.Equal(t, uint(4), casted.Opts.Page)
+}
+
+func TestUniversalDecoderListOptions(t *testing.T) {
+	type universalStruct struct {
+		ID1  uint              `url:"some-id"`
+		Opts fleet.ListOptions `url:"list_options"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	req := httptest.NewRequest("POST", "/target", nil)
+	req.SetPathValue("some-id", "123")
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	_, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+}
+
+func TestUniversalDecoderOptionalQueryParams(t *testing.T) {
+	type universalStruct struct {
+		ID1 *uint `query:"some_id,optional"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	req := httptest.NewRequest("POST", "/target", nil)
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Nil(t, casted.ID1)
+
+	req = httptest.NewRequest("POST", "/target?some_id=321", nil)
+
+	decoded, err = decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok = decoded.(*universalStruct)
+	require.True(t, ok)
+
+	require.NotNil(t, casted.ID1)
+	assert.Equal(t, uint(321), *casted.ID1)
+}
+
+func TestUniversalDecoderOptionalQueryParamString(t *testing.T) {
+	type universalStruct struct {
+		ID1 *string `query:"some_val,optional"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	req := httptest.NewRequest("POST", "/target", nil)
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Nil(t, casted.ID1)
+
+	req = httptest.NewRequest("POST", "/target?some_val=321", nil)
+
+	decoded, err = decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok = decoded.(*universalStruct)
+	require.True(t, ok)
+
+	require.NotNil(t, casted.ID1)
+	assert.Equal(t, "321", *casted.ID1)
+}
+
+func TestUniversalDecoderOptionalQueryParamNotPtr(t *testing.T) {
+	type universalStruct struct {
+		ID1 string `query:"some_val,optional"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	req := httptest.NewRequest("POST", "/target", nil)
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, "", casted.ID1)
+
+	req = httptest.NewRequest("POST", "/target?some_val=321", nil)
+
+	decoded, err = decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok = decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, "321", casted.ID1)
+}
+
+func TestUniversalDecoderQueryAndListPlayNice(t *testing.T) {
+	type universalStruct struct {
+		ID1  *uint             `query:"some_id"`
+		Opts fleet.ListOptions `url:"list_options"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	req := httptest.NewRequest("POST", "/target?per_page=77&page=4&some_id=444", nil)
+
+	decoded, err := decoder(context.Background(), req)
+	require.NoError(t, err)
+	casted, ok := decoded.(*universalStruct)
+	require.True(t, ok)
+
+	assert.Equal(t, uint(77), casted.Opts.PerPage)
+	assert.Equal(t, uint(4), casted.Opts.Page)
+	require.NotNil(t, casted.ID1)
+	assert.Equal(t, uint(444), *casted.ID1)
+}
+
+func TestUniversalDecoderSizeLimit(t *testing.T) {
+	type universalStruct struct {
+		ID1  uint              `url:"some-id"`
+		Opts fleet.ListOptions `url:"list_options"`
+	}
+	decoder := makeDecoder(universalStruct{}, platform_http.MaxRequestBodySize)
+
+	// Body larger than the limit should return PayloadTooLargeError.
+	largeBody := `{"key": "` + strings.Repeat("A", int(platform_http.MaxRequestBodySize)+1) + `"}`
+	req := httptest.NewRequest("POST", "/target?per_page=77&page=4", strings.NewReader(largeBody))
+	req.SetPathValue("some-id", "123")
+
+	_, err := decoder(context.Background(), req)
+	require.Error(t, err)
+	require.IsType(t, platform_http.PayloadTooLargeError{}, err)
+
+	// Body within the limit but with broken JSON
+	incompleteBody := `{"key": "` + strings.Repeat("A", 100) // missing closing "}
+	req = httptest.NewRequest("POST", "/target?per_page=77&page=4", strings.NewReader(incompleteBody))
+	req.SetPathValue("some-id", "123")
+
+	_, err = decoder(context.Background(), req)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, io.ErrUnexpectedEOF), "expected io.ErrUnexpectedEOF, got %T: %v", err, err)
+	_, isPayloadTooLarge := err.(platform_http.PayloadTooLargeError)
+	require.False(t, isPayloadTooLarge, "incomplete body within size limit must not produce PayloadTooLargeError, got %T: %v", err, err)
+
+	// Body within the limit and complete ... OK
+
+	largeBody = `{"key": "` + strings.Repeat("A", int(platform_http.MaxRequestBodySize)-11) + `"}` // -11 to account for the wrapping JSON
+	req = httptest.NewRequest("POST", "/target?per_page=77&page=4", strings.NewReader(largeBody))
+	req.SetPathValue("some-id", "123")
+
+	_, err = decoder(context.Background(), req)
+	require.NoError(t, err)
+}
+
+type stringErrorer string
+
+func (s stringErrorer) Error() error { return nil }
+
+func TestEndpointer(t *testing.T) {
+	r := endpointer.NewRouter()
+	ds := new(mock.Store)
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+		return &fleet.Session{
+			ID:         3,
+			UserID:     42,
+			Key:        key,
+			AccessedAt: time.Now(),
+		}, nil
+	}
+	ds.DestroySessionFunc = func(ctx context.Context, session *fleet.Session) error {
+		return nil
+	}
+	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *fleet.Session) error {
+		return nil
+	}
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		return &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}, nil
+	}
+	ds.ListUsersFunc = func(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
+		return []*fleet.User{{GlobalRole: ptr.String(fleet.RoleAdmin)}}, nil
+	}
+
+	svc, _ := newTestService(t, ds, nil, nil)
+
+	fleetAPIOptions := []kithttp.ServerOption{
+		kithttp.ServerBefore(
+			kithttp.PopulateRequestContext, // populate the request context with common fields
+			auth.SetRequestsContexts(svc),
+		),
+		kithttp.ServerErrorHandler(&endpointer.ErrorHandler{Logger: slog.New(slog.DiscardHandler)}),
+		kithttp.ServerErrorEncoder(fleetErrorEncoder),
+		kithttp.ServerAfter(
+			kithttp.SetContentType("application/json; charset=utf-8"),
+			log.LogRequestEnd(slog.New(slog.DiscardHandler)),
+			checkLicenseExpiration(svc),
+		),
+	}
+
+	e := newUserAuthenticatedEndpointer(svc, fleetAPIOptions, r, "v1", "2021-11")
+	nopHandler := func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+		setAuthCheckedOnPreAuthErr(ctx)
+		return stringErrorer("nop"), nil
+	}
+	overrideHandler := func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+		setAuthCheckedOnPreAuthErr(ctx)
+		return stringErrorer("override"), nil
+	}
+
+	// Regular path, no plan to deprecate
+	e.GET("/api/_version_/fleet/path1", nopHandler, struct{}{})
+
+	// New path, we want it only available starting from the specified version
+	e.StartingAtVersion("2021-11").GET("/api/_version_/fleet/newpath", nopHandler, struct{}{})
+
+	// Path that was in v1, but was changed in 2021-11
+	e.EndingAtVersion("v1").GET("/api/_version_/fleet/overriddenpath", nopHandler, struct{}{})
+	e.StartingAtVersion("2021-11").GET("/api/_version_/fleet/overriddenpath", overrideHandler, struct{}{})
+
+	// Path that got deprecated
+	e.EndingAtVersion("v1").GET("/api/_version_/fleet/deprecated", nopHandler, struct{}{})
+	// Path that got deprecated but in the latest version
+	e.EndingAtVersion("2021-11").GET("/api/_version_/fleet/deprecated-soon", nopHandler, struct{}{})
+
+	// Aliasing works with versioning too
+	e.WithAltPaths("/api/_version_/fleet/something/{fff}").GET("/api/_version_/fleet/somethings/{fff}", nopHandler, struct{}{})
+
+	mustMatch := []struct {
+		method     string
+		path       string
+		overridden bool
+	}{
+		{method: "GET", path: "/api/v1/fleet/path1"},
+		{method: "GET", path: "/api/2021-11/fleet/path1"},
+		{method: "GET", path: "/api/latest/fleet/path1"},
+
+		{method: "GET", path: "/api/2021-11/fleet/newpath"},
+		{method: "GET", path: "/api/latest/fleet/newpath"},
+
+		{method: "GET", path: "/api/v1/fleet/deprecated"},
+
+		{method: "GET", path: "/api/v1/fleet/deprecated-soon"},
+		{method: "GET", path: "/api/2021-11/fleet/deprecated-soon"},
+		{method: "GET", path: "/api/latest/fleet/deprecated-soon"},
+
+		{method: "GET", path: "/api/v1/fleet/overriddenpath"},
+		{method: "GET", path: "/api/2021-11/fleet/overriddenpath", overridden: true},
+		{method: "GET", path: "/api/latest/fleet/overriddenpath", overridden: true},
+
+		{method: "GET", path: "/api/v1/fleet/something/aaa"},
+		{method: "GET", path: "/api/2021-11/fleet/something/aaa"},
+		{method: "GET", path: "/api/latest/fleet/something/aaa"},
+		{method: "GET", path: "/api/v1/fleet/somethings/aaa"},
+		{method: "GET", path: "/api/2021-11/fleet/somethings/aaa"},
+		{method: "GET", path: "/api/latest/fleet/somethings/aaa"},
+	}
+
+	mustNotMatch := []struct {
+		method  string
+		path    string
+		handler http.Handler
+	}{
+		{method: "POST", path: "/api/v1/fleet/path1"},
+		{method: "GET", path: "/api/v1/fleet/qwejoqiwejqiowehioqwe"},
+		{method: "GET", path: "/api/v1/qwejoqiwejqiowehioqwe"},
+
+		{method: "GET", path: "/api/v1/fleet/newpath"},
+
+		{method: "GET", path: "/api/2021-11/fleet/deprecated"},
+		{method: "GET", path: "/api/latest/fleet/deprecated"},
+	}
+
+	doesItMatch := func(method, path string, override bool) bool {
+		req := httptest.NewRequest(method, path, nil)
+		req.Header.Set("Authorization", "Bearer asd")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code == http.StatusNotFound || rec.Code == http.StatusMethodNotAllowed {
+			return false
+		}
+		want := "\"nop\"\n"
+		if override {
+			want = "\"override\"\n"
+		}
+		require.Equal(t, want, rec.Body.String())
+		return true
+	}
+
+	for _, route := range mustMatch {
+		require.True(t, doesItMatch(route.method, route.path, route.overridden), route)
+	}
+
+	for _, route := range mustNotMatch {
+		require.False(t, doesItMatch(route.method, route.path, false), route)
+	}
+}
+
+func TestEndpointerCustomMiddleware(t *testing.T) {
+	r := endpointer.NewRouter()
+	ds := new(mock.Store)
+	svc, _ := newTestService(t, ds, nil, nil)
+
+	fleetAPIOptions := []kithttp.ServerOption{
+		kithttp.ServerBefore(
+			kithttp.PopulateRequestContext,
+			auth.SetRequestsContexts(svc),
+		),
+		kithttp.ServerErrorHandler(&endpointer.ErrorHandler{Logger: slog.New(slog.DiscardHandler)}),
+		kithttp.ServerErrorEncoder(fleetErrorEncoder),
+		kithttp.ServerAfter(
+			kithttp.SetContentType("application/json; charset=utf-8"),
+			log.LogRequestEnd(slog.New(slog.DiscardHandler)),
+			checkLicenseExpiration(svc),
+		),
+	}
+
+	var buf bytes.Buffer
+	e := newNoAuthEndpointer(svc, fleetAPIOptions, r, "v1")
+	e.GET("/none/", func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+		buf.WriteString("H1")
+		return nil, nil
+	}, nil)
+
+	e.WithCustomMiddleware(
+		func(e endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+				buf.WriteString("A")
+				return e(ctx, request)
+			}
+		},
+		func(e endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+				buf.WriteString("B")
+				return e(ctx, request)
+			}
+		},
+		func(e endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+				buf.WriteString("C")
+				return e(ctx, request)
+			}
+		},
+	).
+		GET("/mw/", func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+			buf.WriteString("H2")
+			return nil, nil
+		}, nil)
+
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/none/", nil))
+	require.Equal(t, "H1", buf.String())
+
+	buf.Reset()
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/mw/", nil))
+	require.Equal(t, "ABCH2", buf.String())
+}
+
+func TestWriteBrowserSecurityHeadersNoCSP(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, err := endpointer.WriteBrowserSecurityHeaders(w, false, false)
+	require.NoError(t, err)
+	headers := w.Header()
+	require.Equal(
+		t,
+		http.Header{
+			"X-Content-Type-Options":    {"nosniff"},
+			"X-Frame-Options":           {"SAMEORIGIN"},
+			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains;"},
+			"Referrer-Policy":           {"strict-origin-when-cross-origin"},
+		},
+		headers,
+	)
+}
+
+func TestWriteBrowserSecurityHeadersCSPNoNonce(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, err := endpointer.WriteBrowserSecurityHeaders(w, true, false)
+	require.NoError(t, err)
+	headers := w.Header()
+	require.Equal(
+		t,
+		http.Header{
+			"X-Content-Type-Options":    {"nosniff"},
+			"X-Frame-Options":           {"SAMEORIGIN"},
+			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains;"},
+			"Referrer-Policy":           {"strict-origin-when-cross-origin"},
+			"Content-Security-Policy":   {"default-src 'none'; base-uri 'self'; connect-src 'self' www.gravatar.com ws: wss:; img-src 'self' www.gravatar.com data: https:; style-src 'self'; font-src 'self'; script-src 'self'"},
+		},
+		headers,
+	)
+}
+
+func TestWriteBrowserSecurityHeadersCSPAndNonce(t *testing.T) {
+	w := httptest.NewRecorder()
+	nonce, err := endpointer.WriteBrowserSecurityHeaders(w, true, true)
+	require.NoError(t, err)
+	headers := w.Header()
+	require.Equal(
+		t,
+		http.Header{
+			"X-Content-Type-Options":    {"nosniff"},
+			"X-Frame-Options":           {"SAMEORIGIN"},
+			"Strict-Transport-Security": {"max-age=31536000; includeSubDomains;"},
+			"Referrer-Policy":           {"strict-origin-when-cross-origin"},
+			"Content-Security-Policy":   {"default-src 'none'; base-uri 'self'; connect-src 'self' www.gravatar.com ws: wss:; img-src 'self' www.gravatar.com data: https:; style-src 'self' 'nonce-" + nonce + "'; font-src 'self'; script-src 'self' 'nonce-" + nonce + "'"},
+		},
+		headers,
+	)
+}
+
+func TestBrowserSecurityHeadersHandlerCSPNonce(t *testing.T) {
+	serve := func(serveCSP bool, h http.HandlerFunc) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		endpointer.BrowserSecurityHeadersHandler(serveCSP, h).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		return rec
+	}
+
+	t.Run("not requested", func(t *testing.T) {
+		rec := serve(true, func(w http.ResponseWriter, r *http.Request) {})
+		require.NotEmpty(t, rec.Header().Get("Content-Security-Policy"))
+		require.NotContains(t, rec.Header().Get("Content-Security-Policy"), "nonce-")
+	})
+
+	t.Run("requested", func(t *testing.T) {
+		var nonce, again string
+		var err, errAgain error
+		rec := serve(true, func(w http.ResponseWriter, r *http.Request) {
+			nonce, err = endpointer.CSPNonce(r.Context())
+			again, errAgain = endpointer.CSPNonce(r.Context())
+		})
+		require.NoError(t, err)
+		require.NoError(t, errAgain)
+		require.Equal(t, nonce, again)
+		require.NotEqual(t, "disabled", nonce)
+		require.Contains(t, rec.Header().Get("Content-Security-Policy"), "style-src 'self' 'nonce-"+nonce+"'")
+		require.Contains(t, rec.Header().Get("Content-Security-Policy"), "script-src 'self' 'nonce-"+nonce+"'")
+	})
+
+	t.Run("CSP disabled", func(t *testing.T) {
+		var nonce string
+		var err error
+		rec := serve(false, func(w http.ResponseWriter, r *http.Request) {
+			nonce, err = endpointer.CSPNonce(r.Context())
+		})
+		require.NoError(t, err)
+		require.Equal(t, "disabled", nonce)
+		require.Empty(t, rec.Header().Get("Content-Security-Policy"))
+	})
+}
+
+// TestUniversalDecoderReportsFieldPath covers the endpoints that decode through the generic decoder
+// rather than their own DecodeBody, which is most of them. Go 1.27 stopped reporting the position of a
+// failure inside a custom UnmarshalJSON, and every pkg/optjson type has one, so these errors lost the
+// field name entirely. See https://github.com/fleetdm/fleet/issues/52493.
+func TestUniversalDecoderReportsFieldPath(t *testing.T) {
+	type nested struct {
+		Enabled optjson.Bool `json:"enabled"`
+	}
+	type universalStruct struct {
+		Nested nested   `json:"nested"`
+		Items  []nested `json:"items"`
+		Name   string   `json:"name"`
+	}
+	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
+
+	for _, c := range []struct {
+		body string
+		want string
+	}{
+		{`{"nested":{"enabled":"yes"}}`, "invalid value type at 'nested.enabled': expected bool but got string"},
+		{`{"items":[{"enabled":true},{"enabled":"yes"}]}`, "invalid value type at 'items.1.enabled': expected bool but got string"},
+		// A plain field never lost its path; it must keep reporting the same way.
+		{`{"name":123}`, "invalid value type at 'name': expected string but got number"},
+	} {
+		t.Run(c.body, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/target", strings.NewReader(c.body))
+			_, err := decoder(context.Background(), req)
+			require.Error(t, err)
+
+			var bre *platform_http.BadRequestError
+			require.ErrorAs(t, err, &bre)
+			require.Equal(t, c.want, bre.Message)
+			require.Error(t, bre.InternalErr, "the decoder error stays available for logs")
+		})
+	}
+}

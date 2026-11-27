@@ -1,0 +1,342 @@
+package scepserver
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
+	"github.com/go-kit/kit/transport"
+	kithttp "github.com/go-kit/kit/transport/http"
+	"github.com/groob/finalizer/logutil"
+)
+
+func MakeHTTPHandler(e *Endpoints, svc Service, logger *slog.Logger) http.Handler {
+	kitLogger := kitlogadapter.NewLogger(logger)
+	opts := []kithttp.ServerOption{
+		kithttp.ServerErrorLogger(kitLogger),
+		kithttp.ServerFinalizer(logutil.NewHTTPLogger(kitLogger).LoggingFinalizer),
+	}
+
+	encode := newSCEPResponseEncoder(logger)
+	getHandler := kithttp.NewServer(e.GetEndpoint, decodeSCEPRequest, encode, opts...)
+	postHandler := kithttp.NewServer(e.PostEndpoint, decodeSCEPRequest, encode, opts...)
+
+	// A method switch rather than a ServeMux: a nested ServeMux overwrites r.Pattern, which otelhttp reads after the handler
+	// returns to set http.route on metrics.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead:
+			getHandler.ServeHTTP(w, r)
+		case http.MethodPost:
+			postHandler.ServeHTTP(w, r)
+		default:
+			w.Header().Set("Allow", "GET, HEAD, POST")
+			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		}
+	})
+}
+
+func MakeHTTPHandlerWithIdentifier(e *Endpoints, rootPath string, logger *slog.Logger) http.Handler {
+	kitLogger := kitlogadapter.NewLogger(logger)
+	opts := []kithttp.ServerOption{
+		kithttp.ServerErrorHandler(transport.NewLogErrorHandler(kitLogger)),
+		kithttp.ServerFinalizer(logutil.NewHTTPLogger(kitLogger).LoggingFinalizer),
+	}
+
+	encode := newSCEPResponseEncoder(logger)
+	getHandler := kithttp.NewServer(e.GetEndpoint, decodeSCEPRequestWithIdentifier, encode, opts...)
+	postHandler := kithttp.NewServer(e.PostEndpoint, decodeSCEPRequestWithIdentifier, encode, opts...)
+
+	r := http.NewServeMux()
+	r.Handle("GET "+rootPath+"{identifier}", getHandler)
+	r.Handle("POST "+rootPath+"{identifier}", postHandler)
+	// For Windows SCEP client which appends pkiclient.exe to the URL and seemingly cannot be configured
+	// to not do that
+	r.Handle("GET "+rootPath+"{identifier}/pkiclient.exe", getHandler)
+	r.Handle("POST "+rootPath+"{identifier}/pkiclient.exe", postHandler)
+
+	return r
+}
+
+// EncodeSCEPRequest encodes a SCEP HTTP Request. Used by the client.
+func EncodeSCEPRequest(ctx context.Context, r *http.Request, request interface{}) error {
+	req := request.(SCEPRequest)
+	params := r.URL.Query()
+	params.Set("operation", req.Operation)
+	switch r.Method {
+	case "GET":
+		if len(req.Message) > 0 {
+			var msg string
+			if req.Operation == "PKIOperation" {
+				// Use standard base64 encoding (with + and /) as expected by SCEP servers.
+				// The subsequent params.Encode() call will URL-encode the + and / characters.
+				msg = base64.StdEncoding.EncodeToString(req.Message)
+			} else {
+				msg = string(req.Message)
+			}
+			params.Set("message", msg)
+		}
+		r.URL.RawQuery = params.Encode()
+		return nil
+	case "POST":
+		body := bytes.NewReader(req.Message)
+		// recreate the request here because IIS does not support chunked encoding by default
+		// and Go doesn't appear to set Content-Length if we use an io.ReadCloser
+		u := r.URL
+		u.RawQuery = params.Encode()
+		rr, err := http.NewRequest("POST", u.String(), body)
+		rr.Header.Set("Content-Type", "application/octet-stream")
+		if err != nil {
+			return errors.Join(err, fmt.Errorf("creating new POST request for %s", req.Operation))
+		}
+		*r = *rr
+		return nil
+	default:
+		return fmt.Errorf("scep: %s method not supported", r.Method)
+	}
+}
+
+const maxPayloadSize = 2 << 20
+
+func decodeSCEPRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	msg, err := message(r)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	operation := r.URL.Query().Get("operation")
+	if len(operation) == 0 {
+		return nil, &BadRequestError{Message: "missing operation"}
+	}
+
+	request := SCEPRequest{
+		Message:   msg,
+		Operation: r.URL.Query().Get("operation"),
+	}
+
+	return request, nil
+}
+
+func decodeSCEPRequestWithIdentifier(_ context.Context, r *http.Request) (interface{}, error) {
+	msg, err := message(r)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	operation := r.URL.Query().Get("operation")
+	identifier := r.PathValue("identifier")
+	if len(operation) == 0 {
+		return nil, &BadRequestError{Message: "missing operation"}
+	}
+
+	request := SCEPRequestWithIdentifier{
+		SCEPRequest: SCEPRequest{
+			Message:   msg,
+			Operation: operation,
+		},
+		Identifier: identifier,
+	}
+
+	return request, nil
+}
+
+// rawQueryParam extracts a query parameter value from the raw query string
+// without decoding '+' as space. This is necessary because url.Values.Get()
+// performs HTML-form decoding ('+' -> space), which is wrong for RFC 3986 query
+// strings where '+' is a literal character. See #45291.
+func rawQueryParam(rawQuery, key string) (value string, ok bool) {
+	for rawQuery != "" {
+		var part string
+		if before, after, found := strings.Cut(rawQuery, "&"); found {
+			part, rawQuery = before, after
+		} else {
+			part, rawQuery = rawQuery, ""
+		}
+		if k, v, found := strings.Cut(part, "="); found && k == key {
+			return v, true
+		} else if !found && k == key {
+			return "", true
+		}
+	}
+	return "", false
+}
+
+// extract message from request
+func message(r *http.Request) ([]byte, error) {
+	switch r.Method {
+	case "GET", "HEAD": // ServeMux routes HEAD to GET patterns
+		var msg string
+		q := r.URL.Query()
+		op := q.Get("operation")
+		if op == "PKIOperation" {
+			// For PKIOperation, read the message from the raw query string
+			// to preserve literal '+' characters in the base64 payload.
+			// url.Values.Get() decodes '+' as space (correct for form-encoded
+			// POST bodies, wrong for query strings per RFC 3986). See #45291.
+			rawMsg, hasMsg := rawQueryParam(r.URL.RawQuery, "message")
+			if !hasMsg || len(rawMsg) == 0 {
+				return nil, &BadRequestError{Message: "missing PKIOperation message"}
+			}
+
+			msg2, err := url.PathUnescape(rawMsg)
+			if err != nil {
+				return nil, &BadRequestError{Message: fmt.Sprintf("invalid PKIOperation message: %s", rawMsg)}
+			}
+
+			decoded, err := base64.StdEncoding.DecodeString(msg2)
+			if err != nil {
+				return nil, &BadRequestError{Message: fmt.Sprintf("failed to base64 decode message: %s: %s", err.Error(), msg2)}
+			}
+
+			return decoded, nil
+		}
+		if _, ok := q["message"]; ok {
+			msg = q.Get("message")
+		}
+		return []byte(msg), nil
+	case "POST":
+		return io.ReadAll(io.LimitReader(r.Body, maxPayloadSize))
+	default:
+		return nil, errors.New("method not supported")
+	}
+}
+
+// BadRequestError is an error type that generates a 400 status code.
+type BadRequestError struct {
+	Message string
+}
+
+// Error returns the error message.
+func (e *BadRequestError) Error() string {
+	return e.Message
+}
+
+// StatusCode implements the kithttp StatusCoder interface
+func (e *BadRequestError) StatusCode() int { return http.StatusBadRequest }
+
+// TimeoutError is an error type that generates a 408 status code.
+type TimeoutError struct {
+	Message string
+}
+
+// Error returns the error message.
+func (e *TimeoutError) Error() string {
+	return e.Message
+}
+
+// StatusCode implements the kithttp StatusCoder interface
+func (e *TimeoutError) StatusCode() int { return http.StatusRequestTimeout }
+
+// badRequestErrorInterface matches Fleet's bad request errors (e.g. fleet.BadRequestError),
+// which signal a 400 through this method rather than a StatusCode method.
+type badRequestErrorInterface interface {
+	error
+	BadRequestError() []map[string]string
+}
+
+// errWithInternal matches errors that carry a detail kept out of the response body (e.g. fleet.BadRequestError).
+type errWithInternal interface {
+	error
+	Internal() string
+}
+
+// newSCEPResponseEncoder returns an encoder that writes a SCEP response back to the SCEP client. The client
+// only gets the error's public message, so the encoder logs the full error, including any internal detail.
+func newSCEPResponseEncoder(logger *slog.Logger) kithttp.EncodeResponseFunc {
+	return func(ctx context.Context, w http.ResponseWriter, response any) error {
+		resp := response.(SCEPResponse)
+		if resp.Err != nil {
+			status := http.StatusInternalServerError
+			var esc kithttp.StatusCoder
+			var bre badRequestErrorInterface
+			switch {
+			case errors.As(resp.Err, &esc):
+				status = esc.StatusCode()
+			case errors.As(resp.Err, &bre):
+				status = http.StatusBadRequest
+			}
+
+			attrs := []any{"status", status, "err", resp.Err}
+			var ewi errWithInternal
+			if errors.As(resp.Err, &ewi) && ewi.Internal() != "" {
+				attrs = append(attrs, "internal", ewi.Internal())
+			}
+			level := slog.LevelInfo
+			if status >= http.StatusInternalServerError {
+				level = slog.LevelError
+			}
+			logger.Log(ctx, level, "SCEP request failed", attrs...)
+
+			http.Error(w, resp.Err.Error(), status)
+			return nil
+		}
+		w.Header().Set("Content-Type", contentHeader(resp.operation, resp.CACertNum))
+		_, _ = w.Write(resp.Data)
+		return nil
+	}
+}
+
+// ResponseStatusError is a SCEP server's HTTP error response. The status is a field rather than a
+// StatusCode method so that the error never sets the status of a Fleet response it reaches.
+type ResponseStatusError struct {
+	Code   int
+	Status string
+	Body   string
+}
+
+func (e ResponseStatusError) Error() string {
+	return fmt.Sprintf("http request failed with status %s, msg: %s", e.Status, e.Body)
+}
+
+// DecodeSCEPResponse decodes a SCEP response
+func DecodeSCEPResponse(ctx context.Context, r *http.Response) (interface{}, error) {
+	if r.StatusCode != http.StatusOK && r.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 4096))
+		return nil, ResponseStatusError{Code: r.StatusCode, Status: r.Status, Body: string(body)}
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, maxPayloadSize))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	resp := SCEPResponse{
+		Data: data,
+	}
+	header := r.Header.Get("Content-Type")
+	if header == certChainHeader {
+		// we only set it to two to indicate a cert chain.
+		// the actual number of certs will be in the payload.
+		resp.CACertNum = 2
+	}
+	return resp, nil
+}
+
+const (
+	certChainHeader = "application/x-x509-ca-ra-cert"
+	leafHeader      = "application/x-x509-ca-cert"
+	pkiOpHeader     = "application/x-pki-message"
+)
+
+func contentHeader(op string, certNum int) string {
+	switch op {
+	case "GetCACert":
+		if certNum > 1 {
+			return certChainHeader
+		}
+		return leafHeader
+	case "PKIOperation":
+		return pkiOpHeader
+	default:
+		return "text/plain"
+	}
+}

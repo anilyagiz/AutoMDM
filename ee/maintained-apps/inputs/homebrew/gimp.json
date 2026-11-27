@@ -1,0 +1,8 @@
+{
+  "name": "GIMP",
+  "unique_identifier": "org.gimp.gimp",
+  "token": "gimp",
+  "installer_format": "dmg",
+  "slug": "gimp/darwin",
+  "default_categories": ["Productivity"]
+}

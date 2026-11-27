@@ -1,0 +1,34 @@
+.yaml-ace {
+  max-height: 408px;
+  &__wrapper {
+    &--error {
+      // Beat the ace theme's :hover / .ace_focus selectors
+      // (frontend/utilities/ace_theme.css) so the red border persists
+      // through hover and focus, matching InputField's error state.
+      .ace_editor.ace-fleet,
+      .ace_editor.ace-fleet:hover,
+      .ace_editor.ace-fleet.ace_focus {
+        border-color: $ui-error;
+      }
+    }
+  }
+
+  // Added to remove the "popping" effect when the editor first loads.
+  min-height: 408px;
+
+  .ace_gutter-layer {
+    min-height: 408px;
+  }
+
+  .ace_line {
+    min-height: 24px;
+  }
+
+  .ace_gutter-cell {
+    min-height: 24px;
+  }
+
+  .ace_fold-widget {
+    min-height: 24px;
+  }
+}

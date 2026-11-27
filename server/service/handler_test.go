@@ -1,0 +1,408 @@
+package service
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"regexp"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	kithttp "github.com/go-kit/kit/transport/http"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/stretchr/testify/require"
+	"github.com/throttled/throttled/v2/store/memstore"
+)
+
+func TestAPIRoutesMetrics(t *testing.T) {
+	ds := new(mock.Store)
+
+	svc, _ := newTestService(t, ds, nil, nil)
+	limitStore, _ := memstore.New(0)
+	h, err := MakeHandler(svc, config.TestConfig(), slog.New(slog.DiscardHandler), limitStore, nil, nil, nil)
+	require.NoError(t, err)
+	router := h.(*endpointer.Router)
+
+	// collect the requests to make to each route, then replace all handlers with mocks
+	var reqs []*http.Request
+	for _, rt := range router.Routes() {
+		verb, path, err := routeTestRequest(rt)
+		require.NoError(t, err)
+		if path != "" {
+			reqs = append(reqs, httptest.NewRequest(verb, path, nil))
+		}
+	}
+	router.WrapHandlers(func(endpointer.Route, http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	})
+
+	// wrap the handlers with the metric handlers
+	addMetrics(router)
+
+	// add the handler that returns the metrics, itself instrumented
+	router.Handle(endpointer.Route{Name: "metrics", Path: "/metrics"}, promhttp.Handler())
+
+	// collect the route names
+	routeNames := make(map[string]bool)
+	for _, rt := range router.Routes() {
+		if routeNames[rt.Name] {
+			t.Errorf("duplicate route name: %s (%s)", rt.Name, rt.Template())
+		}
+		routeNames[rt.Name] = true
+	}
+
+	// make the requests to each route
+	for _, req := range reqs {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	// get the metrics
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	rxMetric := regexp.MustCompile(`^([\w_]+)({[^}]+})? (.+)$`)
+	rxHandler := regexp.MustCompile(`handler="([\w_]+)"`)
+
+	// expected metric names and their counts
+	metricCounts := map[string]int{
+		"go_gc_duration_seconds":                     0,
+		"go_gc_duration_seconds_sum":                 0,
+		"go_gc_duration_seconds_count":               0,
+		"go_gc_gogc_percent":                         0,
+		"go_gc_gomemlimit_bytes":                     0,
+		"go_sched_gomaxprocs_threads":                0,
+		"go_goroutines":                              0,
+		"go_info":                                    0,
+		"go_memstats_alloc_bytes":                    0,
+		"go_memstats_alloc_bytes_total":              0,
+		"go_memstats_buck_hash_sys_bytes":            0,
+		"go_memstats_frees_total":                    0,
+		"go_memstats_gc_cpu_fraction":                0,
+		"go_memstats_gc_sys_bytes":                   0,
+		"go_memstats_heap_alloc_bytes":               0,
+		"go_memstats_heap_idle_bytes":                0,
+		"go_memstats_heap_inuse_bytes":               0,
+		"go_memstats_heap_objects":                   0,
+		"go_memstats_heap_released_bytes":            0,
+		"go_memstats_heap_sys_bytes":                 0,
+		"go_memstats_last_gc_time_seconds":           0,
+		"go_memstats_lookups_total":                  0,
+		"go_memstats_mallocs_total":                  0,
+		"go_memstats_mcache_inuse_bytes":             0,
+		"go_memstats_mcache_sys_bytes":               0,
+		"go_memstats_mspan_inuse_bytes":              0,
+		"go_memstats_mspan_sys_bytes":                0,
+		"go_memstats_next_gc_bytes":                  0,
+		"go_memstats_other_sys_bytes":                0,
+		"go_memstats_stack_inuse_bytes":              0,
+		"go_memstats_stack_sys_bytes":                0,
+		"go_memstats_sys_bytes":                      0,
+		"go_threads":                                 0,
+		"http_request_duration_seconds_bucket":       0,
+		"http_request_duration_seconds_sum":          0,
+		"http_request_duration_seconds_count":        0,
+		"http_request_size_bytes_bucket":             0,
+		"http_request_size_bytes_sum":                0,
+		"http_request_size_bytes_count":              0,
+		"http_requests_total":                        0,
+		"http_response_size_bytes_bucket":            0,
+		"http_response_size_bytes_sum":               0,
+		"http_response_size_bytes_count":             0,
+		"process_cpu_seconds_total":                  0,
+		"process_max_fds":                            0,
+		"process_open_fds":                           0,
+		"process_resident_memory_bytes":              0,
+		"process_start_time_seconds":                 0,
+		"process_virtual_memory_bytes":               0,
+		"process_virtual_memory_max_bytes":           0,
+		"promhttp_metric_handler_requests_in_flight": 0,
+		"promhttp_metric_handler_requests_total":     0,
+	}
+
+	wantCounts := map[string]int{
+		"go_gc_duration_seconds":                     5, // quantiles 0, .25, .5, .75 and 1
+		"go_gc_duration_seconds_sum":                 1,
+		"go_gc_duration_seconds_count":               1,
+		"go_goroutines":                              1,
+		"go_gc_gogc_percent":                         1,
+		"go_gc_gomemlimit_bytes":                     1,
+		"go_sched_gomaxprocs_threads":                1,
+		"go_info":                                    1,
+		"go_memstats_alloc_bytes":                    1,
+		"go_memstats_alloc_bytes_total":              1,
+		"go_memstats_buck_hash_sys_bytes":            1,
+		"go_memstats_frees_total":                    1,
+		"go_memstats_gc_cpu_fraction":                0, // does not appear to be reported anymore
+		"go_memstats_gc_sys_bytes":                   1,
+		"go_memstats_heap_alloc_bytes":               1,
+		"go_memstats_heap_idle_bytes":                1,
+		"go_memstats_heap_inuse_bytes":               1,
+		"go_memstats_heap_objects":                   1,
+		"go_memstats_heap_released_bytes":            1,
+		"go_memstats_heap_sys_bytes":                 1,
+		"go_memstats_last_gc_time_seconds":           1,
+		"go_memstats_lookups_total":                  0, // does not appear to be reported anymore
+		"go_memstats_mallocs_total":                  1,
+		"go_memstats_mcache_inuse_bytes":             1,
+		"go_memstats_mcache_sys_bytes":               1,
+		"go_memstats_mspan_inuse_bytes":              1,
+		"go_memstats_mspan_sys_bytes":                1,
+		"go_memstats_next_gc_bytes":                  1,
+		"go_memstats_other_sys_bytes":                1,
+		"go_memstats_stack_inuse_bytes":              1,
+		"go_memstats_stack_sys_bytes":                1,
+		"go_memstats_sys_bytes":                      1,
+		"go_threads":                                 1,
+		"http_request_duration_seconds_bucket":       len(reqs) * (len(prometheus.DefBuckets) + 1), // +1 for the last bucket, ending at +Inf
+		"http_request_duration_seconds_sum":          len(reqs),
+		"http_request_duration_seconds_count":        len(reqs),
+		"http_request_size_bytes_bucket":             len(reqs) * 6, // size of req size buckets
+		"http_request_size_bytes_sum":                len(reqs),
+		"http_request_size_bytes_count":              len(reqs),
+		"http_requests_total":                        len(reqs),
+		"http_response_size_bytes_bucket":            len(reqs) * 6, // size of res size buckets
+		"http_response_size_bytes_sum":               len(reqs),
+		"http_response_size_bytes_count":             len(reqs),
+		"process_cpu_seconds_total":                  1,
+		"process_max_fds":                            1,
+		"process_open_fds":                           1,
+		"process_resident_memory_bytes":              1,
+		"process_start_time_seconds":                 1,
+		"process_virtual_memory_bytes":               1,
+		"process_virtual_memory_max_bytes":           1,
+		"promhttp_metric_handler_requests_in_flight": 1,
+		"promhttp_metric_handler_requests_total":     3, // status codes 200, 500, 503
+	}
+
+	s := bufio.NewScanner(rr.Body)
+	for s.Scan() {
+		line := s.Text()
+
+		// line must be one of those options, which is the prometheus format
+		matches := rxMetric.FindStringSubmatch(line)
+		switch {
+		case strings.HasPrefix(line, "# TYPE "),
+			strings.HasPrefix(line, "# HELP "):
+			// that's fine, metadata about the metric
+
+		case len(matches) > 0:
+			_, ok := metricCounts[matches[1]]
+			if !ok {
+				// Some metrics may be environment-specific.
+				// If it's something we want to track, we can add it to the
+				// metricCounts map, but for now, we just ignore it.
+				continue
+			}
+			metricCounts[matches[1]]++
+
+			// if there are dimensions or labels associated with the metric, check
+			// if there is a handler name.
+			if len(matches) > 3 {
+				labels := matches[2]
+				if handlerMatches := rxHandler.FindStringSubmatch(labels); len(handlerMatches) > 0 {
+					require.True(t, routeNames[handlerMatches[1]], "unexpected handler route name: %s: %s", matches[1], handlerMatches[1])
+				}
+			}
+
+			// the last capture is the value, which must be parsable as a float
+			val := matches[len(matches)-1]
+			_, err := strconv.ParseFloat(val, 64)
+			require.NoError(t, err, "value must be a valid float: %s", matches[1])
+
+		default:
+			require.Fail(t, "invalid line", line)
+		}
+	}
+	require.NoError(t, s.Err())
+
+	for name, got := range metricCounts {
+		want, ok := wantCounts[name]
+		require.True(t, ok, "unexpected metric: %s", name)
+		require.Equal(t, want, got, name)
+	}
+}
+
+var reSimpleVar, reNumVar = regexp.MustCompile(`\{(\w+)\}`), regexp.MustCompile(`\{\w+:[^\}]+\}`)
+
+// routeTestRequest returns a method and a concrete path that match rt. The path is empty for a route without methods.
+func routeTestRequest(rt endpointer.Route) (verb, path string, err error) {
+	if len(rt.Methods) == 0 {
+		// only route without method is distributed_query_results (websocket)
+		if rt.Name != "distributed_query_results" {
+			return "", "", fmt.Errorf("%s %s: route has no methods", rt.Name, rt.Path)
+		}
+		return "", "", nil
+	}
+
+	path = reSimpleVar.ReplaceAllString(rt.Template(), "$1")
+	// for now at least, the only times we use regexp-constrained vars is
+	// for numeric arguments or the fleetversion specifier.
+	path = reNumVar.ReplaceAllStringFunc(path, func(s string) string {
+		if strings.Contains(s, "fleetversion") {
+			parts := strings.Split(strings.TrimPrefix(s, "{fleetversion:(?:"), "|")
+			// test with "latest" if not deprecated, or last supported version for that route
+			// (for either case, this will be in the last part)
+			return strings.TrimSuffix(parts[len(parts)-1], ")}")
+		}
+		return "1"
+	})
+
+	return rt.Methods[0], path, nil
+}
+
+func TestGzipResponses(t *testing.T) {
+	ds := new(mock.Store)
+	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		return &fleet.AppConfig{}, nil
+	}
+
+	gzipTestHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Write enough data to trigger gzip (default threshold is 1500 bytes)
+		data := make([]byte, 2000)
+		for i := range data {
+			data[i] = 'a'
+		}
+		// The response body is what the assertions inspect; a write error surfaces there.
+		_, _ = w.Write(data)
+	})
+	testRoute := func(r *endpointer.Router, opts []kithttp.ServerOption) {
+		r.Handle(endpointer.Route{Name: "test_gzip", Path: "/api/test-gzip"}, gzipTestHandler)
+		// A route with methods registers a different ServeMux pattern than one without.
+		r.Handle(endpointer.Route{Name: "test_gzip_get", Methods: []string{"GET"}, Path: "/api/test-gzip-get"}, gzipTestHandler)
+	}
+
+	t.Run("Enabled", func(t *testing.T) {
+		cfg := config.TestConfig()
+		cfg.Server.GzipResponses = true
+
+		_, server := RunServerForTestsWithDS(t, ds, &TestServerOpts{
+			FleetConfig:         &cfg,
+			FeatureRoutes:       []endpointer.HandlerRoutesFunc{testRoute},
+			SkipCreateTestUsers: true,
+		})
+		defer server.Close()
+
+		for _, path := range []string{"/api/test-gzip", "/api/test-gzip-get"} {
+			t.Run("WithAcceptEncoding "+path, func(t *testing.T) {
+				req, err := http.NewRequest("GET", server.URL+path, nil)
+				require.NoError(t, err)
+				req.Header.Set("Accept-Encoding", "gzip")
+				resp, err := fleethttp.NewClient().Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				require.Equal(t, "gzip", resp.Header.Get("Content-Encoding"), "Expected gzip Content-Encoding when enabled")
+			})
+		}
+
+		t.Run("WithoutAcceptEncoding", func(t *testing.T) {
+			req, err := http.NewRequest("GET", server.URL+"/api/test-gzip", nil)
+			require.NoError(t, err)
+			// Do NOT set Accept-Encoding header
+			transport := fleethttp.NewTransport()
+			transport.DisableCompression = true // Prevents automatic addition of Accept-Encoding: gzip
+			client := fleethttp.NewClient()
+			client.Transport = transport
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Empty(t, resp.Header.Get("Content-Encoding"), "Expected no gzip Content-Encoding when Accept-Encoding not set")
+		})
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.TestConfig()
+		cfg.Server.GzipResponses = false
+		_, server := RunServerForTestsWithDS(t, ds, &TestServerOpts{
+			FleetConfig:         &cfg,
+			FeatureRoutes:       []endpointer.HandlerRoutesFunc{testRoute},
+			SkipCreateTestUsers: true,
+		})
+		defer server.Close()
+
+		req, err := http.NewRequest("GET", server.URL+"/api/test-gzip", nil)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err := fleethttp.NewClient().Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Empty(t, resp.Header.Get("Content-Encoding"), "Expected no gzip Content-Encoding when disabled")
+	})
+}
+
+func TestFleetctl4VersionCheck(t *testing.T) {
+	ds := new(mock.Store)
+	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		return &fleet.AppConfig{}, nil
+	}
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+		return nil, &notFoundError{}
+	}
+	_, server := RunServerForTestsWithDS(t, ds, &TestServerOpts{SkipCreateTestUsers: true})
+	defer server.Close()
+
+	// What fleetctl 4 sends on every request, captured from released 4.80.0 and 4.95.0 binaries.
+	fleetctl4 := map[string]string{"User-Agent": "Go-http-client/1.1", "Content-Type": "application/json", "Accept": "application/json"}
+	withUserAgent := func(userAgent string) map[string]string {
+		return map[string]string{"User-Agent": userAgent, "Content-Type": "application/json", "Accept": "application/json"}
+	}
+	// The token is invalid, so a request that gets past the check gets 401.
+	cases := []struct {
+		name       string
+		path       string
+		headers    map[string]string
+		wantStatus int
+	}{
+		{"fleetctl 4, v1", "/api/v1/fleet/version", fleetctl4, http.StatusUpgradeRequired},
+		{"fleetctl 4, latest", "/api/latest/fleet/version", fleetctl4, http.StatusUpgradeRequired},
+		{"fleetctl 4 over HTTP/2", "/api/latest/fleet/version", withUserAgent("Go-http-client/2.0"), http.StatusUpgradeRequired},
+		{"fleetctl 4, other endpoint", "/api/latest/fleet/config", fleetctl4, http.StatusUnauthorized},
+		{"fleetctl 5", "/api/latest/fleet/version", withUserAgent("fleetctl/5.0.0"), http.StatusUnauthorized},
+		{"fleetctl 5 built without a version", "/api/latest/fleet/version", withUserAgent("fleetctl/unknown"), http.StatusUnauthorized},
+		{"fleetctl 5 with Go's User-Agent in its custom headers", "/api/latest/fleet/version",
+			map[string]string{"User-Agent": "Go-http-client/1.1", "Content-Type": "application/json", "Accept": "application/json",
+				fleet.HeaderClientVersion: "5.0.0"}, http.StatusUnauthorized},
+		{"curl", "/api/latest/fleet/version", withUserAgent("curl/8.7.1"), http.StatusUnauthorized},
+		{"Go client without JSON headers", "/api/latest/fleet/version", map[string]string{"User-Agent": "Go-http-client/1.1"}, http.StatusUnauthorized},
+		{"Go client with only Accept", "/api/latest/fleet/version", map[string]string{"User-Agent": "Go-http-client/1.1", "Accept": "application/json"}, http.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+tc.path, nil)
+			require.NoError(t, err)
+			req.Header.Set("Authorization", "Bearer invalid")
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			resp, err := fleethttp.NewClient().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
+			if tc.wantStatus != http.StatusUpgradeRequired {
+				return
+			}
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+			require.Equal(t, map[string]any{"message": fleetctl4NotSupportedMessage}, body)
+		})
+	}
+}

@@ -1,0 +1,28 @@
+import { IFormField } from "./form_field";
+import { ISchedulableQuery, ISchedulableQueryStats } from "./schedulable_query";
+
+export interface IStoredQueryResponse {
+  report: ISchedulableQuery;
+}
+
+export interface IQuery {
+  created_at: string;
+  updated_at: string;
+  id: number;
+  name: string;
+  description: string;
+  query: string;
+  saved: boolean;
+  author_id: number;
+  author_name: string;
+  author_email: string;
+  observer_can_run: boolean;
+  stats?: ISchedulableQueryStats;
+}
+
+export interface IEditQueryFormFields {
+  description: IFormField;
+  name: IFormField;
+  query: IFormField;
+  observer_can_run: IFormField;
+}

@@ -1,0 +1,9 @@
+.edit-teams-vpp-modal {
+  p {
+    margin: 0;
+  }
+
+  &__form {
+    @include vertical-form-layout;
+  }
+}

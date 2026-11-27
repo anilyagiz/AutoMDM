@@ -1,0 +1,90 @@
+{
+  "token": "druva-insync@govcloud",
+  "old_tokens": [],
+  "name": [
+    "Druva inSync (GovCloud)"
+  ],
+  "desc": "Endpoint data backup and recovery client for Druva GovCloud",
+  "homepage": "https://www.druva.com/",
+  "url": "https://downloads.druva.com/downloads/inSync/MAC/8.1.9_Gov/inSync-8.1.9-r111001.dmg",
+  "url_specs": {},
+  "version": "8.1.9,111001",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": true,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "sha256": "674474f93c3910321c1b25e3cd47398597dca6ced40fecaef2c2f12a5ab2a7f7",
+  "artifacts": [
+    {
+      "uninstall": [
+        {
+          "launchctl": [
+            "com.druva.inSyncAgent",
+            "com.druva.inSyncDecom",
+            "com.druva.inSyncUpgrade",
+            "com.druva.inSyncUpgradeDaemon"
+          ],
+          "quit": "com.druva.inSyncClient",
+          "pkgutil": "com.druva.inSync.pkg",
+          "delete": [
+            "/Library/LaunchAgents/inSyncAgent.plist",
+            "/Library/LaunchAgents/inSyncUpgrade.plist",
+            "/Library/LaunchDaemons/inSyncDecommission.plist",
+            "/Library/LaunchDaemons/inSyncUpgradeDaemon.plist"
+          ]
+        }
+      ]
+    },
+    {
+      "pkg": [
+        "Install inSync.pkg"
+      ]
+    },
+    {
+      "zap": [
+        {
+          "trash": [
+            "~/Library/Application Support/Druva",
+            "~/Library/Caches/com.druva.inSyncClient",
+            "~/Library/Logs/Druva",
+            "~/Library/Preferences/com.druva.inSyncClient.plist",
+            "~/Library/Saved Application State/com.druva.inSyncClient.savedState"
+          ]
+        }
+      ]
+    }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+    "macos": {
+      ">=": [
+        "14"
+      ]
+    }
+  },
+  "conflicts_with": null,
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "languages": [],
+  "ruby_source_path": "Casks/druva-insync@govcloud.rb",
+  "ruby_source_checksum": {
+    "sha256": "6b84c6a6fabd387b2e0c8451f1af68c58d7c3df3cb31e70104f596fc2bb15923"
+  }
+}

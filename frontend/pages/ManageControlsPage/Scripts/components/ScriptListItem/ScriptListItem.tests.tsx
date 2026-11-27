@@ -1,0 +1,282 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import React from "react";
+
+import { useCheckTruncatedElement } from "hooks/useCheckTruncatedElement";
+import { IScript } from "interfaces/script";
+import scriptAPI from "services/entities/scripts";
+import { createCustomRenderer, renderWithSetup } from "test/test-utils";
+
+import ScriptListItem from "./ScriptListItem";
+
+jest.mock("services/entities/scripts", () => ({
+  __esModule: true,
+  default: { downloadScript: jest.fn() },
+}));
+
+// jsdom has no layout, so control whether the name renders truncated.
+jest.mock("hooks/useCheckTruncatedElement", () => ({
+  useCheckTruncatedElement: jest.fn(),
+}));
+const mockedUseCheckTruncatedElement = jest.mocked(useCheckTruncatedElement);
+
+const MAC_SCRIPT: IScript = {
+  id: 1,
+  fleet_id: 1,
+  name: "test_mac_script.sh",
+  created_at: "2021-01-01",
+  updated_at: "2021-01-01",
+};
+
+const WINDOWS_SCRIPT: IScript = {
+  id: 1,
+  fleet_id: 1,
+  name: "test_win_script.ps1",
+  created_at: "2021-01-01",
+  updated_at: "2021-01-01",
+};
+
+describe("ScriptListItem", () => {
+  const onDelete = jest.fn();
+  const onClickScript = jest.fn();
+  const onEdit = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("shows the full name on hover when the name is truncated", async () => {
+    mockedUseCheckTruncatedElement.mockReturnValue(true);
+    const { user } = renderWithSetup(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    await user.hover(screen.getByText(MAC_SCRIPT.name));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Name:/)).toBeInTheDocument();
+    });
+    expect(screen.getAllByText(MAC_SCRIPT.name)).toHaveLength(2);
+  });
+
+  it("Renders a Script list item with correct platform for macOS", () => {
+    render(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    expect(screen.getByText(/macOS & Linux/)).toBeInTheDocument();
+  });
+
+  it("Renders a Script list item with correct platform for Windows", () => {
+    render(
+      <ScriptListItem
+        script={WINDOWS_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    expect(screen.getByText(/Windows/)).toBeInTheDocument();
+  });
+
+  it("labels each action button with the script name for screen readers", () => {
+    render(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: `Edit ${MAC_SCRIPT.name}` })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Download ${MAC_SCRIPT.name}` })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Delete ${MAC_SCRIPT.name}` })
+    ).toBeInTheDocument();
+  });
+
+  it("calls onClickScript when script name is clicked", async () => {
+    const { user } = renderWithSetup(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    await user.click(screen.getByText("test_mac_script.sh"));
+    expect(onClickScript).toHaveBeenCalledWith(MAC_SCRIPT);
+  });
+
+  it("only calls onClickScript when clicking elsewhere in the script list item (except 'Edit', see below)", async () => {
+    const { user } = renderWithSetup(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    await user.click(screen.getByText(/years ago/));
+    expect(onClickScript).toHaveBeenCalledWith(MAC_SCRIPT);
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("only calls onDelete when delete button is clicked", async () => {
+    const { user } = renderWithSetup(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    await user.click(screen.getByTestId("trash-icon"));
+    expect(onDelete).toHaveBeenCalledWith(MAC_SCRIPT);
+    expect(onClickScript).not.toHaveBeenCalled();
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("only calls onEdit when pencil button is clicked", async () => {
+    const { user } = renderWithSetup(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    await user.click(screen.getByTestId("pencil-icon"));
+    expect(onEdit).toHaveBeenCalledWith(MAC_SCRIPT);
+    expect(onClickScript).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  describe("with GitOps mode enabled", () => {
+    const renderWithGitOps = () => {
+      const customRender = createCustomRenderer({
+        context: {
+          app: {
+            config: {
+              gitops: {
+                gitops_mode_enabled: true,
+                repository_url: "https://github.com/fleetdm/fleet",
+              },
+            },
+          },
+        },
+      });
+
+      return customRender(
+        <ScriptListItem
+          script={MAC_SCRIPT}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onClickScript={onClickScript}
+        />
+      );
+    };
+
+    it("does not call onEdit, onDelete, or onClickScript when clicking the disabled pencil/trash", async () => {
+      const { user } = renderWithGitOps();
+
+      await user.click(screen.getByTestId("pencil-icon"));
+      await user.click(screen.getByTestId("trash-icon"));
+
+      expect(onEdit).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+      expect(onClickScript).not.toHaveBeenCalled();
+    });
+
+    it("still calls download when the download button is clicked", async () => {
+      (scriptAPI.downloadScript as jest.Mock).mockResolvedValue("script body");
+
+      const { user } = renderWithGitOps();
+
+      await user.click(screen.getByTestId("download-icon"));
+
+      expect(scriptAPI.downloadScript).toHaveBeenCalledWith(MAC_SCRIPT.id);
+      expect(onClickScript).not.toHaveBeenCalled();
+    });
+
+    it("exposes the row as a keyboard-focusable button so Enter opens the Edit modal", async () => {
+      const { user, container } = renderWithGitOps();
+
+      const row = container.querySelector(".list-item") as HTMLElement;
+      expect(row).toHaveAttribute("role", "button");
+      expect(row).toHaveAttribute("tabindex", "0");
+
+      row.focus();
+      await user.keyboard("{Enter}");
+      expect(onClickScript).toHaveBeenCalledWith(MAC_SCRIPT);
+    });
+
+    it("does not open the Edit modal when Enter is pressed on the Download button", async () => {
+      (scriptAPI.downloadScript as jest.Mock).mockResolvedValue("script body");
+      const { user } = renderWithGitOps();
+
+      screen.getByTestId("download-icon").closest("button")?.focus();
+      await user.keyboard("{Enter}");
+
+      expect(scriptAPI.downloadScript).toHaveBeenCalledWith(MAC_SCRIPT.id);
+      expect(onClickScript).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("as a technician", () => {
+    it("exposes the row as a keyboard-focusable button so Enter opens the Edit modal", async () => {
+      const { user, container } = renderWithSetup(
+        <ScriptListItem
+          script={MAC_SCRIPT}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onClickScript={onClickScript}
+          isTechnician
+        />
+      );
+
+      const row = container.querySelector(".list-item") as HTMLElement;
+      expect(row).toHaveAttribute("role", "button");
+      expect(row).toHaveAttribute("tabindex", "0");
+
+      row.focus();
+      await user.keyboard("{Enter}");
+      expect(onClickScript).toHaveBeenCalledWith(MAC_SCRIPT);
+    });
+  });
+
+  it("does not expose the row as a button when action buttons are keyboard-reachable", () => {
+    const { container } = render(
+      <ScriptListItem
+        script={MAC_SCRIPT}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onClickScript={onClickScript}
+      />
+    );
+
+    const row = container.querySelector(".list-item");
+    expect(row).not.toHaveAttribute("role", "button");
+    expect(row).not.toHaveAttribute("tabindex");
+  });
+});

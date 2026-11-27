@@ -1,0 +1,232 @@
+import React, { useState, useEffect, useContext, useCallback } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { InjectedRouter } from "react-router";
+
+import AuthenticationFormWrapper from "components/AuthenticationFormWrapper";
+import LoginForm from "components/forms/LoginForm";
+import InfoBanner from "components/InfoBanner";
+import Spinner from "components/Spinner/Spinner";
+import { notify } from "components/ToastNotification";
+import { AppContext } from "context/app";
+import { RoutingContext } from "context/routing";
+import { ISSOSettings } from "interfaces/ssoSettings";
+import { ILoginUserData } from "interfaces/user";
+import paths from "router/paths";
+import configAPI from "services/entities/config";
+import sessionsAPI, { ISSOSettingsResponse } from "services/entities/sessions";
+import authToken from "utilities/auth_token";
+import formatErrorResponse from "utilities/format_error_response";
+import local from "utilities/local";
+
+interface ILoginPageProps {
+  router: InjectedRouter; // v3
+  location: {
+    pathname: string;
+    query: { vulnerable?: boolean; session_expired?: string };
+    search: string;
+  };
+}
+
+interface IStatusMessages {
+  account_disabled: string;
+  account_invalid: string;
+  org_disabled: string;
+  session_expired: string;
+  error: string;
+}
+
+const statusMessages: IStatusMessages = {
+  account_disabled:
+    "Single sign-on is not enabled on your account. Please contact your Fleet administrator.",
+  account_invalid: "You do not have a Fleet account.",
+  org_disabled: "Single sign-on is not enabled for your organization.",
+  session_expired:
+    "Your session may have timed out. Please try again. Contact your Fleet administrator if the error persists.",
+  error:
+    "There was an error with single sign-on. Please contact your Fleet administrator.",
+};
+
+const baseClass = "login-page";
+
+const LoginPage = ({ router, location }: ILoginPageProps) => {
+  const {
+    availableTeams,
+    config,
+    currentUser,
+    setAvailableTeams,
+    setConfig,
+    setCurrentUser,
+    setCurrentTeam,
+  } = useContext(AppContext);
+  const { redirectLocation } = useContext(RoutingContext);
+  const queryClient = useQueryClient();
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState(false);
+
+  const { data: ssoSettings, isLoading: isLoadingSSOSettings } = useQuery<
+    ISSOSettingsResponse,
+    Error,
+    ISSOSettings
+  >(["ssoSettings"], () => sessionsAPI.ssoSettings(), {
+    // currentUser outlives an SPA logout or expired session, so it alone
+    // would hide the SSO button.
+    enabled: !currentUser || !authToken.get(),
+    onError: (err) => {
+      console.error(err);
+    },
+    select: (data) => data.settings,
+  });
+
+  useEffect(() => {
+    // this only needs to run once so we can wrap it in useEffect to avoid unneccesary third-party
+    // API calls
+    (async function testGravatarAvailability() {
+      try {
+        const response = await fetch("https://www.gravatar.com/avatar/0000");
+        if (response.ok) {
+          localStorage.setItem("gravatar_available", "true");
+        } else {
+          localStorage.setItem("gravatar_available", "false");
+        }
+      } catch (error) {
+        localStorage.setItem("gravatar_available", "false");
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    // Requiring `authToken.get()` matters after a SPA-navigated logout: the
+    // AppContext user/teams/config linger from the destroyed session, and
+    // without this check LoginPage would keep pushing to /dashboard while
+    // AuthenticatedRoutes keeps pushing back to /login on a missing token.
+    if (
+      authToken.get() &&
+      availableTeams &&
+      config &&
+      currentUser &&
+      !currentUser.force_password_reset
+    ) {
+      router.push(redirectLocation || paths.DASHBOARD);
+    }
+  }, [availableTeams, config, currentUser, redirectLocation, router]);
+
+  useEffect(() => {
+    let status = new URLSearchParams(location.search).get("status");
+    status = status && statusMessages[status as keyof IStatusMessages];
+    if (status) {
+      notify.error(status);
+    }
+  }, [location?.search]);
+
+  const onSubmit = useCallback(
+    async (formData: ILoginUserData) => {
+      setIsSubmitting(true);
+      const { DASHBOARD, RESET_PASSWORD, NO_ACCESS } = paths;
+
+      try {
+        const response = await sessionsAPI.login(formData);
+        const { user, available_fleets, token, token_expires_at } = response;
+
+        const expiresAt = token_expires_at
+          ? new Date(token_expires_at)
+          : undefined;
+        authToken.save(token, expiresAt);
+        // Logging in after a logout or expired session doesn't reload the
+        // page, so the previous user's cached responses would still be served.
+        queryClient.clear();
+
+        setCurrentUser(user);
+        setAvailableTeams(user, available_fleets);
+        setCurrentTeam(undefined);
+
+        if (!user.global_role && user.fleets.length === 0) {
+          return router.push(NO_ACCESS);
+        }
+        // Redirect to password reset page if user is forced to reset password.
+        // Any other requests will fail.
+        else if (user.force_password_reset) {
+          return router.push(RESET_PASSWORD);
+        } else if (!config) {
+          const configResponse = await configAPI.loadAll();
+          setConfig(configResponse);
+        }
+        return router.push(redirectLocation || DASHBOARD);
+      } catch (response) {
+        if ((response as { status: number }).status === 202) {
+          // This (plus associated code in MfaPage) adds an extra click for browsers hitting the MFA landing page without
+          // logging in first, ensuring MFA tokens don't get auto-redeemed in those cases. An example of such a browser
+          // is an email link scanner (e.g. Microsoft's); see #26976.
+          local.setItem("auth_pending_mfa", "true");
+          setPendingEmail(true);
+        }
+
+        // The API's rate limit message ("limit exceeded, retry after: 2s") is
+        // meant for API clients, so it's replaced here.
+        if ((response as { status: number }).status === 429) {
+          notify.error(
+            "Too many login attempts. Wait 10 seconds and try again.",
+            {
+              response,
+            }
+          );
+          return false;
+        }
+
+        const { base } = formatErrorResponse(response);
+        if (base) {
+          notify.error(base, { response });
+        }
+        return false;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      config,
+      queryClient,
+      redirectLocation,
+      router,
+      setAvailableTeams,
+      setConfig,
+      setCurrentTeam,
+      setCurrentUser,
+    ]
+  );
+
+  const ssoSignOn = useCallback(async () => {
+    const { DASHBOARD } = paths;
+    let returnToAfterAuth = DASHBOARD;
+    if (redirectLocation !== null) {
+      returnToAfterAuth = redirectLocation;
+    }
+
+    try {
+      const { url } = await sessionsAPI.initializeSSO(returnToAfterAuth);
+      window.location.href = url;
+    } catch (error) {
+      notify.error("Authentication failed", { response: error });
+    }
+  }, [redirectLocation]);
+
+  if (isLoadingSSOSettings) {
+    return <Spinner className={`${baseClass}__loading-spinner`} />;
+  }
+
+  return (
+    <AuthenticationFormWrapper header="Welcome to Fleet">
+      {location.query.session_expired && (
+        <InfoBanner>Your session expired. Log in to continue.</InfoBanner>
+      )}
+      <LoginForm
+        handleSubmit={onSubmit}
+        ssoSettings={ssoSettings}
+        handleSSOSignOn={ssoSignOn}
+        isSubmitting={isSubmitting}
+        pendingEmail={pendingEmail}
+      />
+    </AuthenticationFormWrapper>
+  );
+};
+
+export default LoginPage;

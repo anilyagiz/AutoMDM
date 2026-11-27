@@ -1,0 +1,506 @@
+package condaccess
+
+import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"testing"
+	"time"
+
+	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
+	"github.com/fleetdm/fleet/v4/server/fleet"
+	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
+	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
+	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
+	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/fleetdm/fleet/v4/server/service/contract"
+	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/jmoiron/sqlx"
+	"github.com/smallstep/scep"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const testEnrollmentSecret = "test_secret"
+
+func TestConditionalAccessSCEP(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, "integrationtest.ConditionalAccessSCEP", func(cfg *config.FleetConfig) {
+		cfg.Osquery.EnrollCooldown = 0 // Disable rate limiting for most tests
+	})
+
+	cases := []struct {
+		name string
+		fn   func(t *testing.T, s *Suite)
+	}{
+		{"GetCACaps", testGetCACaps},
+		{"GetCACert", testGetCACert},
+		{"SCEPEnrollment", testSCEPEnrollment},
+		{"InvalidChallenge", testInvalidChallenge},
+		{"OneTimeChallenge", testOneTimeChallenge},
+		{"GlobalSecretRefusedWithoutMDMEnrollment", testGlobalSecretRefusedWithoutMDMEnrollment},
+		{"MissingUUID", testMissingUUID},
+		{"NonExistentHost", testNonExistentHost},
+		{"CertificateRotation", testCertificateRotation},
+		{"GetIDPSigningCert", testGetIDPSigningCert},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			defer mysqltest.TruncateTables(t, s.BaseSuite.DS, []string{
+				"conditional_access_scep_serials", "conditional_access_scep_certificates", "mdm_apple_scep_challenges",
+				"mdm_windows_enrollments", "nano_enrollments", "nano_devices",
+			}...)
+			c.fn(t, s)
+		})
+	}
+}
+
+func testGetCACaps(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Create enrollment secret
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	require.NoError(t, err)
+
+	// Request CA capabilities
+	resp, err := http.Get(s.Server.URL + "/api/fleet/conditional_access/scep?operation=GetCACaps")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	caps := string(body)
+	// Verify expected capabilities
+	assert.Contains(t, caps, "SHA-256")
+	assert.Contains(t, caps, "AES")
+	assert.Contains(t, caps, "POSTPKIOperation")
+	// Verify Renewal is NOT present
+	assert.NotContains(t, caps, "Renewal")
+}
+
+func testGetCACert(t *testing.T, s *Suite) {
+	// Request CA certificate
+	resp, err := http.Get(s.Server.URL + "/api/fleet/conditional_access/scep?operation=GetCACert")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NotEmpty(t, body)
+
+	// Parse the certificate
+	cert, err := x509.ParseCertificate(body)
+	require.NoError(t, err)
+
+	// Verify CA certificate attributes
+	assert.Equal(t, "Fleet conditional access CA", cert.Subject.CommonName)
+	assert.Contains(t, cert.Subject.Organization, "Local certificate authority")
+	assert.True(t, cert.IsCA)
+
+	// Verify RSA key
+	rsaPubKey, ok := cert.PublicKey.(*rsa.PublicKey)
+	require.True(t, ok, "CA cert should use RSA public key")
+	assert.Equal(t, 2048, rsaPubKey.N.BitLen(), "RSA key should be 2048 bits")
+}
+
+func testSCEPEnrollment(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Create enrollment secret
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	require.NoError(t, err)
+
+	// macOS profiles use the Apple prefix, Windows profiles the platform-neutral one.
+	for i, c := range []struct {
+		prefix   string
+		platform string
+		enroll   func(t *testing.T, s *Suite, hostUUID string)
+	}{
+		{"urn:device:apple:uuid:", "darwin", enrollInAppleMDM},
+		{"urn:device:fleet:uuid:", "windows", enrollInWindowsMDM},
+	} {
+		prefix := c.prefix
+		t.Run(prefix, func(t *testing.T) {
+			// Create a test host
+			host, err := s.DS.NewHost(ctx, &fleet.Host{
+				OsqueryHostID:   new(fmt.Sprintf("test-host-scep-%d", i+1)),
+				NodeKey:         new(fmt.Sprintf("test-node-key-scep-%d", i+1)),
+				UUID:            fmt.Sprintf("test-uuid-scep-%d", i+1),
+				Hostname:        fmt.Sprintf("test-hostname-scep-%d", i+1),
+				Platform:        c.platform,
+				DetailUpdatedAt: time.Now(),
+			})
+			require.NoError(t, err)
+			c.enroll(t, s, host.UUID)
+
+			// Request certificate via SCEP
+			deviceURI, err := url.Parse(prefix + host.UUID)
+			require.NoError(t, err)
+			cert, err := requestSCEPCertificateWithOptions(t, s, []*url.URL{deviceURI}, testEnrollmentSecret)
+			require.NoError(t, err, "SCEP request should succeed")
+			require.NotNil(t, cert)
+
+			// Verify certificate attributes
+			assert.NotNil(t, cert.SerialNumber)
+			assert.True(t, time.Now().Before(cert.NotAfter))
+			assert.True(t, time.Now().After(cert.NotBefore))
+
+			// Verify SAN URI contains the host UUID
+			require.Len(t, cert.URIs, 1)
+			assert.Equal(t, deviceURI.String(), cert.URIs[0].String())
+
+			// Verify certificate is stored in database and linked to host
+			hostID, err := s.DS.GetConditionalAccessCertHostIDBySerialNumber(ctx, uint64(cert.SerialNumber.Int64())) //nolint:gosec // G115
+			require.NoError(t, err)
+			assert.Equal(t, host.ID, hostID)
+
+			// Verify certificate validity period (398 days, Apple's maximum)
+			expectedMaxDuration := 398*24*time.Hour + 24*time.Hour // Allow 1 day tolerance
+			expectedMinDuration := 398*24*time.Hour - 24*time.Hour
+			actualDuration := cert.NotAfter.Sub(cert.NotBefore)
+			assert.True(t, actualDuration >= expectedMinDuration && actualDuration <= expectedMaxDuration,
+				"Certificate should be valid for approximately 398 days")
+		})
+	}
+}
+
+func testInvalidChallenge(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Create enrollment secret
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	require.NoError(t, err)
+
+	// Create a test host
+	host, err := s.DS.NewHost(ctx, &fleet.Host{
+		OsqueryHostID:   ptr.String("test-host-invalid-1"),
+		NodeKey:         ptr.String("test-node-key-invalid-1"),
+		UUID:            "test-uuid-invalid-1",
+		Hostname:        "test-hostname-invalid-1",
+		Platform:        "darwin",
+		DetailUpdatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+
+	// Try to enroll with invalid challenge
+	cert, err := requestSCEPCertificateWithChallenge(t, s, host.UUID, "invalid-secret")
+	requireSCEPFailure(t, err, "SCEP request should fail with invalid challenge")
+	require.Nil(t, cert, "Certificate should not be issued with invalid challenge")
+}
+
+func testOneTimeChallenge(t *testing.T, s *Suite) {
+	ctx := t.Context()
+	host := test.NewHost(t, s.DS, "one-time-1", "", "one-time-key-1", "one-time-uuid-1", time.Now(), test.WithPlatform("windows"))
+	otherHost := test.NewHost(t, s.DS, "one-time-2", "", "one-time-key-2", "one-time-uuid-2", time.Now(), test.WithPlatform("windows"))
+
+	require.NoError(t, s.DS.MDMWindowsInsertEnrolledDevice(ctx, &fleet.MDMWindowsEnrolledDevice{
+		MDMDeviceID:    "device-one-time-1",
+		MDMHardwareID:  "hardware-one-time-1",
+		MDMDeviceState: "ENROLLED",
+		MDMDeviceType:  "CIMClient_Windows",
+		MDMEnrollType:  "ProgrammaticEnrollment",
+		HostUUID:       host.UUID,
+	}))
+	device, err := s.DS.MDMWindowsGetEnrolledDeviceWithDeviceID(ctx, "device-one-time-1")
+	require.NoError(t, err)
+	challenge, err := s.DS.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, device.ID)
+	require.NoError(t, err)
+
+	// another host can't use it, and the attempt doesn't use it up
+	cert, err := requestSCEPCertificateWithChallenge(t, s, otherHost.UUID, challenge)
+	requireSCEPFailure(t, err, "a one-time challenge must only work for its own host")
+	require.Nil(t, cert)
+
+	cert = requestSCEPCertificate(t, s, host.UUID, challenge)
+	hostID, err := s.DS.GetConditionalAccessCertHostIDBySerialNumber(ctx, cert.SerialNumber.Uint64())
+	require.NoError(t, err)
+	require.Equal(t, host.ID, hostID)
+
+	cert, err = requestSCEPCertificateWithChallenge(t, s, host.UUID, challenge)
+	requireSCEPFailure(t, err, "a one-time challenge must only work once")
+	require.Nil(t, cert)
+
+	// a request for a host that was deleted fails without using up its challenge
+	challenge, err = s.DS.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, device.ID)
+	require.NoError(t, err)
+	require.NoError(t, s.DS.DeleteHost(ctx, host.ID))
+	cert, err = requestSCEPCertificateWithChallenge(t, s, host.UUID, challenge)
+	requireSCEPFailure(t, err, "a deleted host must not get a certificate")
+	require.Nil(t, cert)
+	require.NoError(t, s.DS.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, host.UUID))
+}
+
+// testGlobalSecretRefusedWithoutMDMEnrollment checks that a host enrolled in osquery with the global enroll secret, but not
+// in Fleet MDM, can't use the secret for a certificate.
+func testGlobalSecretRefusedWithoutMDMEnrollment(t *testing.T, s *Suite) {
+	ctx := t.Context()
+	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}}))
+
+	const hostUUID = "no-mdm-uuid"
+	var resp contract.EnrollOsqueryAgentResponse
+	s.DoJSON(t, "POST", "/api/osquery/enroll", contract.EnrollOsqueryAgentRequest{
+		EnrollSecret:   testEnrollmentSecret,
+		HostIdentifier: hostUUID,
+		HostDetails: map[string]map[string]string{
+			"system_info": {"uuid": hostUUID},
+			"os_version":  {"platform": "ubuntu"},
+		},
+	}, http.StatusOK, &resp)
+	require.NotEmpty(t, resp.NodeKey)
+
+	cert, err := requestSCEPCertificateWithChallenge(t, s, hostUUID, testEnrollmentSecret)
+	requireSCEPFailure(t, err, "a host not enrolled in Fleet MDM must not get a certificate with the global enroll secret")
+	require.Nil(t, cert)
+}
+
+// enrollInAppleMDM records an Apple MDM enrollment for the host, which a request with the global enroll secret needs.
+func enrollInAppleMDM(t *testing.T, s *Suite, hostUUID string) {
+	t.Helper()
+	mysqltest.ExecAdhocSQL(t, s.DS, func(q sqlx.ExtContext) error {
+		if _, err := q.ExecContext(t.Context(), `INSERT INTO nano_devices (id, authenticate) VALUES (?, 'test')`, hostUUID); err != nil {
+			return err
+		}
+		_, err := q.ExecContext(t.Context(), `INSERT INTO nano_enrollments (id, device_id, type, topic, push_magic, token_hex)
+			VALUES (?, ?, 'Device', 'topic', 'magic', 'hex')`, hostUUID, hostUUID)
+		return err
+	})
+}
+
+// enrollInWindowsMDM records a Windows MDM enrollment for the host, which a request with the global enroll secret needs.
+func enrollInWindowsMDM(t *testing.T, s *Suite, hostUUID string) {
+	t.Helper()
+	require.NoError(t, s.DS.MDMWindowsInsertEnrolledDevice(t.Context(), &fleet.MDMWindowsEnrolledDevice{
+		MDMDeviceID:    "device-" + hostUUID,
+		MDMHardwareID:  "hardware-" + hostUUID,
+		MDMDeviceState: "ENROLLED",
+		MDMDeviceType:  "CIMClient_Windows",
+		MDMEnrollType:  "ProgrammaticEnrollment",
+		HostUUID:       hostUUID,
+	}))
+}
+
+func testMissingUUID(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Create enrollment secret
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	require.NoError(t, err)
+
+	// Try to enroll without UUID in SAN URI
+	cert, err := requestSCEPCertificateWithoutUUID(t, s, testEnrollmentSecret)
+	requireSCEPFailure(t, err, "SCEP request should fail without UUID")
+	require.Nil(t, cert, "Certificate should not be issued without UUID in SAN URI")
+
+	// Verify no certificate was stored
+	_, err = s.DS.GetConditionalAccessCertHostIDBySerialNumber(ctx, 1)
+	require.Error(t, err)
+	assert.True(t, fleet.IsNotFound(err))
+}
+
+func testNonExistentHost(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Create enrollment secret
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	require.NoError(t, err)
+
+	// The SAN URI is matched against host UUIDs only, so a host's other identifiers don't resolve to it.
+	host, err := s.DS.NewHost(ctx, &fleet.Host{
+		OsqueryHostID:   new("test-osquery-id-non-existent"),
+		NodeKey:         new("test-node-key-non-existent"),
+		UUID:            "test-uuid-non-existent",
+		Hostname:        "test-hostname-non-existent",
+		HardwareSerial:  "test-serial-non-existent",
+		Platform:        "windows",
+		DetailUpdatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+
+	for _, identifier := range []string{"non-existent-uuid", host.Hostname, host.HardwareSerial, *host.OsqueryHostID, *host.NodeKey} {
+		cert, err := requestSCEPCertificateWithChallenge(t, s, identifier, testEnrollmentSecret)
+		requireSCEPFailure(t, err, "SCEP request should fail for "+identifier)
+		require.Nil(t, cert, "Certificate should not be issued for "+identifier)
+	}
+}
+
+// Helper functions
+
+func requestSCEPCertificate(t *testing.T, s *Suite, hostUUID string, challenge string) *x509.Certificate {
+	t.Helper()
+	cert, err := requestSCEPCertificateWithChallenge(t, s, hostUUID, challenge)
+	require.NoError(t, err, "SCEP request should succeed")
+	return cert
+}
+
+func requestSCEPCertificateWithChallenge(t *testing.T, s *Suite, hostUUID string, challenge string) (*x509.Certificate, error) {
+	t.Helper()
+	deviceURI, err := url.Parse("urn:device:apple:uuid:" + hostUUID)
+	require.NoError(t, err)
+
+	return requestSCEPCertificateWithOptions(t, s, []*url.URL{deviceURI}, challenge)
+}
+
+func requestSCEPCertificateWithoutUUID(t *testing.T, s *Suite, challenge string) (*x509.Certificate, error) {
+	t.Helper()
+	return requestSCEPCertificateWithOptions(t, s, nil, challenge)
+}
+
+// requestSCEPCertificateWithOptions enrolls a CSR with the given SAN URIs against the conditional
+// access SCEP server. A request the server declines fails with an enrollment.RejectedError.
+func requestSCEPCertificateWithOptions(t *testing.T, s *Suite, uris []*url.URL, challenge string) (*x509.Certificate, error) {
+	t.Helper()
+	ctx := t.Context()
+
+	// Conditional access uses RSA, not ECC
+	deviceKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	csrTemplate := x509util.CertificateRequest{
+		CertificateRequest: x509.CertificateRequest{
+			Subject: pkix.Name{
+				CommonName: "test-device",
+			},
+			URIs:               uris,
+			SignatureAlgorithm: x509.SHA256WithRSA,
+		},
+		ChallengePassword: challenge,
+	}
+	csrDerBytes, err := x509util.CreateCertificateRequest(rand.Reader, &csrTemplate, deviceKey)
+	require.NoError(t, err)
+	csr, err := x509.ParseCertificateRequest(csrDerBytes)
+	require.NoError(t, err)
+
+	scepClient, err := scepclient.New(s.Server.URL+"/api/fleet/conditional_access/scep", s.Logger)
+	require.NoError(t, err)
+	caCerts, err := enrollment.FetchCACerts(ctx, scepClient)
+	require.NoError(t, err)
+	signerKey, signerCert, err := enrollment.NewEphemeralSigner(csr.Subject)
+	require.NoError(t, err)
+	return enrollment.Enroll(ctx, scepClient, caCerts, enrollment.Request{
+		CSR:        csr,
+		SignerKey:  signerKey,
+		SignerCert: signerCert,
+		Logger:     s.Logger,
+	})
+}
+
+// requireSCEPFailure asserts that err is a FAILURE CertRep.
+func requireSCEPFailure(t *testing.T, err error, msg string) {
+	t.Helper()
+	rejected, ok := errors.AsType[enrollment.RejectedError](err)
+	require.True(t, ok, "%s, got %v", msg, err)
+	require.Equal(t, scep.FAILURE, rejected.Status, msg)
+}
+
+// testCertificateRotation tests the grace period behavior during certificate rotation.
+// This validates that after a host requests a new certificate via SCEP, both the old and new certificates
+// continue to work for authentication until the grace period expires (cleaned up by periodic job).
+func testCertificateRotation(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Create enrollment secret
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	require.NoError(t, err)
+
+	// Create a test host
+	host, err := s.DS.NewHost(ctx, &fleet.Host{
+		OsqueryHostID:   ptr.String("test-host-rotation"),
+		NodeKey:         ptr.String("test-node-key-rotation"),
+		UUID:            "test-uuid-rotation",
+		Hostname:        "test-hostname-rotation",
+		Platform:        "darwin",
+		DetailUpdatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+	enrollInAppleMDM(t, s, host.UUID)
+
+	// Request first certificate via SCEP (old cert)
+	oldCert := requestSCEPCertificate(t, s, host.UUID, testEnrollmentSecret)
+	require.NotNil(t, oldCert)
+
+	// Make HTTP request to IdP SSO endpoint with old cert serial to verify authentication
+	oldSerialHex := fmt.Sprintf("%X", oldCert.SerialNumber)
+	req, err := http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/fleet/conditional_access/idp/sso", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Client-Cert-Serial", oldSerialHex)
+
+	// Use client that doesn't follow redirects to verify redirect behavior
+	noRedirectClient := fleethttp.NewClient(fleethttp.WithFollowRedir(false))
+	resp, err := noRedirectClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	// StatusSeeOther (303) redirect indicates cert authentication succeeded, SAML parse failed, and user redirected to error page
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode, "old cert should authenticate (303 = auth success, SAML parse fail, redirect to error page)")
+
+	// Request new certificate via SCEP (certificate rotation)
+	newCert := requestSCEPCertificate(t, s, host.UUID, testEnrollmentSecret)
+	require.NotNil(t, newCert)
+	require.NotEqual(t, oldCert.SerialNumber, newCert.SerialNumber, "new cert should have different serial")
+
+	// CRITICAL TEST: Both old and new certs should work via actual HTTP endpoint (grace period behavior)
+	// This validates that old cert is NOT immediately revoked, allowing grace period for rotation
+	req, err = http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/fleet/conditional_access/idp/sso", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Client-Cert-Serial", oldSerialHex)
+
+	resp, err = noRedirectClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode, "old cert should still work after new cert issued (grace period)")
+
+	newSerialHex := fmt.Sprintf("%X", newCert.SerialNumber)
+	req, err = http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/fleet/conditional_access/idp/sso", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Client-Cert-Serial", newSerialHex)
+
+	resp, err = noRedirectClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode, "new cert should work via HTTP endpoint")
+}
+
+// testGetIDPSigningCert tests retrieving the IdP signing certificate via the API endpoint.
+func testGetIDPSigningCert(t *testing.T, s *Suite) {
+	ctx := t.Context()
+
+	// Make HTTP request to get IdP signing certificate
+	req, err := http.NewRequestWithContext(ctx, "GET", s.Server.URL+"/api/latest/fleet/conditional_access/idp/signing_cert", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.Token))
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "should return 200 OK")
+
+	// Verify content type
+	require.Equal(t, "application/x-pem-file", resp.Header.Get("Content-Type"))
+	require.Equal(t, "attachment; filename=\"fleet-idp-signing-cert.pem\"", resp.Header.Get("Content-Disposition"))
+
+	// Read certificate content
+	certPEM, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NotEmpty(t, certPEM)
+
+	// Parse and verify it's a valid certificate
+	block, _ := pem.Decode(certPEM)
+	require.NotNil(t, block, "should be valid PEM")
+	require.Equal(t, "CERTIFICATE", block.Type)
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+
+	// Verify certificate subject contains IdP
+	require.Contains(t, cert.Subject.CommonName, "IdP", "certificate should be for IdP")
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Twingate",
+  "slug": "twingate/windows",
+  "package_identifier": "Twingate.Client",
+  "unique_identifier": "Twingate",
+  "installer_arch": "x64",
+  "installer_type": "msi",
+  "installer_scope": "machine",
+  "fuzzy_match_name": true,
+  "default_categories": ["Productivity"]
+}

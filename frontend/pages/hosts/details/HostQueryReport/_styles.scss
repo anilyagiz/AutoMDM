@@ -1,0 +1,13 @@
+.host-query-report {
+  @include vertical-page-layout;
+
+  h1 {
+    font-weight: $bold;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

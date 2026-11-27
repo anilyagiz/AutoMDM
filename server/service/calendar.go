@@ -1,0 +1,54 @@
+package service
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+)
+
+type calendarWebhookRequest struct {
+	eventUUID           string
+	googleChannelID     string
+	googleResourceState string
+}
+
+// DecodeRequest implement requestDecoder interface to take full control of decoding the request
+func (calendarWebhookRequest) DecodeRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req calendarWebhookRequest
+	eventUUID, ok := platform_http.PathVar(r, "event_uuid")
+	if !ok {
+		return nil, endpointer.ErrBadRoute
+	}
+	req.eventUUID = eventUUID
+
+	req.googleChannelID = r.Header.Get("X-Goog-Channel-Id")
+	req.googleResourceState = r.Header.Get("X-Goog-Resource-State")
+
+	return &req, nil
+}
+
+type calendarWebhookResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+func (r calendarWebhookResponse) Error() error { return r.Err }
+
+func calendarWebhookEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+	req := request.(*calendarWebhookRequest)
+	err := svc.CalendarWebhook(ctx, req.eventUUID, req.googleChannelID, req.googleResourceState)
+	if err != nil {
+		return calendarWebhookResponse{Err: err}, err
+	}
+
+	resp := calendarWebhookResponse{}
+	return resp, nil
+}
+
+func (svc *Service) CalendarWebhook(ctx context.Context, eventUUID string, channelID string, resourceState string) error {
+	// skipauth: No authorization check needed due to implementation returning only license error.
+	svc.authz.SkipAuthorization(ctx)
+	return fleet.ErrMissingLicense
+}

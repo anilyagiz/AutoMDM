@@ -1,0 +1,286 @@
+import { AxiosError } from "axios";
+import React, { useState, useEffect, useRef } from "react";
+import { useQuery } from "react-query";
+
+import Button from "components/buttons/Button";
+import DataError from "components/DataError/DataError";
+import IconStatusMessage from "components/IconStatusMessage";
+import Modal from "components/Modal";
+import ModalFooter from "components/ModalFooter";
+import Spinner from "components/Spinner/Spinner";
+import Textarea from "components/Textarea";
+import TooltipWrapper from "components/TooltipWrapper";
+import scriptsAPI, { IScriptResultResponse } from "services/entities/scripts";
+
+const baseClass = "run-script-details-modal";
+
+interface IScriptContentProps {
+  content: string;
+}
+
+const ScriptContent = ({ content }: IScriptContentProps) => {
+  return (
+    <Textarea label="Script content:" variant="code">
+      {content}
+    </Textarea>
+  );
+};
+
+const StatusMessageRunning = () => (
+  <IconStatusMessage
+    className={`${baseClass}__status-message`}
+    iconName="pending"
+    message="Script is running or will run when the host comes online."
+  />
+);
+
+const StatusMessageSuccess = () => (
+  <IconStatusMessage
+    className={`${baseClass}__status-message`}
+    iconName="success"
+    message="Exit code: 0 (Script ran successfully.)"
+  />
+);
+
+const StatusMessageFailed = ({ exitCode }: { exitCode: number }) => (
+  <IconStatusMessage
+    className={`${baseClass}__status-message`}
+    iconName="error"
+    message={`Exit code: ${exitCode} (Script failed.)`}
+  />
+);
+
+const StatusMessageError = ({ message }: { message: React.ReactNode }) => (
+  <IconStatusMessage
+    className={`${baseClass}__status-message`}
+    iconName="error"
+    message={<>Error: {message}</>}
+  />
+);
+
+interface IStatusMessageProps {
+  hostTimeout: boolean;
+  exitCode: number | null;
+  message: string;
+}
+
+const StatusMessage = ({
+  hostTimeout,
+  exitCode,
+  message,
+}: IStatusMessageProps) => {
+  switch (exitCode) {
+    case null:
+      if (!hostTimeout) {
+        // Expected API message: "A script is already running on this host. Please wait about 1 minute to let it finish."
+        return <StatusMessageRunning />;
+      }
+      // The API message is fleetctl copy; strip the "Go to Fleet and check
+      // Host details > Activities to see script results." pointer — Fleet
+      // gave up at the server timeout, there are no results to go see, and
+      // if the host does report back late the result will appear on this
+      // same view.
+      return (
+        <StatusMessageError
+          message={message
+            .replace(
+              /\s*Go to Fleet and check Host details > Activities to see script results\.?/,
+              ""
+            )
+            .trim()}
+        />
+      );
+    case -2:
+      // Expected API message: "Scripts are disabled for this host. To run scripts, deploy the fleetd agent with scripts enabled."
+      return <StatusMessageError message={message} />;
+    case -1: {
+      // message should look like: "Timeout. Fleet stopped the script after 600 seconds to protect host performance.";
+      const timeOutValue = message.match(/(\d+\s(?:seconds))/);
+
+      // should always be there, but handle cleanly if not
+      const varText = timeOutValue ? (
+        <>
+          after{" "}
+          <TooltipWrapper tipContent="Timeout can be configured by updating agent options.">
+            {timeOutValue[0]}
+          </TooltipWrapper>{" "}
+        </>
+      ) : null;
+
+      const modMessage = (
+        <>
+          Timeout. Fleet stopped the script {varText}to protect host
+          performance.
+        </>
+      );
+      return <StatusMessageError message={modMessage} />;
+    }
+    case 0:
+      // Expected API message: ""
+      return <StatusMessageSuccess />;
+    default:
+      // Expected API message: ""
+      return <StatusMessageFailed exitCode={exitCode} />;
+  }
+};
+
+interface IScriptOutputProps {
+  output: string;
+  hostname: string;
+  wasAdHoc: boolean;
+}
+
+const ScriptOutput = ({
+  output,
+  hostname,
+  wasAdHoc = false,
+}: IScriptOutputProps) => {
+  const content =
+    output.trim().length === 0 ? (
+      <span>
+        No output captured when <b>{hostname}</b> ran the script
+        {wasAdHoc && " above"}.
+      </span>
+    ) : (
+      <Textarea
+        label={
+          <>
+            The{" "}
+            <TooltipWrapper
+              tipContent="Fleet records the last 10,000 characters to prevent downtime."
+              tooltipClass={`${baseClass}__output-tooltip`}
+              delayInMs={500}
+            >
+              output recorded
+            </TooltipWrapper>{" "}
+            when <b>{hostname}</b> ran the script{wasAdHoc && " above"}:
+          </>
+        }
+        variant="code"
+      >
+        {output}
+      </Textarea>
+    );
+
+  return <div className={`${baseClass}__script-result`}>{content}</div>;
+};
+
+interface IRunScriptDetailsModalProps {
+  scriptExecutionId: string;
+  onCancel: () => void;
+  isHidden?: boolean;
+}
+
+const RunScriptDetailsModal = ({
+  scriptExecutionId,
+  onCancel,
+  isHidden = false,
+}: IRunScriptDetailsModalProps) => {
+  // For scrollable modal
+  const [isTopScrolling, setIsTopScrolling] = useState(false);
+  const topDivRef = useRef<HTMLDivElement>(null);
+  const checkScroll = () => {
+    if (topDivRef.current) {
+      const isScrolling =
+        topDivRef.current.scrollHeight > topDivRef.current.clientHeight;
+      setIsTopScrolling(isScrolling);
+    }
+  };
+
+  const { data, isLoading, isError, error } = useQuery<
+    IScriptResultResponse,
+    AxiosError
+  >(
+    ["runScriptDetailsModal", scriptExecutionId],
+    () => {
+      return scriptsAPI.getScriptResult(scriptExecutionId);
+    },
+    {
+      refetchOnWindowFocus: false,
+      enabled: !!scriptExecutionId,
+      // Retention can delete the result, and retrying won't bring it back.
+      retry: (failureCount, err) => err?.status !== 404 && failureCount < 3,
+    }
+  );
+
+  // For scrollable modal
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener("resize", checkScroll);
+    return () => window.removeEventListener("resize", checkScroll);
+  }, [data]); // Re-run when data changes
+
+  const renderContent = () => {
+    let content = <></>;
+
+    if (isLoading) {
+      content = <Spinner />;
+    } else if (isError && error?.status === 404) {
+      content = (
+        <DataError
+          description="These script results are no longer available."
+          excludeIssueLink
+        />
+      );
+    } else if (isError) {
+      content = <DataError description="Close this modal and try again." />;
+    } else if (data) {
+      const hostTimedOut =
+        data.exit_code === null && data.host_timeout === true;
+      const scriptsDisabledForHost = data.exit_code === -2;
+      const scriptStillRunning =
+        data.exit_code === null && data.host_timeout === false;
+      const showOutputText =
+        !hostTimedOut && !scriptsDisabledForHost && !scriptStillRunning;
+      const ranAdHocScript = data.script_id === null;
+
+      content = (
+        <>
+          <StatusMessage
+            hostTimeout={data.host_timeout}
+            exitCode={data.exit_code}
+            message={data.message}
+          />
+          {ranAdHocScript && <ScriptContent content={data.script_contents} />}
+          {showOutputText && (
+            <ScriptOutput
+              hostname={data.hostname}
+              output={data.output}
+              wasAdHoc={ranAdHocScript}
+            />
+          )}
+        </>
+      );
+    }
+
+    return (
+      <div
+        className={`${baseClass}__modal-content modal-scrollable-content`}
+        ref={topDivRef}
+      >
+        {content}
+      </div>
+    );
+  };
+
+  const renderFooter = () => (
+    <ModalFooter
+      isTopScrolling={isTopScrolling}
+      primaryButtons={<Button onClick={onCancel}>Close</Button>}
+    />
+  );
+  return (
+    <Modal
+      title="Script details"
+      onExit={onCancel}
+      onEnter={onCancel}
+      className={baseClass}
+      isHidden={isHidden}
+    >
+      {renderContent()}
+      {renderFooter()}
+    </Modal>
+  );
+};
+
+export default RunScriptDetailsModal;

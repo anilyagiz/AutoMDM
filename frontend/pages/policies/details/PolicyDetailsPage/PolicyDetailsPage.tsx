@@ -1,0 +1,544 @@
+import { omit } from "lodash";
+import React, { useCallback, useContext, useEffect, useState } from "react";
+import { useErrorHandler } from "react-error-boundary";
+import { useQuery } from "react-query";
+import { InjectedRouter, Params } from "react-router/lib/Router";
+
+import Avatar from "components/Avatar";
+import BackButton from "components/BackButton";
+import Button from "components/buttons/Button";
+import DataSet from "components/DataSet";
+import Graphic from "components/Graphic";
+import Icon from "components/Icon";
+import MainContent from "components/MainContent";
+import ShowQueryModal from "components/modals/ShowQueryModal";
+import PageDescription from "components/PageDescription";
+import Spinner from "components/Spinner";
+import TooltipTruncatedText from "components/TooltipTruncatedText";
+import TooltipWrapper from "components/TooltipWrapper";
+import TruncatedTextList from "components/TruncatedTextList";
+import { AppContext } from "context/app";
+import useTeamIdParam from "hooks/useTeamIdParam";
+import { ILabelPolicy } from "interfaces/label";
+import { PLATFORM_DISPLAY_NAMES, Platform } from "interfaces/platform";
+import {
+  IPolicy,
+  IStoredPolicyResponse,
+  OtherAutomationType,
+} from "interfaces/policy";
+import {
+  API_NO_TEAM_ID,
+  APP_CONTEXT_ALL_TEAMS_SUMMARY,
+  APP_CONTEXT_NO_TEAM_SUMMARY,
+} from "interfaces/team";
+import { mapAutomationRows } from "pages/policies/components";
+import { getTicketOrWebhookState } from "pages/policies/helpers";
+import SoftwareIcon from "pages/SoftwarePage/components/icons/SoftwareIcon";
+import PATHS from "router/paths";
+import policiesAPI from "services/entities/policies";
+import teamsAPI, { ILoadTeamResponse } from "services/entities/teams";
+import {
+  DEFAULT_EMPTY_CELL_VALUE,
+  DOCUMENT_TITLE_SUFFIX,
+} from "utilities/constants";
+import { addGravatarUrlToResource } from "utilities/helpers";
+import { getPathWithQueryParams } from "utilities/url";
+
+import PolicyAutomationsActivitiesTable from "../components/PolicyAutomationsActivitiesTable";
+import PolicyLabelModal, {
+  IPolicyLabelModalProps,
+} from "../components/PolicyLabelModal";
+
+type ILabelModalData = Pick<
+  IPolicyLabelModalProps,
+  "includeLabels" | "includeScopeLabel" | "excludeLabels" | "excludeScopeLabel"
+>;
+
+interface IPolicyDetailsPageProps {
+  router: InjectedRouter;
+  params: Params;
+  location: {
+    pathname: string;
+    search: string;
+    query: { fleet_id?: string; query?: string };
+    /** Set when opened from a host's policy. */
+    state?: { hostSearch?: string };
+  };
+}
+
+const baseClass = "policy-details-page";
+
+const getPolicyFleetName = (
+  policy: IPolicy | undefined,
+  teamData: ILoadTeamResponse | undefined
+): string | null => {
+  if (!policy) return null;
+  if (policy.fleet_id === null) return APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
+  if (policy.fleet_id === 0) return APP_CONTEXT_NO_TEAM_SUMMARY.name;
+  return teamData?.fleet?.name ?? null;
+};
+
+export const getLabelModalData = (policy: IPolicy): ILabelModalData => {
+  let includeLabels: ILabelPolicy[] | undefined;
+  let includeScopeLabel: string | undefined;
+  if (policy.labels_include_any?.length) {
+    includeLabels = policy.labels_include_any;
+    includeScopeLabel = "have any";
+  } else if (policy.labels_include_all?.length) {
+    includeLabels = policy.labels_include_all;
+    includeScopeLabel = "have all";
+  }
+
+  let excludeLabels: ILabelPolicy[] | undefined;
+  let excludeScopeLabel: string | undefined;
+  if (policy.labels_exclude_any?.length) {
+    excludeLabels = policy.labels_exclude_any;
+    excludeScopeLabel = "don’t have any";
+  } else if (policy.labels_exclude_all?.length) {
+    excludeLabels = policy.labels_exclude_all;
+    excludeScopeLabel = "don’t have all";
+  }
+
+  return { includeLabels, includeScopeLabel, excludeLabels, excludeScopeLabel };
+};
+
+const PolicyDetailsPage = ({
+  router,
+  params: { id: paramsPolicyId },
+  location,
+}: IPolicyDetailsPageProps): JSX.Element => {
+  const policyId = paramsPolicyId ? parseInt(paramsPolicyId, 10) : null;
+  const handlePageError = useErrorHandler();
+
+  const {
+    currentUser,
+    isGlobalAdmin,
+    isGlobalMaintainer,
+    isGlobalTechnician,
+    isOnGlobalTeam,
+    config,
+  } = useContext(AppContext);
+
+  const {
+    isRouteOk,
+    teamIdForApi,
+    isTeamMaintainerOrTeamAdmin,
+    isTeamTechnician,
+    isObserverPlus,
+  } = useTeamIdParam({
+    location,
+    router,
+    includeAllTeams: true,
+    includeNoTeam: true,
+    permittedAccessByTeamRole: {
+      admin: true,
+      maintainer: true,
+      observer: true,
+      observer_plus: true,
+      technician: true,
+    },
+  });
+
+  const [showQueryModal, setShowQueryModal] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
+
+  if (policyId === null || isNaN(policyId)) {
+    router.push(PATHS.MANAGE_POLICIES);
+  }
+
+  const { isLoading, data: storedPolicy, error: apiError } = useQuery<
+    IStoredPolicyResponse,
+    Error,
+    IPolicy
+  >(["policy", policyId], () => policiesAPI.load(policyId as number), {
+    enabled: isRouteOk && !!policyId,
+    refetchOnWindowFocus: false,
+    retry: false,
+    select: (data: IStoredPolicyResponse) => data.policy,
+    onError: (error) => handlePageError(error),
+  });
+
+  // Drive the team display from the policy's own fleet_id rather than the URL's
+  // fleet_id: a user can land here from another team's list (e.g. clicking an
+  // inherited policy from team 42's view), and the displayed Fleet must reflect
+  // the policy's owner, not the navigation context.
+  const policyTeamId = storedPolicy?.fleet_id;
+
+  const { data: teamData } = useQuery<ILoadTeamResponse>(
+    ["team", policyTeamId],
+    () => teamsAPI.load(policyTeamId as number),
+    {
+      enabled: policyTeamId != null && policyTeamId >= API_NO_TEAM_ID,
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  const policyFleetName = getPolicyFleetName(storedPolicy, teamData);
+
+  const labelModalData = storedPolicy ? getLabelModalData(storedPolicy) : null;
+
+  const ticketOrWebhookState = getTicketOrWebhookState(
+    storedPolicy?.fleet_id == null ? config ?? undefined : teamData?.fleet
+  );
+  const otherAutomationType: OtherAutomationType | undefined =
+    ticketOrWebhookState === "disabled" ? undefined : ticketOrWebhookState;
+
+  useEffect(() => {
+    if (storedPolicy?.name) {
+      document.title = `${storedPolicy.name} | Policies | ${DOCUMENT_TITLE_SUFFIX}`;
+    } else {
+      document.title = `Policies | ${DOCUMENT_TITLE_SUFFIX}`;
+    }
+  }, [location.pathname, storedPolicy?.name]);
+
+  const isInheritedPolicy = storedPolicy?.fleet_id === null;
+
+  const canEditPolicy =
+    (isGlobalAdmin || isGlobalMaintainer || isTeamMaintainerOrTeamAdmin) &&
+    // Team users cannot edit inherited (global) policies
+    !(isInheritedPolicy && !isOnGlobalTeam);
+
+  const canEditLabels =
+    isGlobalAdmin ||
+    isGlobalMaintainer ||
+    isGlobalTechnician ||
+    isTeamMaintainerOrTeamAdmin ||
+    isTeamTechnician;
+
+  const canRunPolicy =
+    isObserverPlus ||
+    isTeamMaintainerOrTeamAdmin ||
+    isGlobalAdmin ||
+    isGlobalMaintainer ||
+    isGlobalTechnician ||
+    isTeamTechnician;
+
+  const disabledLiveQuery = config?.server_settings.live_reporting_disabled;
+
+  // Captured on mount: a fleet redirect (e.g. dropping fleet_id on Free tier)
+  // replaces the location and loses its state. The host's name only filters
+  // the runs of a policy with an automation; a policy without one has none.
+  const [hostSearch, setHostSearch] = useState(location.state?.hostSearch);
+  const searchQuery =
+    location.query.query ??
+    (storedPolicy?.automation_type ? hostSearch : undefined);
+
+  // The URL's query always matches the runs search, so the page can be shared
+  // or reloaded with the same filter.
+  const replaceSearchQuery = useCallback(
+    (query?: string) => {
+      const rest = omit(location.query, "query");
+      router.replace({
+        pathname: location.pathname,
+        query: query ? { ...rest, query } : rest,
+      });
+    },
+    [router, location.pathname, location.query]
+  );
+
+  // Once the policy is known, moves the host's name from navigation state into
+  // the URL (or drops it), so a reload doesn't depend on the state.
+  useEffect(() => {
+    // isRouteOk: a cached policy can be present before a fleet redirect lands.
+    if (isRouteOk && storedPolicy && hostSearch !== undefined) {
+      replaceSearchQuery(searchQuery);
+      // Applied once, so clearing the search doesn't bring the host back.
+      setHostSearch(undefined);
+    }
+  }, [isRouteOk, storedPolicy, hostSearch, searchQuery, replaceSearchQuery]);
+
+  const backToPoliciesPath = getPathWithQueryParams(PATHS.MANAGE_POLICIES, {
+    fleet_id: teamIdForApi,
+  });
+
+  const renderAuthor = (): JSX.Element | null => {
+    if (!storedPolicy) return null;
+    return (
+      <DataSet
+        className={`${baseClass}__author`}
+        title="Author"
+        value={
+          <div className={`${baseClass}__author-info`}>
+            <Avatar
+              user={addGravatarUrlToResource({
+                email: storedPolicy.author_email,
+              })}
+              size="xsmall"
+            />
+            <span>
+              {storedPolicy.author_name === currentUser?.name
+                ? "You"
+                : storedPolicy.author_name}
+            </span>
+          </div>
+        }
+      />
+    );
+  };
+
+  const renderPlatforms = (): JSX.Element | null => {
+    if (!storedPolicy?.platform) return null;
+    const platforms = storedPolicy.platform
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p): p is Platform => p in PLATFORM_DISPLAY_NAMES);
+    if (platforms.length === 0) return null;
+
+    return (
+      <DataSet
+        className={`${baseClass}__platforms`}
+        title="Platforms"
+        value={
+          <div className={`${baseClass}__platform-list`}>
+            {platforms.map((platform) => (
+              <span key={platform} className={`${baseClass}__platform-item`}>
+                <Icon name={platform} color="ui-fleet-black-75" />
+                {PLATFORM_DISPLAY_NAMES[platform] || platform}
+              </span>
+            ))}
+          </div>
+        }
+      />
+    );
+  };
+
+  const openLabelModal = () => setShowLabelModal(true);
+
+  const renderLabels = (): JSX.Element | null => {
+    if (!labelModalData) return null;
+
+    const { includeLabels, excludeLabels } = labelModalData;
+    const allLabels = [...(includeLabels ?? []), ...(excludeLabels ?? [])];
+    if (!allLabels.length) return null;
+
+    return (
+      <DataSet
+        className={`${baseClass}__labels`}
+        title="Labels"
+        value={
+          <TruncatedTextList
+            items={allLabels.map((l) => l.name)}
+            onClick={openLabelModal}
+          />
+        }
+      />
+    );
+  };
+
+  const renderFleetName = () => {
+    if (!policyFleetName) return null;
+    return (
+      <DataSet
+        className={`${baseClass}__fleet`}
+        title="Fleet"
+        value={policyFleetName}
+      />
+    );
+  };
+
+  const renderResolution = () => {
+    if (!storedPolicy?.resolution) return null;
+    return (
+      <DataSet
+        className={`${baseClass}__resolve`}
+        title="Resolve"
+        value={storedPolicy.resolution}
+        multiline
+      />
+    );
+  };
+
+  const renderAutomation = () => {
+    const [automation] = storedPolicy
+      ? mapAutomationRows(storedPolicy, otherAutomationType)
+      : [];
+    if (!storedPolicy || !automation) {
+      return (
+        <DataSet
+          className={`${baseClass}__automations`}
+          title="Automation"
+          value={DEFAULT_EMPTY_CELL_VALUE}
+        />
+      );
+    }
+
+    const isScriptGraphic =
+      automation.graphicName === "file-sh" ||
+      automation.graphicName === "file-ps1" ||
+      automation.graphicName === "file-configuration-profile";
+    // Continuous automations only change how software and script automations
+    // run.
+    const isContinuous =
+      !!storedPolicy.continuous_automations_enabled &&
+      (storedPolicy.automation_type === "software" ||
+        storedPolicy.automation_type === "script");
+
+    return (
+      <DataSet
+        className={`${baseClass}__automations`}
+        title="Automation"
+        value={
+          <>
+            {automation.isSoftware ? (
+              <SoftwareIcon
+                name={automation.iconName ?? automation.name}
+                url={automation.iconUrl}
+                size="small"
+              />
+            ) : (
+              automation.graphicName && (
+                <Graphic
+                  name={automation.graphicName}
+                  className={isScriptGraphic ? "scale-40-24" : ""}
+                />
+              )
+            )}
+            <span className={`${baseClass}__automation-name`}>
+              {automation.name}
+            </span>
+            {isContinuous && (
+              <span className={`${baseClass}__automation-continuous`}>
+                <TooltipWrapper tipContent="Runs every time Fleet receives a failing response, not only on a host's first failure.">
+                  Continuous
+                </TooltipWrapper>
+              </span>
+            )}
+          </>
+        }
+      />
+    );
+  };
+
+  const renderHeader = () => {
+    return (
+      <>
+        <div className={`${baseClass}__header-links`}>
+          <BackButton text="Back to policies" path={backToPoliciesPath} />
+        </div>
+        {!isLoading && !apiError && (
+          <>
+            <div className={`${baseClass}__title-bar`}>
+              <div className={`${baseClass}__name-description`}>
+                <h1 className={`${baseClass}__policy-name`}>
+                  <TooltipTruncatedText
+                    value={storedPolicy?.name}
+                    fixedPositionStrategy
+                  />
+                  {storedPolicy?.critical && (
+                    <TooltipWrapper
+                      tipContent="This policy has been marked as critical."
+                      position="top"
+                      showArrow
+                      underline={false}
+                      fixedPositionStrategy
+                    >
+                      <Icon
+                        className="critical-policy-icon"
+                        name="policy"
+                        color="ui-fleet-black-50"
+                      />
+                    </TooltipWrapper>
+                  )}
+                </h1>
+                <PageDescription
+                  className={`${baseClass}__policy-description`}
+                  content={storedPolicy?.description}
+                />
+              </div>
+              <div className={`${baseClass}__action-button-container`}>
+                <Button
+                  className={`${baseClass}__show-query-btn`}
+                  onClick={() => setShowQueryModal(true)}
+                  variant="secondary"
+                >
+                  Show query
+                </Button>
+                {canRunPolicy && (
+                  <Button
+                    className={`${baseClass}__run`}
+                    variant="secondary"
+                    onClick={() => {
+                      policyId &&
+                        router.push(
+                          getPathWithQueryParams(PATHS.LIVE_POLICY(policyId), {
+                            fleet_id: teamIdForApi,
+                          })
+                        );
+                    }}
+                    disabled={!!disabledLiveQuery}
+                    icon="run"
+                    iconPosition="right"
+                  >
+                    Run policy
+                  </Button>
+                )}
+                {canEditPolicy && (
+                  <Button
+                    onClick={() => {
+                      policyId &&
+                        router.push(
+                          getPathWithQueryParams(PATHS.EDIT_POLICY(policyId), {
+                            fleet_id: teamIdForApi,
+                          })
+                        );
+                    }}
+                    className={`${baseClass}__edit-policy-btn`}
+                  >
+                    Edit policy
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className={`${baseClass}__details`}>
+              <div className={`${baseClass}__properties`}>
+                {renderFleetName()}
+                {renderPlatforms()}
+                {renderLabels()}
+                {renderAutomation()}
+                {renderAuthor()}
+              </div>
+              {renderResolution()}
+            </div>
+          </>
+        )}
+      </>
+    );
+  };
+
+  if (!isRouteOk) {
+    return <Spinner />;
+  }
+
+  return (
+    <MainContent className={baseClass}>
+      {isLoading ? <Spinner /> : renderHeader()}
+      {!isLoading && !apiError && storedPolicy && (
+        <PolicyAutomationsActivitiesTable
+          policy={storedPolicy}
+          initialSearchQuery={searchQuery}
+          onSearchQueryChange={replaceSearchQuery}
+          otherAutomationType={otherAutomationType}
+          canResetPolicy={canEditPolicy}
+        />
+      )}
+      {showQueryModal && (
+        <ShowQueryModal
+          query={storedPolicy?.query}
+          onCancel={() => setShowQueryModal(false)}
+        />
+      )}
+      {showLabelModal && labelModalData && (
+        <PolicyLabelModal
+          includeLabels={labelModalData.includeLabels}
+          includeScopeLabel={labelModalData.includeScopeLabel}
+          excludeLabels={labelModalData.excludeLabels}
+          excludeScopeLabel={labelModalData.excludeScopeLabel}
+          getLabelPath={canEditLabels ? PATHS.LABEL_EDIT : undefined}
+          onClose={() => setShowLabelModal(false)}
+        />
+      )}
+    </MainContent>
+  );
+};
+
+export default PolicyDetailsPage;

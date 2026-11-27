@@ -1,0 +1,982 @@
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import React from "react";
+import { ErrorBoundary, FallbackProps } from "react-error-boundary";
+
+import { createMockActivity } from "__mocks__/activityMock";
+import { createMockGetHostAISessionsResponse } from "__mocks__/aiSessionsMock";
+import createMockConfig from "__mocks__/configMock";
+import createMockHost, {
+  createMockGetHostSoftwareResponse,
+} from "__mocks__/hostMock";
+import createMockPolicy from "__mocks__/policyMock";
+import createMockUser from "__mocks__/userMock";
+import { notify } from "components/ToastNotification";
+import { ActivityType } from "interfaces/activity";
+import { IHost } from "interfaces/host";
+import { IHostPolicy } from "interfaces/policy";
+import { IUser } from "interfaces/user";
+import activitiesAPI from "services/entities/activities";
+import commandAPI from "services/entities/command";
+import hostAPI from "services/entities/hosts";
+import teamAPI from "services/entities/teams";
+import { createCustomRenderer, createMockRouter } from "test/test-utils";
+import local from "utilities/local";
+
+import HostDetailsPage, {
+  getMDMCommandsToggleLocalState,
+  REFETCH_HOST_DETAILS_POLLING_INTERVAL,
+  setMDMCommandsToggleLocalState,
+} from "./HostDetailsPage";
+
+jest.mock("services/entities/hosts");
+jest.mock("services/entities/activities");
+jest.mock("services/entities/teams");
+jest.mock("services/entities/command");
+jest.mock("components/ToastNotification", () => ({
+  notify: {
+    success: jest.fn(),
+    error: jest.fn(),
+    batch: jest.fn(),
+    dismiss: jest.fn(),
+  },
+}));
+
+const mockLocation = {
+  pathname: "/hosts/1",
+  query: {},
+  search: "",
+};
+
+const ADMIN = createMockUser();
+const OBSERVER = createMockUser({ role: "observer", global_role: "observer" });
+
+// The server's "never" sentinel for timestamps that have not been set yet.
+const NEVER = "2000-01-01T00:00:00Z";
+
+const mockPendingWindowsHost = (status: "online" | "offline"): IHost => {
+  const host = createMockHost({
+    platform: "windows",
+    status,
+    refetch_requested: true,
+    last_enrolled_at: "2000-01-01T00:00:00Z",
+    detail_updated_at: NEVER,
+  });
+  host.mdm.enrollment_status = "Pending";
+  return host;
+};
+
+/** A host whose agent has enrolled but has not reported vitals yet, e.g. while setup experience is running. */
+const mockNeverFetchedWindowsHost = (status: "online" | "offline"): IHost =>
+  createMockHost({
+    platform: "windows",
+    status,
+    refetch_requested: true,
+    last_enrolled_at: "2026-09-23T00:00:00Z",
+    detail_updated_at: NEVER,
+  });
+
+/** An Apple host that is MDM-enrolled and online -- the only combination that
+ * pings APNS alongside the refetch. */
+const mockAppleHost = (): IHost => {
+  const host = createMockHost({ platform: "darwin", status: "online" });
+  host.mdm.enrollment_status = "On (manual)";
+  host.mdm.connected_to_fleet = true;
+  return host;
+};
+
+const mockWindowsHost = (): IHost => {
+  const host = createMockHost({ platform: "windows", status: "online" });
+  host.mdm.enrollment_status = null;
+  host.mdm.connected_to_fleet = false;
+  return host;
+};
+
+const stubQueries = (host: IHost) => {
+  (hostAPI.loadHostDetails as jest.Mock).mockResolvedValue({ host });
+  (hostAPI.loadHostDetailsExtension as jest.Mock).mockResolvedValue({
+    macadmins: null,
+  });
+  (hostAPI.getHostCertificates as jest.Mock).mockResolvedValue({
+    certificates: [],
+    meta: { has_next_results: false, has_previous_results: false },
+  });
+  (hostAPI.getHostAISessions as jest.Mock).mockResolvedValue(
+    createMockGetHostAISessionsResponse()
+  );
+  (hostAPI.refetch as jest.Mock).mockResolvedValue({});
+  (hostAPI.apnsPing as jest.Mock).mockResolvedValue({});
+  (activitiesAPI.getHostPastActivities as jest.Mock).mockResolvedValue({
+    activities: [],
+    meta: { has_next_results: false, has_previous_results: false },
+  });
+  (activitiesAPI.getHostUpcomingActivities as jest.Mock).mockResolvedValue({
+    activities: [],
+    count: 0,
+    meta: { has_next_results: false, has_previous_results: false },
+  });
+  (teamAPI.loadAll as jest.Mock).mockResolvedValue({ fleets: [] });
+  (commandAPI.getCommands as jest.Mock).mockResolvedValue({
+    results: [],
+    count: 0,
+    meta: { has_next_results: false, has_previous_results: false },
+  });
+};
+
+const renderHostDetails = (overrides?: {
+  currentUser?: IUser;
+  isGlobalAdmin?: boolean;
+  isMacMdmEnabledAndConfigured?: boolean;
+  isWindowsMdmEnabledAndConfigured?: boolean;
+  location?: typeof mockLocation;
+  hostId?: string;
+  router?: ReturnType<typeof createMockRouter>;
+  filteredHostsPath?: string;
+  isPremiumTier?: boolean;
+}) => {
+  const {
+    currentUser = ADMIN,
+    isGlobalAdmin = true,
+    isMacMdmEnabledAndConfigured = false,
+    isWindowsMdmEnabledAndConfigured = false,
+    location = mockLocation,
+    hostId = "1",
+    router = createMockRouter(),
+    filteredHostsPath = "",
+    isPremiumTier = true,
+  } = overrides || {};
+
+  const render = createCustomRenderer({
+    withBackendMock: true,
+    context: {
+      app: {
+        currentUser,
+        isGlobalAdmin,
+        isPremiumTier,
+        isMacMdmEnabledAndConfigured,
+        isWindowsMdmEnabledAndConfigured,
+        config: createMockConfig(),
+        filteredHostsPath,
+      },
+    },
+  });
+
+  // App.tsx wraps every page in an ErrorBoundary; its overlay reads the status.
+  const ErrorStatus = ({ error }: FallbackProps) => (
+    <div>error status {(error as Error & { status?: number }).status}</div>
+  );
+
+  return render(
+    <ErrorBoundary FallbackComponent={ErrorStatus}>
+      <HostDetailsPage
+        router={router}
+        location={location}
+        params={{ host_id: hostId }}
+      />
+    </ErrorBoundary>
+  );
+};
+
+beforeEach(() => {
+  class MockResizeObserver {
+    observe = jest.fn();
+    unobserve = jest.fn();
+    disconnect = jest.fn();
+  }
+
+  global.ResizeObserver = MockResizeObserver as typeof ResizeObserver;
+});
+
+describe("HostDetailsPage - APNS ping on refetch", () => {
+  afterEach(() => {
+    local.clear();
+    jest.resetAllMocks();
+  });
+
+  it("pings APNS alongside the refetch for observer and above", async () => {
+    stubQueries(mockAppleHost());
+
+    // Global admin: refetch fires the ping too.
+    const { user, unmount } = renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+    });
+    await user.click(await screen.findByRole("button", { name: /refetch/i }));
+    await waitFor(() => {
+      expect(hostAPI.refetch).toHaveBeenCalled();
+    });
+    expect(hostAPI.apnsPing).toHaveBeenCalledWith(1);
+    unmount();
+
+    (hostAPI.refetch as jest.Mock).mockClear();
+    (hostAPI.apnsPing as jest.Mock).mockClear();
+
+    // Global observer: fires the ping as well.
+    const { user: observer } = renderHostDetails({
+      currentUser: OBSERVER,
+      isGlobalAdmin: false,
+    });
+    await observer.click(
+      await screen.findByRole("button", { name: /refetch/i })
+    );
+    await waitFor(() => {
+      expect(hostAPI.refetch).toHaveBeenCalled();
+    });
+    expect(hostAPI.apnsPing).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("HostDetailsPage - MDM status modal Check in now", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.resetAllMocks();
+  });
+
+  it("delays the host details refetch by 5 seconds after a successful check-in", async () => {
+    stubQueries(mockAppleHost());
+    (hostAPI.getDepAssignment as jest.Mock).mockResolvedValue({
+      host_dep_assignment: null,
+    });
+
+    renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+      location: { ...mockLocation, query: { show_mdm_status: "true" } },
+    });
+
+    const checkInButton = await screen.findByRole("button", {
+      name: /check in now/i,
+    });
+    const callsBeforeCheckIn = (hostAPI.loadHostDetails as jest.Mock).mock.calls
+      .length;
+
+    // Fake timers only from here on, so user-event can control its own
+    // internal delays via the advanceTimers option.
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    await user.click(checkInButton);
+    expect(hostAPI.apnsPing).toHaveBeenCalledWith(1);
+
+    // No immediate refetch -- the app delays it 5s so the device has time to check in.
+    expect((hostAPI.loadHostDetails as jest.Mock).mock.calls.length).toBe(
+      callsBeforeCheckIn
+    );
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(
+      (hostAPI.loadHostDetails as jest.Mock).mock.calls.length
+    ).toBeGreaterThan(callsBeforeCheckIn);
+  });
+});
+
+describe("HostDetailsPage - AI sessions", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.resetAllMocks();
+  });
+
+  it("refetches the AI sessions along with the host vitals", async () => {
+    stubQueries(mockWindowsHost());
+    renderHostDetails({ currentUser: ADMIN, isGlobalAdmin: true });
+
+    expect(await screen.findByText("1 session")).toBeInTheDocument();
+    const refetchButton = await screen.findByRole("button", {
+      name: /refetch/i,
+    });
+    const callsBeforeRefetch = (hostAPI.getHostAISessions as jest.Mock).mock
+      .calls.length;
+
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(refetchButton);
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(
+        REFETCH_HOST_DETAILS_POLLING_INTERVAL
+      );
+    });
+
+    expect(
+      (hostAPI.getHostAISessions as jest.Mock).mock.calls.length
+    ).toBeGreaterThan(callsBeforeRefetch);
+  });
+});
+
+describe("HostDetailsPage - pending hosts", () => {
+  // Fake from before the render: the refetch poll is scheduled on first load.
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.resetAllMocks();
+  });
+
+  it("doesn't spin on vitals or report the host offline", async () => {
+    stubQueries(mockPendingWindowsHost("online"));
+    // The host row ages out of the 60-second online window while the page is open.
+    (hostAPI.loadHostDetails as jest.Mock)
+      .mockResolvedValueOnce({ host: mockPendingWindowsHost("online") })
+      .mockResolvedValue({ host: mockPendingWindowsHost("offline") });
+
+    renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+    });
+    await screen.findByText("Vitals");
+    // Give the poll timer (2s) room to fire if it was scheduled.
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(screen.queryByText(/refetching\.\.\./i)).not.toBeInTheDocument();
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("still reports back when the user asks for the refetch", async () => {
+    stubQueries(mockPendingWindowsHost("online"));
+    (hostAPI.loadHostDetails as jest.Mock)
+      .mockResolvedValueOnce({ host: mockPendingWindowsHost("online") })
+      .mockResolvedValue({ host: mockPendingWindowsHost("offline") });
+
+    renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+    });
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(await screen.findByRole("button", { name: /refetch/i }));
+    await waitFor(() => {
+      expect(hostAPI.refetch).toHaveBeenCalled();
+    });
+
+    await waitFor(
+      () => {
+        expect(notify.error).toHaveBeenCalledWith(
+          "This host is offline. Please try refetching host vitals later."
+        );
+      },
+      { timeout: 10000 }
+    );
+  });
+});
+
+describe("HostDetailsPage - hosts that haven't reported vitals", () => {
+  const realNow = Date.now;
+  let elapsedMs = 0;
+  let dateNowSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    // Date stays real: these tests move the clock themselves through the spy.
+    jest.useFakeTimers({ doNotFake: ["Date"] });
+    elapsedMs = 0;
+    dateNowSpy = jest
+      .spyOn(Date, "now")
+      .mockImplementation(() => realNow() + elapsedMs);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    dateNowSpy.mockRestore();
+    jest.resetAllMocks();
+  });
+
+  it.each([
+    {
+      name: "drops out of the online window",
+      laterStatus: "offline",
+      pollMs: 0,
+    },
+    { name: "outlasts the poll window", laterStatus: "online", pollMs: 61000 },
+  ] as const)(
+    "doesn't show a refetch error when the host $name",
+    async ({ laterStatus, pollMs }) => {
+      stubQueries(mockNeverFetchedWindowsHost("online"));
+      (hostAPI.loadHostDetails as jest.Mock)
+        .mockResolvedValueOnce({ host: mockNeverFetchedWindowsHost("online") })
+        .mockResolvedValue({ host: mockNeverFetchedWindowsHost(laterStatus) });
+
+      renderHostDetails({
+        currentUser: ADMIN,
+        isGlobalAdmin: true,
+      });
+      await screen.findByText(/refetching\.\.\./i);
+      elapsedMs = pollMs;
+      // The spinner clears only once the next response has gone through the toast decision.
+      await waitFor(
+        () =>
+          expect(
+            screen.queryByText(/refetching\.\.\./i)
+          ).not.toBeInTheDocument(),
+        { timeout: 5000 }
+      );
+
+      expect(notify.error).not.toHaveBeenCalled();
+    }
+  );
+});
+
+describe("HostDetailsPage - Show MDM commands toggle", () => {
+  afterEach(() => {
+    local.clear();
+    jest.resetAllMocks();
+  });
+
+  it("keeps the toggle on across a remount", async () => {
+    stubQueries(mockAppleHost());
+
+    const { user, unmount } = renderHostDetails({
+      isMacMdmEnabledAndConfigured: true,
+    });
+    const [toggle] = await screen.findAllByRole("switch");
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+
+    expect(getMDMCommandsToggleLocalState()).toBe(true);
+    expect(local.getItem("hostDetailsShowMDMCommands")).toBe("true");
+    unmount();
+
+    renderHostDetails({
+      isMacMdmEnabledAndConfigured: true,
+    });
+    await waitFor(() => {
+      expect(screen.getAllByRole("switch")[0]).toBeChecked();
+    });
+  });
+
+  it("leaves the past activity feed alone on a host with no MDM commands", async () => {
+    setMDMCommandsToggleLocalState(true);
+    stubQueries(mockWindowsHost());
+
+    renderHostDetails();
+
+    expect(await screen.findByText("No activity")).toBeInTheDocument();
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+  });
+});
+
+describe("HostDetailsPage - software library", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it("shows the unsupported empty state on NixOS hosts, explaining that software is installed outside of Fleet", async () => {
+    const host = createMockHost({ platform: "nixos", status: "online" });
+    stubQueries(host);
+
+    renderHostDetails({
+      location: { ...mockLocation, pathname: "/hosts/1/software/library" },
+    });
+
+    expect(
+      await screen.findByText(
+        /Installing software on NixOS hosts happens outside of Fleet./
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Software library is currently not supported on this host"
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /learn more/i })).toHaveAttribute(
+      "href",
+      "https://fleetdm.com/learn-more-about/nixos-package-management"
+    );
+    expect(hostAPI.getHostSoftware).not.toHaveBeenCalled();
+  });
+
+  it("doesn't apply the Inventory tab's filters to the Library", async () => {
+    stubQueries(mockWindowsHost());
+    (hostAPI.getHostSoftware as jest.Mock).mockResolvedValue(
+      createMockGetHostSoftwareResponse()
+    );
+
+    renderHostDetails({
+      location: {
+        ...mockLocation,
+        pathname: "/hosts/1/software/library",
+        query: { types: "windows_app", ai_tool: "true" },
+      },
+    });
+
+    await waitFor(() => expect(hostAPI.getHostSoftware).toHaveBeenCalled());
+    const params = (hostAPI.getHostSoftware as jest.Mock).mock.calls[0][0];
+    expect(params.available_for_install).toBe(true);
+    expect(params).not.toHaveProperty("types");
+    expect(params).not.toHaveProperty("ai_tool");
+  });
+});
+
+describe("HostDetailsPage - disk encryption key rotation", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  const mockMacWithKey = (keyAvailable: boolean) => {
+    const host = mockAppleHost();
+    host.mdm.encryption_key_available = keyAvailable;
+    host.mdm.encryption_key_archived = !keyAvailable;
+    return host;
+  };
+
+  const openDiskEncryptionKeyModal = async (
+    user: ReturnType<typeof userEvent.setup>
+  ) => {
+    await user.click(await screen.findByText("Actions"));
+    await user.click(await screen.findByText("Show disk encryption key"));
+    await screen.findByText("Disk encryption key");
+    await waitFor(() => expect(hostAPI.getEncryptionKey).toHaveBeenCalled());
+  };
+
+  beforeEach(() => {
+    (hostAPI.getEncryptionKey as jest.Mock).mockResolvedValue({
+      host_id: 1,
+      encryption_key: {
+        key: "AAAA-BBBB-CCCC",
+        updated_at: "2026-09-20T13:00:00Z",
+        rotation_pending: false,
+      },
+    });
+  });
+
+  it("offers Rotate key to an admin when the host's key is available", async () => {
+    stubQueries(mockMacWithKey(true));
+    const { user } = renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+    });
+
+    await openDiskEncryptionKeyModal(user);
+
+    expect(
+      await screen.findByRole("button", { name: "Rotate key" })
+    ).toBeInTheDocument();
+  });
+
+  it("doesn't offer Rotate key to an observer", async () => {
+    stubQueries(mockMacWithKey(true));
+    const { user } = renderHostDetails({
+      currentUser: OBSERVER,
+      isGlobalAdmin: false,
+    });
+
+    await openDiskEncryptionKeyModal(user);
+
+    expect(
+      screen.queryByRole("button", { name: "Rotate key" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("doesn't offer Rotate key when only an archived key is shown", async () => {
+    stubQueries(mockMacWithKey(false));
+    const { user } = renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+    });
+
+    await openDiskEncryptionKeyModal(user);
+
+    expect(
+      screen.queryByRole("button", { name: "Rotate key" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("doesn't offer Rotate key on a personal host", async () => {
+    const host = mockMacWithKey(true);
+    host.mdm.enrollment_status = "On (personal)";
+    stubQueries(host);
+    const { user } = renderHostDetails({
+      currentUser: ADMIN,
+      isGlobalAdmin: true,
+    });
+
+    await openDiskEncryptionKeyModal(user);
+
+    expect(
+      screen.queryByRole("button", { name: "Rotate key" })
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("HostDetailsPage - refetch cycle on tab switch", () => {
+  const mockOnlineStuckHost = (): IHost =>
+    createMockHost({
+      id: 1,
+      platform: "darwin",
+      status: "online",
+      refetch_requested: true,
+    });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+    jest.resetAllMocks();
+  });
+
+  // Each tab-focus re-entry into onSuccess used to schedule a fresh setTimeout
+  // next to the one already pending, so polling sped up.
+  it("does not stack polling loops when the tab regains focus mid-refetch", async () => {
+    stubQueries(mockOnlineStuckHost());
+
+    jest.useFakeTimers({ doNotFake: ["queueMicrotask"] });
+    const start = 1_700_000_000_000;
+    let now = start;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+
+    renderHostDetails();
+    await screen.findByText("Vitals");
+
+    // Dispatch three window-focus events (react-query's refetchOnWindowFocus
+    // trigger). Each one re-enters onSuccess.
+    for (let i = 0; i < 3; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+        window.dispatchEvent(new Event("visibilitychange"));
+        await jest.advanceTimersByTimeAsync(0);
+      });
+    }
+
+    const callsBeforeAdvance = (hostAPI.loadHostDetails as jest.Mock).mock.calls
+      .length;
+
+    // One polling interval. With the fix, exactly one scheduled poll fires in
+    // this window. Without it, each stacked timer fires an extra request.
+    now += 2000;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+
+    const pollsInOneInterval =
+      (hostAPI.loadHostDetails as jest.Mock).mock.calls.length -
+      callsBeforeAdvance;
+    expect(pollsInOneInterval).toBe(1);
+  });
+
+  // After give-up, the server still reports refetch_requested: true, so a
+  // focus-triggered onSuccess used to re-enter the "timer just started" branch
+  // and run a fresh 60s cycle (new toast 60s later).
+  it("doesn't restart the refetch window after a timeout when the tab regains focus", async () => {
+    jest.useFakeTimers({ doNotFake: ["queueMicrotask"] });
+    const start = 1_700_000_000_000;
+    let now = start;
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+
+    stubQueries(mockOnlineStuckHost());
+    (hostAPI.loadHostDetails as jest.Mock).mockResolvedValue({
+      host: mockOnlineStuckHost(),
+    });
+
+    renderHostDetails();
+    await screen.findByText("Vitals");
+
+    // Advance past the 60s give-up window so the next polling tick fires the toast.
+    now += 61000;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+
+    await waitFor(() => {
+      expect(notify.error).toHaveBeenCalledWith(
+        "Refetch sent but vitals are taking longer than expected to load. You’ll see an update when the host responds."
+      );
+    });
+    expect(notify.error).toHaveBeenCalledTimes(1);
+
+    // Simulate a tab switch and let a full fresh 60s + 2s poll interval pass.
+    // Without the fix, this re-enters the "timer just started" branch, opens a
+    // new 60s cycle, and 60s later shows the toast a second time.
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("visibilitychange"));
+      await jest.advanceTimersByTimeAsync(0);
+    });
+    now += 65000;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(notify.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("HostDetailsPage - enrollment rejection details", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it("names the Fleetd enroll secret profile for a Windows spent-secret rejection", async () => {
+    stubQueries(mockWindowsHost());
+    (activitiesAPI.getHostPastActivities as jest.Mock).mockResolvedValue({
+      activities: [
+        createMockActivity({
+          type: ActivityType.HostEnrollmentRejected,
+          fleet_initiated: true,
+          details: {
+            host_display_name: "Anna's laptop",
+            reason: "one_time_secret_spent",
+            platform: "windows",
+          },
+        }),
+      ],
+      meta: { has_next_results: false, has_previous_results: false },
+    });
+
+    renderHostDetails();
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "show info" })
+    );
+
+    expect(await screen.findByText("Enrollment details")).toBeInTheDocument();
+    expect(screen.getByText("Fleetd enroll secret")).toBeInTheDocument();
+    expect(screen.queryByText("Fleetd configuration")).not.toBeInTheDocument();
+  });
+});
+
+describe("HostDetailsPage - reset", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it("shows Reset pending and reloads the activity feed from its first page after a reset", async () => {
+    const host = createMockHost({ platform: "windows", status: "online" });
+    host.mdm.enrollment_status = "On (manual)";
+    host.mdm.connected_to_fleet = true;
+    stubQueries(host);
+    (activitiesAPI.getHostPastActivities as jest.Mock).mockResolvedValue({
+      activities: [createMockActivity({ type: ActivityType.LockedHost })],
+      meta: { has_next_results: true, has_previous_results: false },
+    });
+    jest.mocked(hostAPI.resetHost).mockResolvedValue({});
+    const { user } = renderHostDetails({
+      isWindowsMdmEnabledAndConfigured: true,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await waitFor(() =>
+      expect(activitiesAPI.getHostPastActivities).toHaveBeenLastCalledWith(
+        host.id,
+        1,
+        expect.any(Number)
+      )
+    );
+
+    await user.click(await screen.findByText("Actions"));
+    await user.click(await screen.findByText("Reset"));
+    await user.click(
+      screen.getByRole("checkbox", { name: new RegExp(host.display_name) })
+    );
+    await user.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(await screen.findByText("Reset pending")).toBeInTheDocument();
+    expect(hostAPI.resetHost).toHaveBeenCalledTimes(1);
+    expect(hostAPI.resetHost).toHaveBeenCalledWith(host.id);
+    await waitFor(() =>
+      expect(activitiesAPI.getHostPastActivities).toHaveBeenLastCalledWith(
+        host.id,
+        0,
+        expect.any(Number)
+      )
+    );
+  });
+});
+
+describe("HostDetailsPage - activity card tab switch", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it("refetches upcoming activity queries on Upcoming click and past activity queries on Past click so finished scripts and the Upcoming badge both refresh without a reload", async () => {
+    stubQueries(mockAppleHost());
+    const { user } = renderHostDetails({
+      isMacMdmEnabledAndConfigured: true,
+    });
+
+    await waitFor(() => {
+      expect(activitiesAPI.getHostPastActivities).toHaveBeenCalled();
+      expect(activitiesAPI.getHostUpcomingActivities).toHaveBeenCalled();
+      expect(commandAPI.getCommands).toHaveBeenCalled();
+    });
+    const pastCallsBefore = (activitiesAPI.getHostPastActivities as jest.Mock)
+      .mock.calls.length;
+    const upcomingCallsBefore = (activitiesAPI.getHostUpcomingActivities as jest.Mock)
+      .mock.calls.length;
+
+    // Click Upcoming: upcoming queries refetch, past queries stay put.
+    await user.click(screen.getByRole("tab", { name: /upcoming/i }));
+    await waitFor(() => {
+      expect(
+        (activitiesAPI.getHostUpcomingActivities as jest.Mock).mock.calls.length
+      ).toBeGreaterThan(upcomingCallsBefore);
+    });
+    expect(
+      (activitiesAPI.getHostPastActivities as jest.Mock).mock.calls.length
+    ).toBe(pastCallsBefore);
+
+    // Click Past: past queries refetch AND upcoming queries refetch for the
+    // always-visible badge (otherwise switching to Past would leave the
+    // Upcoming count stale).
+    const pastCallsBeforePast = (activitiesAPI.getHostPastActivities as jest.Mock)
+      .mock.calls.length;
+    const upcomingCallsBeforePast = (activitiesAPI.getHostUpcomingActivities as jest.Mock)
+      .mock.calls.length;
+    await user.click(screen.getByRole("tab", { name: /past/i }));
+    await waitFor(() => {
+      expect(
+        (activitiesAPI.getHostPastActivities as jest.Mock).mock.calls.length
+      ).toBeGreaterThan(pastCallsBeforePast);
+      expect(
+        (activitiesAPI.getHostUpcomingActivities as jest.Mock).mock.calls.length
+      ).toBeGreaterThan(upcomingCallsBeforePast);
+    });
+  });
+
+  it("doesn't fire getCommands on a tab switch when the host can't take MDM commands (non-Apple), avoiding a 400 from the command_status filter", async () => {
+    stubQueries(mockWindowsHost());
+    const { user } = renderHostDetails({
+      isMacMdmEnabledAndConfigured: true,
+    });
+
+    await screen.findByText("Activity");
+    const commandsCallsBefore = (commandAPI.getCommands as jest.Mock).mock.calls
+      .length;
+
+    await user.click(await screen.findByRole("tab", { name: /upcoming/i }));
+    await user.click(await screen.findByRole("tab", { name: /past/i }));
+
+    // Wait for the past refetch to confirm the switch handler ran at least
+    // once, then assert no getCommands calls were fired by either switch.
+    await waitFor(() => {
+      expect(
+        (activitiesAPI.getHostPastActivities as jest.Mock).mock.calls.length
+      ).toBeGreaterThan(1);
+    });
+    expect((commandAPI.getCommands as jest.Mock).mock.calls.length).toBe(
+      commandsCallsBefore
+    );
+  });
+});
+
+describe("HostDetailsPage - delete host", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  const deleteHost = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByText("Actions"));
+    await user.click(await screen.findByText("Delete"));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(hostAPI.destroy).toHaveBeenCalled());
+  };
+
+  it("returns to the fleet's host list the user came from", async () => {
+    stubQueries(mockWindowsHost());
+    (hostAPI.destroy as jest.Mock).mockResolvedValue({});
+    const router = createMockRouter({ push: jest.fn() });
+    const { user } = renderHostDetails({
+      router,
+      location: { ...mockLocation, query: { fleet_id: "3" } },
+    });
+
+    await deleteHost(user);
+
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith("/hosts/manage?fleet_id=3")
+    );
+  });
+
+  it("returns to the filtered host list the user came from", async () => {
+    stubQueries(mockWindowsHost());
+    (hostAPI.destroy as jest.Mock).mockResolvedValue({});
+    const router = createMockRouter({ push: jest.fn() });
+    const { user } = renderHostDetails({
+      router,
+      location: { ...mockLocation, query: { fleet_id: "3" } },
+      filteredHostsPath: "/hosts/manage?fleet_id=3&status=offline",
+    });
+
+    await deleteHost(user);
+
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith(
+        "/hosts/manage?fleet_id=3&status=offline"
+      )
+    );
+  });
+});
+
+describe("HostDetailsPage - invalid host id", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it.each(["abc", "0", "1abc", "1.5"])(
+    "shows the not found page for /hosts/%s",
+    async (id) => {
+      stubQueries(createMockHost());
+
+      renderHostDetails({ hostId: id });
+
+      expect(await screen.findByText("error status 404")).toBeInTheDocument();
+      expect(hostAPI.loadHostDetails).not.toHaveBeenCalled();
+    }
+  );
+});
+
+describe("HostDetailsPage - policy click", () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it.each<[string, number | null, number | null, boolean, number | undefined]>([
+    ["an inherited policy keeps the host's fleet", null, 2, true, 2],
+    [
+      "an inherited policy on an unassigned host keeps No fleet",
+      null,
+      null,
+      true,
+      0,
+    ],
+    ["a fleet policy opens in its own fleet", 2, 2, true, 2],
+    ["Free tier sends no fleet", null, null, false, undefined],
+  ])(
+    "opens the policy page with the host's name: %s",
+    async (_, policyFleetId, hostFleetId, isPremiumTier, expectedFleetId) => {
+      const hostPolicy: IHostPolicy = {
+        ...createMockPolicy({
+          id: 7,
+          name: "Disk encrypted",
+          fleet_id: policyFleetId,
+        }),
+        response: "fail",
+      };
+      stubQueries(
+        createMockHost({
+          fleet_id: hostFleetId,
+          display_name: "Workstation 1",
+          policies: [hostPolicy],
+        })
+      );
+      const router = createMockRouter({ push: jest.fn() });
+      const { user } = renderHostDetails({
+        router,
+        isPremiumTier,
+        location: { ...mockLocation, pathname: "/hosts/1/policies" },
+      });
+
+      await user.click(
+        await screen.findByRole("row", { name: /Disk encrypted/ })
+      );
+
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: "/policies/7",
+        query: { fleet_id: expectedFleetId },
+        state: { hostSearch: "Workstation 1" },
+      });
+    }
+  );
+});
