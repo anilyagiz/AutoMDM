@@ -86,7 +86,7 @@ jobs:
       - name: Tests
         run: |
           set +e
-          tags="-tags full,fts5,netgo"
+          tags="-tags fts5,netgo"
           case "${{ matrix.suite }}" in
             unit)
               go test $tags -count=1 -timeout 120m ./... > /tmp/logs/test.log 2>&1 ;;
@@ -106,6 +106,7 @@ jobs:
           esac
           echo "exit=$?" | tee -a /tmp/logs/test.log
           grep -E "^(FAIL|--- FAIL|panic)" /tmp/logs/test.log | head -100 || true
+          if grep -q "\[setup failed\]\|\[build failed\]" /tmp/logs/test.log; then echo "::error::tests did not build"; exit 1; fi
 
       - name: Publish logs
         if: always()

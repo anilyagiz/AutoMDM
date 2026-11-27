@@ -130,6 +130,10 @@ PROTECT_ALWAYS = [
     r"\bfleetdm/fleet#\d+",
     # other repositories and images of the fleetdm organization: dependencies, data feeds and build images
     r"\bfleetdm/(?!fleet(?:ctl)?(?:\.git)?(?![A-Za-z0-9_-]))[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*",
+    # the GitHub organization that publishes the CPE, OVAL and vulnerability feeds
+    r'"fleetdm",(?=\s*"(?:nvd|vulnerabilities)")',
+    r'(?<=owner)(\s*=\s*)"fleetdm"',
+    r'(?<=githubOwner)(\s*=\s*)"fleetdm"',
     # CPE names are NVD's, not ours
     r"cpe:2\.3:[aoh]:fleetdm:[A-Za-z0-9_.:*-]*",
     r"cpe:/[aoh]:fleetdm:[A-Za-z0-9_.:*-]*",
@@ -630,6 +634,8 @@ class Rebrander:
         text = "".join(out)
         if kind != "go":
             text = ARTICLE_RE.sub(r"\1n \2", text)
+        # Go canonicalizes header names ("X-Automdm-Capabilities"); code that indexes an http.Header directly needs that form.
+        text = text.replace("X-AutoMDM-", "X-Automdm-")
         return self.unprotect(text, protected)
 
     def rewrite_chunk(self, text, start, end, region, kind, path, line_starts, line_idx):
